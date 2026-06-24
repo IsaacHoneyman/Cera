@@ -19,7 +19,11 @@
         }
 
         Lexer lex = new(File.ReadAllText(filePath), diag);
-        var tokens = lex.Lex(); 
+
+        List<Token> tokens = [];
+
+        try { tokens = lex.Lex(); }
+        catch { Environment.Exit(1); }
 
         foreach (var t in tokens)
         {

@@ -112,7 +112,7 @@ public class Lexer(string content, Diagnostics diag)
             default:
                 if (char.IsDigit(c)) ConsumeNumberLiteral();
                 else if (char.IsAsciiLetter(c)) ConsumeWordLiteral();
-                else diag.LogError($"Invalid Char Found '{c}'");
+                else FatalError($"Invalid char '{c}' found");
                 break;
         }
 
@@ -171,12 +171,13 @@ public class Lexer(string content, Diagnostics diag)
         {
             if (Peek() == '*' && PeekNext() == '/')
             {
-                Advance();
-                Advance();
-                break;
+                Advance(); Advance();
+                return;
             }
             Advance();
         }
+
+        FatalError("Unterminated block comment");
     }
 
     private void ConsumeCharLiteral()
@@ -187,8 +188,9 @@ public class Lexer(string content, Diagnostics diag)
         Advance();
 
 
-        while (Peek() != '\'' && Peek() != '\0') Advance();
+        while (Peek() != '\'' && Peek() != '\0' && Peek() != '\n') Advance();
         if (Peek() == '\'') Advance();
+        else FatalError("Unterminated char literal");
 
         Emit(TokenType.CharLiteral, content[start..index]);
     }
@@ -200,7 +202,7 @@ public class Lexer(string content, Diagnostics diag)
         int start = index;
         Advance();
 
-        while (Peek() != '"' && Peek() != '\0')
+        while (Peek() != '"' && Peek() != '\0' && Peek() != '\n')
         {
             if (Peek() == '\\' && PeekNext() == '"')
             {
@@ -210,6 +212,10 @@ public class Lexer(string content, Diagnostics diag)
         }
 
         if (Peek() == '"') Advance();
+        else
+        {
+            FatalError("Unterminated string literal");
+        }
 
         Emit(TokenType.StringLiteral, content[start..index]);
     }
@@ -262,5 +268,12 @@ public class Lexer(string content, Diagnostics diag)
     {
         if (index + 1 >= content.Length) return '\0';
         return content[index + 1];
+    }
+
+    private void FatalError(string message)
+    {
+        diag.LogError($"{message} at Line {tokenStartLine}, Column {tokenStartColumn}");
+
+        throw new LexerException(message, tokenStartLine, tokenStartColumn);
     }
 }
