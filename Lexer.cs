@@ -8,8 +8,8 @@ public class Lexer(string content, Diagnostics diag)
     private int index = 0;
     private int line = 1;
     private int column = 1;
-    private int tokenStartLine = 1;   
-    private int tokenStartColumn = 1; 
+    private int tokenStartLine = 1;
+    private int tokenStartColumn = 1;
 
     private bool consumed = false;
 
@@ -107,6 +107,7 @@ public class Lexer(string content, Diagnostics diag)
             case ',': Emit(TokenType.Comma, ","); break;
 
             case '\'': ConsumeCharLiteral(); break;
+            case '"': ConsumeStringLiteral(); break;
 
             default:
                 if (char.IsDigit(c)) ConsumeNumberLiteral();
@@ -147,7 +148,7 @@ public class Lexer(string content, Diagnostics diag)
         int start = index;
         bool isConstructor = char.IsUpper(content[start]);
 
-        while (char.IsAsciiLetterOrDigit(Peek()) || Peek() == '_')  Advance();
+        while (char.IsAsciiLetterOrDigit(Peek()) || Peek() == '_') Advance();
 
         string lexeme = content[start..index];
 
@@ -184,12 +185,33 @@ public class Lexer(string content, Diagnostics diag)
 
         int start = index;
         Advance();
-        
 
-        while (Peek() != '\'' && Peek() != '\0')  Advance();
+
+        while (Peek() != '\'' && Peek() != '\0') Advance();
         if (Peek() == '\'') Advance();
 
         Emit(TokenType.CharLiteral, content[start..index]);
+    }
+
+    private void ConsumeStringLiteral()
+    {
+        consumed = true;
+
+        int start = index;
+        Advance();
+
+        while (Peek() != '"' && Peek() != '\0')
+        {
+            if (Peek() == '\\' && PeekNext() == '"')
+            {
+                Advance();
+            }
+            Advance();
+        }
+
+        if (Peek() == '"') Advance();
+
+        Emit(TokenType.StringLiteral, content[start..index]);
     }
 
 
@@ -214,7 +236,7 @@ public class Lexer(string content, Diagnostics diag)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Emit(TokenType tag, string lexeme)
     {
-        tokens.Add(new Token(tag, lexeme, tokenStartLine, tokenStartColumn));        
+        tokens.Add(new Token(tag, lexeme, tokenStartLine, tokenStartColumn));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

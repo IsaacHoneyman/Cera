@@ -36,6 +36,7 @@ public enum TokenType
     IntLiteral,
     FloatLiteral,
     CharLiteral,
+    StringLiteral,
 
     // flow
     LBracket, RBracket, LBrace, RBrace, LPar, RPar,
