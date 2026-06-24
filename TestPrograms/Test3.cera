@@ -1,0 +1,31 @@
+/*
+  Test 03: Higher-Order Functions and Error Handling
+  Validates lambdas, arrow types, and the built-in result ADT.
+*/
+
+// Function taking a lambda (int -> int)
+def processValue(f: int -> int, val: int): result<int, char list> = {
+    if (val < 0) {
+        Err("Value cannot be negative");
+    } else {
+        Ok(f(val));
+    }
+}
+
+def entry(args: char list arr): int = {
+    // Using the func keyword for an anonymous inline expression
+    var mathOp = func (x: int): int = (x * 2) + 1;
+    
+    var computation: result<int, char list> = processValue(mathOp, 10);
+    
+    switch (computation) {
+        Ok(res) -> {
+            print("Success");
+            0;
+        },
+        Err(msg) -> {
+            print(msg);
+            1;
+        }
+    };
+}

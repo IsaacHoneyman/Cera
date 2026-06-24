@@ -1,0 +1,44 @@
+/*
+  Test 04: The Kitchen Sink
+  Validates recursive types, laziness, list operators, and nested scopes.
+*/
+
+// 1. Recursive generic ADT
+type stream<g> = Nil | Cons: g * lazy<stream<g>>;
+
+// 2. Recursive function generating an infinite stream
+def countUp(n: int): stream<int> = {
+    Cons(n, lazy { countUp(n + 1) });
+}
+
+// 3. Generic function to extract the next value from a stream
+def takeNext<g>(s: stream<g>): option<(g * stream<g>)> = {
+    switch (s) {
+        Nil -> None,
+        Cons(val, nextThunk) -> Some((val, force(nextThunk)))
+    };
+}
+
+def entry(args: char list arr): int = {
+    // Initialize an infinite stream starting at 1
+    var numbers: stream<int> = countUp(1);
+    
+    // Extract values
+    var firstExtraction: option<(int * stream<int>)> = takeNext(numbers);
+    
+    var exitCode: int = switch (firstExtraction) {
+        None -> 1,
+        Some(tup) -> {
+            // Shadowing test: extracting the tuple values
+            var val: int = tup.0; // Assuming dot notation or switch unpacking
+            
+            // Testing list prepend (::) and concatenation
+            var baseList: int list = [2, 3, 4];
+            var fullList: int list = concat((val :: baseList), [5, 6]);
+            
+            if (val == 1) { 0; } else { 1; };
+        }
+    };
+    
+    exitCode;
+}
