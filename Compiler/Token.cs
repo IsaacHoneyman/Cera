@@ -1,9 +1,11 @@
-public readonly struct Token(TokenType tag, string lexeme, int line, int column)
+namespace Cera.Compiler;
+
+public readonly struct Token(TokenType tag, string lexeme, int line, int column, string file)
 {
     public static readonly Dictionary<string, TokenType> KeywordTokens = new()
     {
         {"var", TokenType.Var}, {"def", TokenType.Def}, {"func", TokenType.Func}, {"type", TokenType.Type},
-        {"if", TokenType.If}, {"else", TokenType.Else}, {"switch", TokenType.Switch}, {"lazy", TokenType.Lazy},
+        {"if", TokenType.If}, {"else", TokenType.Else}, {"switch", TokenType.Switch}, {"import", TokenType.Import},
         {"int", TokenType.Int}, {"float", TokenType.Float}, {"bool", TokenType.Bool}, {"char", TokenType.Char},
         {"list", TokenType.List}, {"arr", TokenType.Arr}, {"unit", TokenType.Unit}, {"true", TokenType.True},
         {"false", TokenType.False}
@@ -14,6 +16,7 @@ public readonly struct Token(TokenType tag, string lexeme, int line, int column)
 
     public readonly int Line = line;
     public readonly int Column = column;
+    public readonly string File = file;
 
     public override string ToString()
     {
@@ -26,8 +29,8 @@ public enum TokenType
     // keywords
     Var, Def, Func, Type, // declaration  
     If, Else, Switch, // control flow
-    Lazy, // evaluation
     Int, Float, Bool, Char, List, Arr, Unit, // primitive types
+    Import,
 
     // literals
     True, False, // boolean literals

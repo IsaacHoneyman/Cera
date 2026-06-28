@@ -1,0 +1,15 @@
+import "Math.cera";
+import "List.cera";
+
+def entry(args char list arr) : int = { 
+    out("Hello World");
+    out("The Area Of A Circle Radius 5 Is: ");
+    out(floatToChars(CircleArea(5)));
+    return 0;
+}
+
+def CircleArea(r: float) : float = {
+    return pi() * r * r;
+}
+
+import "Test2.cera";

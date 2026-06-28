@@ -1,0 +1,29 @@
+// The offical math libary for Cera.
+
+def pi() : float = { 3.14159265358979; }
+def e() : float = { 2.71828182845905; }
+
+def round(x : float) : float = {
+    intToFloat(roundToInt(x));
+}
+
+def roundToInt(x : float) : int = {
+    if (x >= 0.0) { floatToInt(x + 0.5); }
+    else { floatToInt(x - 0.5); }
+}
+
+def min(x: float, y: float) : float = {
+    x <= y ? x : y;
+}
+
+def minInt(x: int, y: int) : int = {
+    x <= y ? x : y;
+}
+
+def max(x: float, y: float) : float = {
+    x <= y ? y : x;
+}
+
+def maxInt(x : int, y : int) : int = { 
+    x <= y ? y : x;
+}

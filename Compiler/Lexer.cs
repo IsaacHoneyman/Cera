@@ -1,8 +1,12 @@
-using System.Runtime.CompilerServices;
+namespace Cera.Compiler;
 
-public class Lexer(string content, Diagnostics diag)
+using System.Runtime.CompilerServices;
+using Cera.Compiler.Exceptions;
+
+public class Lexer(string content, string file, Diagnostics diag)
 {
     private readonly string content = content;
+    private readonly string file = file;
     private readonly List<Token> tokens = [];
 
     private int index = 0;
@@ -15,12 +19,16 @@ public class Lexer(string content, Diagnostics diag)
 
     public List<Token> Lex()
     {
+        diag.DetailLog($"Lexing {content.Length} Characters From \"{file}\"");
+
         while (!(index >= content.Length))
         {
             ScanToken();
         }
 
-        tokens.Add(new Token(TokenType.EOF, "", line, column));
+        tokens.Add(new Token(TokenType.EOF, "", line, column, file));
+
+        diag.DetailLog($"\"{file}\" Completed Lexing. {tokens.Count} Tokens Found.");
         return tokens;
     }
 
@@ -242,7 +250,7 @@ public class Lexer(string content, Diagnostics diag)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Emit(TokenType tag, string lexeme)
     {
-        tokens.Add(new Token(tag, lexeme, tokenStartLine, tokenStartColumn));
+        tokens.Add(new Token(tag, lexeme, tokenStartLine, tokenStartColumn, file));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -272,8 +280,8 @@ public class Lexer(string content, Diagnostics diag)
 
     private void FatalError(string message)
     {
-        diag.LogError($"{message} at Line {tokenStartLine}, Column {tokenStartColumn}");
-
-        throw new LexerException(message, tokenStartLine, tokenStartColumn);
+        LexerException e = new(message, tokenStartLine, tokenStartColumn, file);
+        diag.LogError(e.Message);
+        throw e;
     }
 }

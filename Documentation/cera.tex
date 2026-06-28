@@ -1,0 +1,503 @@
+\documentclass[11pt, a4paper]{article}
+
+% --- Packages for a Clean, Professional Layout ---
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry} % Clean standard margins
+\usepackage{amsmath, amssymb, amsthm} % Premium math handling
+\usepackage{microtype} % Subtle typographic tracking/alignment improvements
+\usepackage{booktabs} % Elegant tables if needed
+\usepackage{hyperref} % Interactive internal and external links
+\usepackage{parskip}
+\usepackage{listings}
+\usepackage{mathtools}
+\usepackage{color} % Optional: if you want to define custom colors for keywords
+
+% --- Hyperref Setup ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black, % Standard academic style; change to blue/teal if preferred
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+
+\lstset{
+    basicstyle=\ttfamily,
+    keywordstyle=\bfseries\color{blue}, % Optional: makes keywords pop
+    showstringspaces=false              % Optional: hides the weird underscores in strings
+}
+
+% --- Document Metadata ---
+\title{\textbf{Cera Functional Language Project Plan}}
+\author{\textbf{Isaac Honeyman}}
+
+\begin{document}
+
+\maketitle % <--- CRITICAL: This is what renders the title block!
+
+\begin{abstract}
+\noindent This planning document outlines the architectural pipeline, implementation phases, and execution mechanics of the Cera custom functional programming language compiler and runtime system.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% =========================================================================
+\section{Core Design Ideas}
+% =========================================================================
+
+\subsection{Principles}
+\begin{itemize}
+    \item \textbf{True Functionality:} The language will be a true functional language, with 0 side effects (excluding I/O) or mutable state.
+    \item \textbf{OOP Style Syntax:} The syntax must be easily readable and writeable, by those familar with OOP languages (Java, C\#, python in particular).
+    \item \textbf{First-Class Functions:} Functions are first-class citizens, supporting higher-order programming and closures.
+    \item \textbf{Evaluation Strategy:} The language enforces call-by-value (strict) evaluation. deferred execution and lazy evaluation can be simulated via use of \texttt{unit} thunks (e.g. \texttt{unit -> g})
+    \item \textbf{Type System:} Explicit typing for functions, and variables use local type inference.
+    \item \textbf{Memory Model:} Reference counting system.
+    \item \textbf{Simplisitc, Streamlined Design:} While all programming problems can be solved with near infinite solutions, the language should not offer many similar, slightly differing methods of completing a task, and focus on a simple set of syntax and keywords (see \texttt{lazy} in excluded features).
+    \item \textbf{Backwards Compatibility:} Old code should work in newer Cera versions.
+\end{itemize}
+\subsection{General Conventions}
+\begin{itemize}
+    \item \textbf{Variables:} variables must use camelCase, and type annotation should be used if not obvious from the context.
+    \item \textbf{Functions:} function names must also use camelCase, and must have an explicit type signature, this includes built-in functions.
+    \item \textbf{Types:} all built-in types feature a main type signature, that will be lowercase, with pascal case constructors.
+\end{itemize}
+\subsection{Tech Stack}
+\begin{itemize}
+    \item \textbf{Compiler:} The bytecode compiler will be written in C\#, as it's a familar language with easy parsing tools.
+    \item \textbf{Virtual Machine:} The virtual machine will be written in C, as it is a low-level language with easy memory management and high performance.
+    \item \textbf{Build System:} We shall use a bash script to build the compiler and virtual machine, and to run tests.
+\end{itemize}
+
+% =========================================================================
+\section{Language Syntax}
+% =========================================================================
+\subsection{Types}
+The language base type set will be extremely minimal, all using lowercase names, with the following types and type 'extensions':
+\begin{itemize}
+    \item int: 64-bit signed integer (2's complement)
+    \item float: 64-bit IEEE 754 floating point number
+    \item bool: 1-bit boolean value (true or false)
+    \item char: 32-bit Unicode character
+    \item unit: A type representing the absence of a meaningful mathematical value, used for side effects, and delayed evaluation. It has exactly one valid value, written as \texttt{()}.
+    \item \textbf{list:} linked list of values of a single type (OCaml-style)
+    \item \textbf{arr:} fixed-length contiguous array, assignable once upon creation, addressable via the built in get keyword.
+    \item \textbf{tup:} fixed-length tuple of values of potentially different types, note this is not a keyword unlike other extensions, and type definition must be wrapped in brackets to prevent ambiguity.
+\end{itemize}
+Note that in the following snippets, we can chain together extensions to create more complex types, aswell as the syntax sugar for a char list.
+\begin{lstlisting}[title={Cera Language}]
+    var x: int = 5;
+    var y: int list = [1, 2, 3, 4];
+    var z: char list list = [['a', 'b'], ['c', 'd']];
+    var s: char list = "hello world";
+    var w: bool arr = arr[true, false, true];
+    var u: (int * int * int) = (1, 2, 3);
+    var f: int -> int -> int = +;
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Variable Declarations and Scoping}
+% =========================================================================
+\noindent
+Variables in Cera are immutable bindings, explicitly or implicitly typed upon creation. Because the language enforces zero mutable state, a variable's value can never be altered after it is bound.
+
+\begin{itemize}
+    \item \textbf{Bindings:} Variables are declared using the \texttt{var} keyword. If a type annotation is omitted, the compiler utilizes local type inference to determine the type from the evaluated expression.
+    \item \textbf{Shadowing:} Cera supports variable shadowing within the same scope. Re-declaring a variable with an existing identifier creates a completely new memory binding that obscures the original identifier for the remainder of the scope, preserving immutability.
+    \item \textbf{Strings:} The language does not have a distinct string primitive; syntaxtic sugar can be used, and strings are evaluated syntactically as a \texttt{char list}.
+\end{itemize}
+
+\begin{lstlisting}[title={Variable Binding and Shadowing}, basicstyle=\ttfamily]
+    var x: int = 5;
+    // x is mathematically bound to 5
+    
+    var x: int = 10; 
+    // Legal shadowing. the old x is inaccessible.
+    
+    var greeting = ['H', 'i']; // char list
+    var greeting2 = "Hi"; // char list
+
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Operators and Expressions}
+% =========================================================================
+\noindent
+In Cera, all operations are evaluated strictly by default. The language supports standard arithmetic, relational, and logical operators. Because Cera is a strictly typed language, operators do not implicitly cast between types (e.g., an \texttt{int} cannot be added directly to a \texttt{float} without explicit conversion). This process shall be done by built-in function calls.
+
+\begin{itemize}
+    \item \textbf{Arithmetic:} Standard binary operators for numeric types: \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, and \texttt{\%} (modulo) (integer and float).
+    \item \textbf{Bitwise:} Bitwise operators: \texttt{\&}, \texttt{|}, \texttt{\^{}}, \texttt{\~}, \texttt{<<}, and \texttt{>>} (integer).
+    \item \textbf{Relational:} Comparison operators returning a \texttt{bool}: \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}. Structural equality is evaluated for composite types like tuples and lists (only == and !=).
+    \item \textbf{Logical:} Boolean operators: \texttt{\&\&} (logical AND), \texttt{||} (logical OR), and \texttt{!} (logical NOT). These support short-circuit evaluation.
+    \item \textbf{Concatenation and Lists:} The \texttt{::} operator is used to prepend an element to a list. The use of a \texttt{concat} function will concatenate two lists/arrays of the same type.
+    \item \textbf{Conditional:} Use of the \texttt{?} and \texttt{:} operators for inline conditional expressions (ternary operator).
+\end{itemize}
+
+\begin{lstlisting}[title={Expressions and Operators}, basicstyle=\ttfamily]
+    var a: int = 10 + 5;
+    var b: float = 3.14 * 2.0;
+    var isValid: bool = (a > 20) && (b < 10.0); // false 
+    var sameTuple: bool = (1, 2) == (1, 2); // true
+    var combined: int list = concat([1, 2], (3::[4, 5]));
+    var result: int = isValid ? 100 : a > 20 ? 200 : 300; // 300
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Control Flow}
+% =========================================================================
+\noindent
+Because Cera enforces zero mutable state, standard control flow statements are replaced by \textbf{control flow expressions}. Every conditional construct evaluates to a return value. To maintain type safety, the compiler strictly enforces that all branches within a single control flow construct evaluate to the exact same type.
+
+\begin{itemize}
+    \item \textbf{Expression Blocks:} Standard \texttt{if/else} and \texttt{else if} blocks that evaluate to the value of their final expression. The \texttt{return} keyword is not used; the last evaluated expression in the block is returned implicitly.
+    \item \textbf{Ternary Operator:} The inline \texttt{? :} operator is supported for concise, single-line conditional assignments. As noted in the operators section, chained ternary operators are right-associative.
+    \item \textbf{Pattern Matching:} The \texttt{switch} construct replaces traditional statement-based switch blocks. It is the primary mechanism for structurally unpacking tuples, lists, and complex types. Branches are defined using the \texttt{->} operator, and the compiler enforces exhaustive matching.
+\end{itemize}
+
+\begin{lstlisting}[title={Control Flow Expressions}, basicstyle=\ttfamily]
+    // 1. Ternary Operator
+    var status: int = (health > 50) ? 1 : 0;
+
+    // 2. Expression Block
+    var multiplier: float = if (status == 1) {
+        var bonus: float = 1.2;
+        baseRate * bonus; 
+    } else if (status == 0) {
+        baseRate * 0.5;
+    } else {
+        baseRate;
+    };
+
+    // 3. Pattern Matching via Switch
+    var location: int = switch (coordinates) {
+        (0, 0) -> 1,
+        (x, 0) -> 2,
+        (0, y) -> 3,
+        (x, y) -> 4,
+    };
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Functions}
+% =========================================================================
+\noindent
+Functions in Cera are first-class citizens. Because the language enforces zero mutable state, there are no traditional looping constructs (e.g., \texttt{for} or \texttt{while} loops); all iteration is achieved via recursion. 
+
+\begin{itemize}
+    \item \textbf{Declarations:} Named functions are declared using the \texttt{def} keyword. All parameters and the return type must be explicitly annotated. The body of the function is an expression block, and the final evaluated expression is implicitly returned.
+    \item \textbf{Higher-Order Functions:} Functions can be passed as arguments to other functions and returned as values, utilizing the arrow typing syntax (e.g., \texttt{int -> int}).
+    \item \textbf{Recursion:} Functions in Cera are recursive by default, allowing a function to call itself within its own body without additional keywords.
+\item \textbf{Anonymous Functions (Lambdas):} Lambda functions are defined using the \texttt{func} keyword, followed by explicitly typed parameters, a strictly required return type annotation, and either an expression block or a single inline expression.    \item \textbf{Generic Functions:} Cera supports generic functions by appending type parameters in angle brackets directly after the function name (e.g., \texttt{def name<g1, g2>}). These generic types can be used throughout the function signature and body. 
+    \item \textbf{Scoping and Shadowing:} All named functions (declared via \texttt{def}) must reside in the global scope and possess strictly unique identifiers. Function shadowing is not permitted, and named inner functions are forbidden to maintain a flat AST. Localized closures must be handled via anonymous lambda functions.
+    \item \textbf{Function Application:} Cera does not support automatic partial function application (currying). A function call must supply the exact number of arguments specified in its signature. Developers requiring partially applied functions must explicitly construct them using lambdas.
+\end{itemize}
+
+\begin{lstlisting}[title={Function Declarations}, basicstyle=\ttfamily]
+    def factorial(n: int): int = {
+        if (n <= 1) {
+            1;
+        } else {
+            n * factorial(n - 1);
+        }
+    }
+
+    def applyTwice(f: int -> int, x: int): int = {
+        f(f(x));
+    }
+
+    // Lambda with an inline expression
+    applyTwice(func (x: int): int = x + 3, 5); // returns 11
+
+    // Generic function using pattern matching
+    def head<g>(x: g list, default: g): g = {
+        switch (x) {
+            [] -> default,
+            (h::_) -> h
+        };
+    }
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Custom Types (Algebraic Data Types)}
+% =========================================================================
+\noindent
+Cera supports the creation of custom Algebraic Data Types (ADTs). To align with the built-in primitive types, user-defined type identifiers are strictly lowercase, while their data constructors must be capitalized (PascalCase). This guarantees the lexer can instantly distinguish between a type signature and a concrete data constructor.
+
+\begin{itemize}
+    \item \textbf{Sum Types (Variants):} Defined using the \texttt{type} keyword. Constructors are separated by the \texttt{|} (OR) operator. If a constructor carries a data payload, the \texttt{:} operator is used to specify the underlying type.
+    \item \textbf{Recursive Types:} Types can reference themselves within their own definitions, allowing for recursive data structures like trees and streams.
+    \item \textbf{Generic Types:} Type parameters are declared using angle brackets (e.g., \texttt{<g>}) and passed consistently to recursive calls.
+    \item \textbf{Built In:} The \texttt{option} and \texttt{result} types are built-in ADTs used for error handling and optional values, as detailed in the Error Handling section. 
+\end{itemize}
+
+\begin{lstlisting}[title={Algebraic Data Types}, basicstyle=\ttfamily]
+    // Standard ADT with the
+    type shape = Circle: float | Rect: (float * float);
+
+    // Generic, recursive ADT
+    type stream<g> = Nil | Cons: (g * stream<g>);
+
+    // Utilizing the custom type in a switch expression
+    def area(s: shape): float = {
+        switch (s) {
+            Circle(r) -> 3.14159 * r * r,
+            Rect(w, h) -> w * h
+        };
+    }
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Error Handling}
+% =========================================================================
+\noindent
+To maintain absolute mathematical purity and predictable control flow, Cera completely omits \texttt{try/catch} exception blocks and the concept of \texttt{null} references. Instead, functions that can fail or return no value must make that failure explicit in their type signature using built-in Algebraic Data Types.
+
+\begin{itemize}
+    \item \textbf{The Option Type:} Used when a function might legitimately return nothing. It is defined as \texttt{type option<g> = None | Some: g}.
+    \item \textbf{The Result Type:} Used when a function can fail and needs to return an error message or code. It is defined as \texttt{type result<v, e> = Ok: v | Error: e}.
+\end{itemize}
+These types force the programmer to handle both the success and failure states using \texttt{switch} expressions, guaranteeing that unhandled exceptions cannot crash the VM.
+
+\begin{lstlisting}[title={Error Handling via ADTs}, basicstyle=\ttfamily]
+    def divide(a: float, b: float): result<float, string> = {
+        if (b == 0.0) {
+            Error("Division by zero");
+        } else {
+            Ok(a / b);
+        }
+    }
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Program Entry and I/O}
+% =========================================================================
+\noindent
+Cera enforces zero mutable state and forbids user-defined side effects. However, a program must interact with the host system to be useful. This is achieved through controlled, built-in impure functions (intrinsics) and a strictly defined execution entry point.
+
+\begin{itemize}
+    \item \textbf{Impure Intrinsics:} I/O operations (such as \texttt{readFile}, or network requests) are provided exclusively as compiler built-ins. Users cannot author their own impure functions from scratch within Cera.
+    \item \textbf{The Entry Point:} Program execution begins strictly at the \texttt{entry} function. This function serves as the bridge between the host operating system and the pure functional runtime. It takes an array of command-line arguments and must evaluate to an integer representing the system exit code (where 0 indicates success).
+\end{itemize}
+
+\begin{lstlisting}[title={Program Entry}, basicstyle=\ttfamily]
+    def entry(args: char list arr): int = {
+        // Built-in impure function call
+        outLst("hello world"); 
+        
+        var status: int = runCoreLogic();
+        status; // Evaluates to the exit code
+    }
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Deferred Evaluation}
+% =========================================================================
+\noindent
+Cera evaluates all expressions strictly (call-by-value) by default. However, to support infinite data structures and deferred execution, one may use unit thunks.
+
+\begin{lstlisting}[title={Infinite Streams}, basicstyle=\ttfamily]
+    type stream<g> = Nil | Cons: (g * unit -> stream<g>);
+
+    def NaturalNumbers(x : int): stream<int> = {
+        Cons(x, func (y : unit) : 
+            stream<int> = NaturalNumbers(x+1));
+    }
+\end{lstlisting}
+
+% =========================================================================
+\subsection{Miscellaneous Syntax}
+% =========================================================================
+\noindent
+\begin{itemize}
+    \item \textbf{Comments:} Cera supports single-line comments using the standard \texttt{//} syntax. The lexer ignores all text from the \texttt{//} token to the end of the line. Block comments can be implemented using \texttt{/*} to start and \texttt{*/} to end, allowing for multi-line comments that can be nested.
+
+    \item \textbf{Multifile Programs:} Cera takes a c style approch to simply multifile programs, to use another file, a cera file must being with the syntax \texttt{import "FileName";} - these are then recursively dealt with, (keeping track of imported files to prevent cyclic loops), and are treated as essentialy one large file. Note due to this, types and functions identifiers must be unique across all files.
+\end{itemize}
+
+% =========================================================================
+\subsection{Summary}
+% =========================================================================
+\noindent
+To assist in the lexical analysis phase, the following is an exhaustive list of reserved keywords in the Cera language. These identifiers are strictly reserved by the grammar and cannot be used as variable, function, or custom type names.
+
+\begin{itemize}
+    \item \textbf{Declaration \& Binding:} \texttt{var}, \texttt{def}, \texttt{func}, \texttt{type}
+    \item \textbf{Control Flow:} \texttt{if}, \texttt{else}, \texttt{switch}, \texttt{import}
+    \item \textbf{Primitive Types:} \texttt{int}, \texttt{float}, \texttt{bool}, \texttt{char}, \texttt{list}, \texttt{arr}, \texttt{unit}
+    \item \textbf{Boolean Literals:} \texttt{true}, \texttt{false}
+\end{itemize}
+\noindent \textit{Note:} Identifiers such as \texttt{concat}, \texttt{outLst}, and \texttt{entry} are considered built-in intrinsic functions rather than reserved lexical keywords. 
+
+
+Next is a list of built in ADT:
+
+\begin{itemize}
+    \item \textbf{Option:} \texttt{type option<g> = None | Some: g}
+    \item \textbf{Result:} \texttt{type result<v, e> = Ok: v | Error: e}
+\end{itemize}
+Finally the list of built in functions:
+\begin{itemize}
+    \item \textbf{Get:} \texttt{get<g>(target: g arr, index: int) : option<g>} (0 based array index).
+    \item \textbf{Arr Length:} \texttt{arrLength<g>(array: g arr) : int}
+    \item \textbf{Concat:} \texttt{concat<g>(left: g list, right: g list) : g list}
+    \item \textbf{Arr Concat:} \texttt{arrConcat<g>(left: g arr, right: g arr) : g arr}
+    \item \textbf{Out: } \texttt{out(output: char list) : unit}
+    \item \textbf{In: } \texttt{in() : char list}
+    \item \textbf{Read: } \texttt{read(path: char list) : result<char list, char list>}
+    \item \textbf{Write: } \texttt{write(path: char list, content: char list) : result<unit, char list>}
+    \item \textbf{Int To Float: } \texttt{intToFloat(x: int) : float}
+    \item \textbf{Float To Int: } \texttt{floatToInt(x : float) : int} (truncates)
+    \item \textbf{Char To Int: } \texttt{charToInt(c : char) : int}
+    \item \textbf{Int To Char: } \texttt{intToChar(x : int) : char}
+    \item \textbf{Int To Chars: } \texttt{intToChars(x : int) : char list}
+    \item \textbf{Float To Chars: } \texttt{floatToChars(x : float) : char list}
+    \item \textbf{Bool To Chars: } \texttt{boolToChars(x : bool) : char list}
+    \item \textbf{Chars To Int: } \texttt{charsToInt(str : char list) : option<int>}
+    \item \textbf{Chars To Float: } \texttt{charsToFloat(str : char list) : option<float>}
+    \item \textbf{Arr To List: } \texttt{arrToList<g>(array: g arr) : g list}
+    \item \textbf{List To Arr: } \texttt{listToArr<g>(lst: g list) : g arr}
+\end{itemize}
+
+
+% =========================================================================
+\section{Lexical Analysis (Tokenisation)}
+% =========================================================================
+\noindent
+The lexical analysis phase operates as a Deterministic Finite Automaton (DFA), consuming the raw UTF-8 character stream of the source file and segmenting it into a linear sequence of logical \texttt{Token} structures. This process strips away non-semantic formatting, preparing the data for syntax analysis.
+
+\subsection{The Token Structure}
+Each emitted token encapsulates three critical pieces of data to ensure both accurate parsing and robust error reporting:
+\begin{itemize}
+    \item \textbf{Tag (Type):} An enumerated value classifying the token (e.g., \texttt{IDENTIFIER}, \texttt{INT\_LIT}, \texttt{DEF\_KW}, \texttt{PLUS\_OP}).
+    \item \textbf{Lexeme:} The concrete string of characters that formed the token.
+    \item \textbf{Location Metadata:} The line and column index marking the token's origin, strictly utilized for traceback generation during semantic or syntactic failures.
+\end{itemize}
+
+\subsection{Lexical Categories and Regular Expressions}
+The DFA categorizes lexemes based on the following rules and regular expressions. The scanner employs the ``maximal munch'' principle, always matching the longest possible valid lexeme (e.g., reading \texttt{<=} as a single relational operator rather than a \texttt{<} followed by an \texttt{=}).
+
+\begin{itemize}
+    \item \textbf{Identifiers:} Variables and functions map to \texttt{[a-z][a-zA-Z0-9\_]*}. Custom type constructors must begin with a capital letter, mapping to \texttt{[A-Z][a-zA-Z0-9\_]*}.
+    \item \textbf{Keywords:} Reserved language keywords (e.g., \texttt{var}, \texttt{def}, \texttt{switch}) are initially scanned as standard identifiers. Before emission, they are checked against a static hash map and re-tagged with their specific keyword enumeration to achieve $O(1)$ lookup times.
+    \item \textbf{Literals:}
+    \begin{itemize}
+        \item \textit{Integer:} \texttt{[0-9]+}
+        \item \textit{Float:} \texttt{[0-9]+\textbackslash.[0-9]+}
+        \item \textit{Character:} \texttt{'[\textasciicircum']'}
+    \end{itemize}
+    \item \textbf{Operators and Punctuation:} Single-character punctuation (e.g., \texttt{+}, \texttt{*}, \texttt{\{}, \texttt{;}) transitions immediately to an accept state. Potential multi-character operators (e.g., \texttt{==}, \texttt{->}, \texttt{::}) require a single character of lookahead to determine the correct transition.
+\end{itemize}
+
+\subsection{Whitespace and Comment Handling}
+Whitespace characters (spaces, tabs, carriage returns, and newlines) serve strictly as lexeme delimiters. When the DFA encounters whitespace, it forces the completion and emission of the currently accumulating token. The whitespace itself is then immediately consumed and discarded; no token is generated. 
+
+Similarly, single-line (\texttt{//}) and block (\texttt{/* ... */}) comments transition the scanner into an absorption state, aggressively consuming characters until the termination sequence is reached, emitting nothing to the parser stream.
+
+\subsection{Token List}
+What follows is a full list of token types within the lexer.
+
+% =========================================================================
+\section{Syntax Analysis (Parsing)}
+% =========================================================================
+\noindent
+\subsection{Notation Guide}
+The syntax is formally specified using Extended Backus-Naur Form (EBNF). To avoid ambiguity between the meta-syntax and the language's own lexical tokens, the following typographic conventions are strictly applied:
+
+\begin{itemize}
+    \item $\langle \text{Rule} \rangle$: Angle brackets denote a \textbf{non-terminal} production rule.
+    \item $\mathbf{keyword}$: Bold, monospace text denotes a \textbf{terminal} symbol (a concrete lexical token, keyword, or required punctuation like $\mathbf{(}$ or $\mathbf{\}}$).
+    \item $\Coloneqq$: The definition operator, read as ``is defined as''.
+    \item $\mid$: The alternation operator, denoting a choice between derivations (``or'').
+    \item $[ \dots ]$: Square brackets enclose an \textbf{optional} component (zero or one occurrences).
+    \item $( \dots )$: Standard mathematical parentheses denote \textbf{logical grouping} of meta-symbols. They are \textit{not} literal characters in the source code.
+    \item $x^*$: The Kleene star suffix indicates \textbf{zero or more} consecutive repetitions of $x$.
+    \item $x^+$: The Kleene plus suffix indicates \textbf{one or more} consecutive repetitions of $x$.
+\end{itemize}
+
+\subsection{Context-Free Grammar (CFG)}
+The formal CFG for Cera is defined in Backus-Naur Form (BNF). To satisfy structural requirements for unambiguous derivations and Top-Down parsing without left recursion, the grammar stratifies expressions and types. The grammar enforces strict functional purity by restricting \texttt{var} bindings strictly to local expression blocks.
+
+Are top level fundamental definitions:
+\begin{align*}
+\langle \text{Program} \rangle &\Coloneqq ( \langle \text{FuncDecl} \rangle \mid \langle \text{TypeDecl} \rangle )^* \\
+\langle \text{FuncDecl} \rangle &\Coloneqq \mathbf{def} \; \mathbf{id} \; \textbf{(} [ \langle \text{Param} \rangle \: ( \textbf{,} \: \langle \text{Param} \rangle )^* ] \textbf{)} \; \textbf{:} \; \langle \text{Type} \rangle \; \mathbf{=} \; \langle \text{ExprBlock} \rangle \\
+\langle \text{TypeDecl} \rangle &\Coloneqq \textbf{type} \; \textbf{id} \; \textbf{=} \; \langle \text{ConDef} \rangle \: ( \mathbf{|} \: \langle \text{ConDef} \rangle )^* \textbf{;} \\
+\langle \text{VarDecl} \rangle &\Coloneqq \textbf{var} \; \textbf{id} \; [ \textbf{:} \; \langle \text{Type} \rangle ] \; \textbf{=} \; \langle \text{Expr} \rangle  \textbf{;} \\
+\langle \text{Type} \rangle &\Coloneqq \langle \text{SuffixType} \rangle \; [ \mathbf{-}\mathbf{>} \; \langle \text{Type} \rangle ] \\
+\langle \text{SuffixType} \rangle &\Coloneqq \langle \text{AtomType} \rangle \; [ \textbf{list} \mid \textbf{arr} ]^* \\
+\langle \text{AtomType} \rangle &\Coloneqq \langle \text{BaseType} \rangle \mid \langle \text{TupleType} \rangle \mid \langle \text{GenericType} \rangle \mid \textbf{(} \langle \text{Type} \rangle \textbf{)} \\
+\langle \text{BaseType} \rangle &\Coloneqq \textbf{int} \mid \textbf{float} \mid \textbf{bool} \mid \textbf{char} \mid \textbf{unit}\\
+\langle \text{TupleType} \rangle &\Coloneqq \textbf{(} \langle \text{Type} \rangle \; (\textbf{*} \langle \text{Type} \rangle )^+ \textbf{)} \\
+\langle \text{GenericType} \rangle &\Coloneqq \textbf{id} \mathbf{<}\langle \text{Type} \rangle \; (\textbf{,} \langle \text{Type} \rangle)^* \mathbf{>} \\
+\langle \text{ConDef} \rangle &\Coloneqq \textbf{con} \; [ \textbf{:} \; \langle \text{Type} \rangle ] \\
+\langle \text{ExprBlock} \rangle &\Coloneqq \textbf{\{} \langle \text{Stmt} \rangle^* \; \langle \text{Expr} \rangle \textbf{;} \textbf{\}} \\
+\langle \text{Stmt} \rangle &\Coloneqq \langle \text{VarDecl} \rangle \mid \langle \text{Expr} \rangle \textbf{;} \\ 
+\langle \text{Param} \rangle &\Coloneqq \textbf{id} \; \textbf{:} \; \langle \text{Type} \rangle
+\end{align*}
+
+Following are the expression definitions:
+\begin{align*}
+    \langle \text{Expr} \rangle &\Coloneqq \langle \text{BinOpChain} \rangle \; [ \textbf{?} \; \langle \text{Expr} \rangle \; \textbf{:} \; \langle \text{Expr} \rangle ] \\
+    \langle \text{BinOpChain} \rangle &\Coloneqq \langle \text{UnaryExpr} \rangle \; ( \langle \text{BinOp} \rangle \; \langle \text{UnaryExpr} \rangle )^* \\
+    \langle \text{UnaryExpr} \rangle &\Coloneqq \langle \text{UnOp} \rangle \; \langle \text{UnaryExpr} \rangle \mid \langle \text{CallExpr} \rangle \\
+    \langle \text{CallExpr} \rangle &\Coloneqq \langle \text{Primary} \rangle \; ( \textbf{(} [\langle \text{Expr} \rangle (\textbf{,} \; \langle \text{Expr} \rangle)^*] \textbf{)} )^* \\
+    \langle \text{Primary} \rangle &\Coloneqq \langle \text{Literal} \rangle \mid \textbf{id} \mid \textbf{(} \langle \text{Expr} \rangle \textbf{)} \mid \langle \text{IfExpr} \rangle \mid \langle \text{SwitchExpr} \rangle \mid \langle \text{Lambda} \rangle \\
+    \langle \text{BinOp} \rangle &\Coloneqq \textbf{+} \mid \textbf{-} \mid \textbf{*} \mid \textbf{/} \mid \textbf{\%} \mid \textbf{\&} \mid \mathbf{|} \mid \textbf{\textasciicircum} \mid \mathbf{<<} \mid \mathbf{>>} \mid \mathbf{==} \mid \mathbf{!=} \mid \mathbf{<} \mid \mathbf{>} \mid  \mathbf{<=} \mid \mathbf{>=} \mid \textbf{\&\&} \mid \mathbf{||} \mid \textbf{::} \\
+    \langle \text{UnOp} \rangle &\Coloneqq \textbf{!} \mid \sim \\
+    \langle \text{IfExpr} \rangle &\Coloneqq \textbf{if} \; \textbf{(} \langle \text{Expr} \rangle \textbf{)} \; \langle \text{ExprBlock} \rangle \; (\textbf{else if} \; \textbf{(} \langle \text{Expr} \rangle \textbf{)}  \; \langle \text{ExprBlock} \rangle)^* \; [\textbf{else} \; \langle \text{ExprBlock} \rangle] \\
+    \langle \text{SwitchExpr} \rangle &\Coloneqq \textbf{switch} \; \textbf{(} \langle \text{Expr} \rangle \textbf{)} \; \textbf{\{} \langle \text{PatternMatch} \rangle \; (\textbf{,} \; \langle \text{PatternMatch} \rangle)^* \textbf{\};} \\
+    \langle \text{PatternMatch} \rangle &\Coloneqq \langle \text{Pattern} \rangle \; \mathbf{-} \mathbf{>} \; \langle \text{Expr} \rangle \\
+    \langle \text{Pattern} \rangle &\Coloneqq \langle \text{Literal} \rangle \mid \textbf{id} \mid \textbf{(} \langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^* \textbf{)} \mid \textbf{[}[\langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^*]\textbf{]} \\
+    &\mid \textbf{arr} \; \textbf{[}[\langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^*]\textbf{]} \mid \textbf{(} \langle \text{Pattern} \rangle \; \textbf{::} \; \langle \text{Pattern} \rangle \textbf{)} \\ 
+    &\mid \textbf{con} [\textbf{(} \langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^*\textbf{)}] \\
+    \langle \text{Lambda} \rangle &\Coloneqq \textbf{func} \; \textbf{(} [\langle \text{Param} \rangle \; (\textbf{,} \; \langle \text{Param} \rangle)^*] \textbf{)} \; \textbf{:} \; \langle \text{Type} \rangle \; \textbf{=} \; (\langle \text{Expr} \rangle \mid \langle \text{ExprBlock} \rangle) \\
+    \langle \text{Literal} \rangle &\Coloneqq \textbf{int\_lit} \mid \textbf{float\_lit} \mid \textbf{char\_lit} \mid \textbf{str\_lit} \mid \textbf{true} \mid \textbf{false} \mid \textbf{()} \mid \langle \text{ListLit} \rangle \mid \langle \text{ArrLit} \rangle \mid \langle \text{TupleLit} \rangle \\
+    \langle \text{ListLit} \rangle &\Coloneqq \textbf{[} [\langle \text{Expr} \rangle \; (\textbf{,} \; \langle \text{Expr} \rangle)^*] \textbf{]} \\
+    \langle \text{ArrLit} \rangle &\Coloneqq \textbf{arr} \; \textbf{[} [\langle \text{Expr} \rangle \; (\textbf{,} \; \langle \text{Expr} \rangle)^*] \textbf{]} \\
+    \langle \text{TupleLit} \rangle &\Coloneqq \textbf{(} \langle \text{Expr} \rangle \; (\textbf{,} \; \langle \text{Expr} \rangle)^+ \textbf{)}
+\end{align*}
+
+\textit{Note:} That \textbf{id} and \textbf{con} refer to identifier and constructor tokens respectively.
+
+\subsection{Lexical Ambiguity Resolution}
+Because the lexical analyser adheres strictly to the ``maximal munch'' principle, the character sequence \texttt{>>} is always greedily tokenised as a single right-shift operator (\texttt{>>}), rather than two distinct \texttt{>} tokens. This creates a standard structural collision in $LL(k)$ parsers when evaluating nested generic type closures (e.g., \texttt{option<stream<g>>}).
+
+To resolve this without breaking lexical encapsulation or resorting to a ``lexer hack'', the ambiguity is handled entirely within the syntax analyser. When the parser is evaluating a generic type signature and expects a closing bracket \texttt{>}, but instead encounters a right-shift \texttt{>>} token, it consumes the operator, logically applies the first \texttt{>}, and modifies the token stream (or internal parser state) to inject a synthetic \texttt{>} token for the subsequent closure evaluation.
+% =========================================================================
+\section{Semantic Analysis}
+% =========================================================================
+\noindent
+Context-sensitive validation checks, including scoping, constant resolution, type checking, and type inference rules.
+
+% =========================================================================
+\section{Intermediate Representation (IR)}
+% =========================================================================
+\noindent
+Lowering high-level functional elements from the AST into a structured linear or functional intermediate form (e.g., A-Normal Form or direct 3-Address Code) optimized for emission.
+
+% =========================================================================
+\section{Bytecode Emission}
+% =========================================================================
+\noindent
+Serialization rules mapping the optimized IR into binary operational codes (opcodes). Detail your custom Instruction Set Architecture (ISA) here, including any specialized register encoding or branch features.
+
+% =========================================================================
+\section{The Virtual Machine (VM)}
+% =========================================================================
+\noindent
+The runtime environment executing the bytecode via a continuous Fetch-Decode-Execute cycle. Define the structure of your virtual register array, evaluation stacks, and runtime memory layouts.
+
+% =========================================================================
+\section{Planned Updates}
+% =========================================================================
+
+\subsection{Excluded Features}
+Before considering future features for the language, we shall consider previous planned additions, that where decided against for various reasons:
+\begin{itemize}
+    \item \textbf{Lazy Keyword, Force Pattern:} When the language was first being developed, the idea of a \texttt{lazy} keyword was planned, allowing for delayed evaluation thunks similar to unit thunks, but caching the results upon evaluation. This aforementioned similarity, was the primary reason for it's exclusion (see design principles), as well as adding a vast, complicated system, that can be replicated without the use of unique keywords and syntax.
+\end{itemize}
+
+\subsection{Planned Features}
+
+\end{document}
