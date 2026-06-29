@@ -1,5 +1,6 @@
-namespace Cera.Compiler;
+namespace Cera.Compiler.Lexer;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Cera.Compiler.Exceptions;
 
@@ -19,16 +20,16 @@ public class Lexer(string content, string file, Diagnostics diag)
 
     public List<Token> Lex()
     {
-        diag.DetailLog($"Lexing {content.Length} Characters From \"{file}\"");
+        diag.DetailLog($"Lexing {content.Length} characters from '{file}'");
 
         while (!(index >= content.Length))
         {
             ScanToken();
         }
 
-        tokens.Add(new Token(TokenType.EOF, "", line, column, file));
-
-        diag.DetailLog($"\"{file}\" Completed Lexing. {tokens.Count} Tokens Found.");
+        //tokens.Add(new Token(TokenType.EOF, "", line, column, file));
+        diag.EndSection(Diagnostics.TimerScope.SubTask, $"'{file}' completed lexing", $"{tokens.Count} tokens found");
+        
         return tokens;
     }
 
@@ -228,8 +229,6 @@ public class Lexer(string content, string file, Diagnostics diag)
         Emit(TokenType.StringLiteral, content[start..index]);
     }
 
-
-
     // --- Helper Methods ---
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -278,6 +277,7 @@ public class Lexer(string content, string file, Diagnostics diag)
         return content[index + 1];
     }
 
+    [DoesNotReturn]
     private void FatalError(string message)
     {
         LexerException e = new(message, tokenStartLine, tokenStartColumn, file);

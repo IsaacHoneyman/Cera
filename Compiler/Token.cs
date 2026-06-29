@@ -54,8 +54,4 @@ public enum TokenType
     And, Or, Not, // logical
     ColonColon, Question, Colon, // misc
     Pipe, Arrow,
-
-    // special
-    EOF
-
 }

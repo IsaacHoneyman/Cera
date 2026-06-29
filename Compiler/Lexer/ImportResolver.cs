@@ -1,6 +1,7 @@
-using Cera.Compiler.Exceptions;
+namespace Cera.Compiler.Lexer;
 
-namespace Cera.Compiler;
+using System.Diagnostics.CodeAnalysis;
+using Cera.Compiler.Exceptions;
 
 public class ImportResolver(Diagnostics diag)
 {
@@ -18,7 +19,7 @@ public class ImportResolver(Diagnostics diag)
 
         if (!File.Exists(absPath))
         {
-            diag.LogError($"Import Resolver: File \"{absPath}\" Does Not Exist.");    
+            diag.LogError($"Import Resolver: File '{absPath}' does not exist.");    
         }
 
         string file = Path.GetFileName(absPath); 
@@ -39,6 +40,7 @@ public class ImportResolver(Diagnostics diag)
             i += 3;
         }
 
+        unifiedStream.AddRange(tokens[i..]);
         return unifiedStream;
     }
 
@@ -48,17 +50,18 @@ public class ImportResolver(Diagnostics diag)
 
         if (tokens[index + 1].Tag != TokenType.StringLiteral)
         {
-            FatalError("Missing File Name", tokens[index + 1]);
+            FatalError("Missing file name", tokens[index + 1]);
         }
 
         if (tokens[index + 2].Tag != TokenType.Semicolon)
         {
-            FatalError("Statement Missing ;", tokens[index + 2]);
+            FatalError("statement missing ;", tokens[index + 2]);
         }
 
         return true;
     }
 
+    [DoesNotReturn]
     private void FatalError(string message, Token token)
     {
         ImportResolverException e = new(message, token);
