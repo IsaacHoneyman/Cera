@@ -1,29 +1,28 @@
-// The offical math libary for Cera.
+/* 
+    The offical math libary for Cera.
+    Offers support for basic mathematical operations for 
+    both int and float types.
+*/
 
-def pi() : float = { 3.14159265358979; }
-def e() : float = { 2.71828182845905; }
+// --- Constants ---
+
+def pi() : float = { 3.14159265358979 }
+def e() : float = { 2.71828182845905 }
+
+// --- Functions ---
 
 def round(x : float) : float = {
-    intToFloat(roundToInt(x));
+    intToFloat(roundToInt(x))
 }
 
 def roundToInt(x : float) : int = {
-    if (x >= 0.0) { floatToInt(x + 0.5); }
-    else { floatToInt(x - 0.5); }
+    if (x >= 0.0) { floatToInt(x + 0.5) }
+    else { floatToInt(x - 0.5) }
 }
 
-def min(x: float, y: float) : float = {
-    x <= y ? x : y;
-}
-
-def minInt(x: int, y: int) : int = {
-    x <= y ? x : y;
-}
-
-def max(x: float, y: float) : float = {
-    x <= y ? y : x;
-}
-
-def maxInt(x : int, y : int) : int = { 
-    x <= y ? y : x;
-}
+def min(x: float, y: float) : float = { x <= y ? x : y }
+def minInt(x: int, y: int) : int = { x <= y ? x : y }
+def max(x: float, y: float) : float = { x <= y ? y : x }
+def maxInt(x : int, y : int) : int = {  x <= y ? y : x }
+def abs(x : float) : float = { x >= 0 ? x : -x }
+def absInt(x : int) : int = { x >= 0 ? x : -x }

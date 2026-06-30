@@ -1,4 +1,5 @@
 ﻿using Cera.Compiler.Exceptions;
+using Cera.Compiler.Parser;
 
 namespace Cera.Compiler;
 
@@ -37,19 +38,23 @@ public class Compiler
         }
 
 
-        diag.EndSection(Diagnostics.TimerScope.Task, "Lexing completed", $"total tokens lexed: {tokens.Count}");
         diag.TryTokenDump(tokens);
+        diag.EndSection(Diagnostics.TimerScope.Task, "Lexing completed", $"total tokens lexed: {tokens.Count}");
 
         // Parser
 
         Parser.Parser p = new(tokens, diag);
+        INodeAST? ast = null;
 
-        try { p.Parse(); }
+        try { ast = p.Parse(); }
         catch (ParserException)
         {
             diag.Close();
             Environment.Exit(3);
         }
+
+        diag.TryASTDump(ast);
+        diag.EndSection(Diagnostics.TimerScope.Task, "Parsing completed");
 
         diag.EndSection(Diagnostics.TimerScope.Global, "Compilation completed");
         diag.Close();
@@ -61,7 +66,7 @@ public class Compiler
             args.Contains("--dump") || args.Contains("--du"), 
             args.Contains("--detail") || args.Contains("--de"),
             args.Contains("--tokens") || args.Contains("--t"),
-            args.Contains("--ast")
+            args.Contains("--ast") || args.Contains("--a")
             );
 
         string? filePath = args.FirstOrDefault(a => !a.StartsWith('-'));

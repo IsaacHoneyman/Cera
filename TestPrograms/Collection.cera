@@ -1,0 +1,79 @@
+/* 
+    The offical collection libary for Cera.
+    Offers support for standard list operations, 
+    as well as useful types like streams.
+*/
+
+// --- Lists ---
+
+def hd<g>(lst: g list, default: g) : g = {
+    switch (lst) {
+        [] -> default,
+        (h::_) -> h
+    }
+} 
+
+def tl<g>(lst: g list) : g list = {
+    switch (lst) {
+        [] -> [],
+        (_::tl) -> tl
+    }
+}
+
+def rev<g>(lst: g list) : g list = {
+    var r = func (lst : g list, acc : g list) : g list = { 
+        switch(lst) {
+            [] -> acc,
+            (h::tl) -> r(tl, h::acc) 
+        }
+    };
+    r(lst, [])
+}
+
+def mem<g>(lst: g list, elm: g) : bool = {
+    switch (lst) {
+        [] -> false,
+        (h::tl) -> 
+            if (h == elm) { true } 
+            else { mem(tl, g) }
+    }
+}
+
+def map<g>(lst: g list, f: g -> g) : g list = {
+    switch (lst) {
+        [] -> [],
+        (h::tl) -> (f(h) :: map(tl, f))
+    }
+}
+
+def filter<g>(lst: g list, p: g -> bool) : g list = {
+    switch(lst) {
+        [] -> [],
+        (h::tl) -> 
+            if (p(h)) { (h :: filter(tl, p)) }
+            else { filter(tl, p) }
+    }
+}
+
+def foldLeft<g>(lst: g list, f: (g * g) -> g, acc: g) : g = {
+    switch(lst) {
+        [] -> acc,
+        (h::tl) -> foldLeft(tl, f, f(acc, h))
+    }
+}
+
+/// --- Streams ---
+
+type stream<g> = Nil | Cons : (g * (unit -> stream<g>));
+
+def counter(start: int, end: int) : stream<int> = {
+    if (start == end) { Nil }
+    else {
+        Cons(start, func (u : unit) : stream<int> = counter(start + 1))
+    }
+}
+
+def counterInfinite(start: int) : stream<int> = {
+    Cons(start, func (u : unit) : stream<int> = counterInfinite(start + 1))
+}
+

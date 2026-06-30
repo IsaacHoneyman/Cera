@@ -1,9 +1,0 @@
-/*
-  Test 01: Minimal Entry
-  Validates the entry point, block expressions, and intrinsic I/O.
-*/
-
-def entry(args: char list arr): int = {
-    print("Hello, World!");
-    0;
-}

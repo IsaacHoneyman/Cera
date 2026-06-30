@@ -104,6 +104,7 @@ public class Lexer(string content, string file, Diagnostics diag)
                 else Emit(TokenType.Colon, ":");
                 break;
             case '?': Emit(TokenType.Question, "?"); break;
+            case '_': Emit(TokenType.WildCard, "_"); break;
 
             // Puncation
             case '(': Emit(TokenType.LPar, "("); break;

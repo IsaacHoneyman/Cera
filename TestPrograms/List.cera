@@ -1,6 +1,0 @@
-def hd<g>(lst: g list) : option<g> = {
-    switch (lst) {
-        [] -> None,
-        (h::tl) -> Some(h)
-    };
-} 

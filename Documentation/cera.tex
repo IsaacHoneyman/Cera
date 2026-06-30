@@ -93,7 +93,9 @@ def foo() : unit = {
     var s: char list = "hello world";
     var w: bool arr = arr[true, false, true];
     var u: (int * int * int) = (1, 2, 3);
-    var f: int -> int -> int = +;
+    var f: int -> int -> int = 
+        func (x: int, y: int) : int = x + y;
+    ()
 }
 \end{lstlisting}
 
@@ -119,6 +121,8 @@ def foo() : unit = {
     
     var greeting = ['H', 'i']; // char list
     var greeting2 = "Hi"; // char list
+
+    ()
 }
 \end{lstlisting}
 
@@ -145,6 +149,8 @@ def foo() : unit = {
     var sameTuple: bool = (1, 2) == (1, 2); // true
     var combined: int list = concat([1, 2], (3::[4, 5]));
     var result: int = isValid ? 100 : a > 20 ? 200 : 300; // 300
+
+    ()
 }
 \end{lstlisting}
 
@@ -182,6 +188,8 @@ def foo() : unit = {
         (0, y) -> 3,
         (x, y) -> 4,
     }
+
+    ()
 }
 \end{lstlisting}
 
@@ -400,7 +408,7 @@ The following is a full list of tokens used within the lexer:
 \begin{itemize}
     \item \textbf{Declaration: } \texttt{Var},  \texttt{Def},  \texttt{Func},  \texttt{Type} 
     \item \textbf{Control Flow: } \texttt{If},  \texttt{Else},  \texttt{Switch},  \texttt{Import}
-    \item \textbf{Primitive Types: } \texttt{Int},  \texttt{Float},  \texttt{Bool},  \texttt{Char},  \texttt{List},  \texttt{Arr},  \texttt{Unit}
+    \item \textbf{Primitive Types: } \texttt{Int},  \texttt{Float},  \texttt{Bool},  \texttt{Char},  \texttt{List},  \texttt{Arr},  \texttt{Unit}, \texttt{WildCard}
     \item \textbf{Literals: } \texttt{True},  \texttt{False},  \texttt{Identifier},  \texttt{Constructor},  \texttt{IntLiteral},\\\texttt{FloatLiteral},  \texttt{CharLiteral},  \texttt{StringLiteral}
     \item \textbf{Flow: } \texttt{LBracket},  \texttt{RBracket},  \texttt{LBRace},  \texttt{RBrace},  \texttt{LPar},  \texttt{RPar} 
     \item \textbf{Structural: } \texttt{Equal},  \texttt{SemiColon},  \texttt{Comma}
@@ -408,8 +416,11 @@ The following is a full list of tokens used within the lexer:
     \texttt{BitAnd},  \texttt{BitXor},  \texttt{BitNot},  \texttt{LShift},  \texttt{RShift},\\  
     \texttt{EqualEqual},  \texttt{NotEqual},  \texttt{Lesser},  \texttt{LesserEqual},  \texttt{Greater}\\
     \texttt{GreaterEqual},  \texttt{And},  \texttt{Or},  \texttt{Not},  \texttt{ColonColon}\\
-    \texttt{Question},  \texttt{Colon},  \texttt{Pipe},  \texttt{Arrow}
+    \texttt{Question},  \texttt{Colon},  \texttt{Pipe},  \texttt{Arrow}, 
+    \item \textbf{Special:} \texttt{None}
 \end{itemize}
+
+\textit{Note:} The \texttt{None} token type is simply used for errors, and represents the absence of a token.
 
 \subsection{Whitespace and Comment Handling}
 Whitespace characters (spaces, tabs, carriage returns, and newlines) serve strictly as lexeme delimiters. When the DFA encounters whitespace, it forces the completion and emission of the currently accumulating token. The whitespace itself is then immediately consumed and discarded; no token is generated. 
@@ -453,7 +464,7 @@ Are top level fundamental definitions:
 \langle \text{TupleType} \rangle &\Coloneqq \textbf{(} \langle \text{Type} \rangle \; (\textbf{*} \langle \text{Type} \rangle )^+ \textbf{)} \\
 \langle \text{GenericType} \rangle &\Coloneqq \textbf{id} \mathbf{<}\langle \text{Type} \rangle \; (\textbf{,} \langle \text{Type} \rangle)^* \mathbf{>} \\
 \langle \text{ConDecl} \rangle &\Coloneqq \textbf{con} \; [ \textbf{:} \; \langle \text{Type} \rangle ] \\
-\langle \text{ExprBlock} \rangle &\Coloneqq \textbf{\{} \langle \text{Stmt} \rangle^* \; \langle \text{Expr} \rangle \textbf{;} \textbf{\}} \\
+\langle \text{ExprBlock} \rangle &\Coloneqq \textbf{\{} \langle \text{Stmt} \rangle^* \; \langle \text{Expr} \rangle [\textbf{;}] \textbf{\}} \\
 \langle \text{Stmt} \rangle &\Coloneqq \langle \text{VarDecl} \rangle \mid \langle \text{Expr} \rangle \textbf{;} \\ 
 \langle \text{Param} \rangle &\Coloneqq \textbf{id} \; \textbf{:} \; \langle \text{Type} \rangle
 \end{align*}
@@ -537,6 +548,8 @@ Expression evaluation utilizes a Top-Down Operator Precedence (Pratt) parsing ar
 
 During evaluation, the parser continuously polls the token stream for its assigned binding power. It greedily consumes tokens and recursively invokes their registered delegates for as long as the upcoming token's precedence strictly exceeds the current binding context, naturally producing a correctly ordered AST.
 
+Overall we are implementing a Hybrid LL(1) \& Pratt parser.
+
 \subsection{Tree Traversal via Pattern Matching}
 Because the AST nodes are implemented as pure data records devoid of behavioral logic, the compiler deliberately omits the traditional Object-Oriented Visitor pattern (i.e., nodes do not implement \texttt{Accept(IVisitor)} methods). 
 
@@ -579,7 +592,10 @@ Before considering future features for the language, we shall consider previous 
 \subsection{Planned Features}
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
-    \item \textbf{Inline Keyword:} Very similar to it's implementation among OOP languages, inline functions will simply insert their body directly in place of it's call, rather than requiring an extra frame to be placed onto the stack. While a feature that will be added, omitted for now to reduce initial complexity. e.g. \texttt{def inline double(x : float) : float = \{ 2 * x; \}}
+    \item \textbf{Inline Keyword:} Very similar to it's implementation among OOP languages, inline functions will simply insert their body directly in place of it's call, rather than requiring an extra frame to be placed onto the stack. While a feature that will be added, omitted for now to reduce initial complexity. e.g. \texttt{def inline double(x : float) : float =} \{  \texttt{2 * x;} \} 
     \item \textbf{Top Level Var Declarations:} This can be extremely useful feature, replacing features such as the currently rather clunky format of constants \texttt{def pi() : float = { 3.14159265358979; }}, and has been omitted from the first version of Cera purely for garbage collector and passing complexity reduction.
+    \item \textbf{Switch If Statements:} An embedded way for switch statements to use ifs, similar to OCaml's when keyword, aswell as the removal of the requirement of braces for if statements.
+    \item \textbf{Default Function Values:} Similar to C\#, with \texttt{param : type = value}.
+    \item \textbf{Inner Named Functions:} As the name states.
 \end{itemize}
 \end{document}

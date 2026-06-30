@@ -6,13 +6,7 @@ public interface INodeAST;
 public interface IExprAST : INodeAST;
 public interface IStmtAST : INodeAST;
 public interface ITypeAST : INodeAST;
-public interface IPatternAST : INodeAST;
-
-public record NodePlaceHolder() : INodeAST;
-public record ExprPlaceHolder() : IExprAST;
-public record StmtPlaceHolder() : IStmtAST;
-public record PatternPlaceHolder() : IPatternAST;
-public record ExprBlockPlaceHolder() : ExprBlock([], new ExprPlaceHolder()); 
+public interface IPatternAST : INodeAST; 
 
 // --- Top Level ---
 
@@ -43,6 +37,8 @@ public record ExprStmt(IExprAST Expression) : IStmtAST;
 public record ExprBlock(List<IStmtAST> Statements, IExprAST ReturnExpression) : IExprAST;
 
 public record LiteralExpr(Token Value) : IExprAST;
+
+public record ConExpr(Token ConstructorName, List<IExprAST> Payloads) : IExprAST;
 
 public record IdentifierExpr(Token Identifier) : IExprAST;
 

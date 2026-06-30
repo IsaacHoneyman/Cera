@@ -19,7 +19,8 @@ public class ImportResolver(Diagnostics diag)
 
         if (!File.Exists(absPath))
         {
-            diag.LogError($"Import Resolver: File '{absPath}' does not exist.");    
+            diag.LogError($"Import Resolver: File '{absPath}' does not exist.");   
+            throw new ImportResolverException("", Token.None()); 
         }
 
         string file = Path.GetFileName(absPath); 

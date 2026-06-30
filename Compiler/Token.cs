@@ -8,7 +8,7 @@ public readonly struct Token(TokenType tag, string lexeme, int line, int column,
         {"if", TokenType.If}, {"else", TokenType.Else}, {"switch", TokenType.Switch}, {"import", TokenType.Import},
         {"int", TokenType.Int}, {"float", TokenType.Float}, {"bool", TokenType.Bool}, {"char", TokenType.Char},
         {"list", TokenType.List}, {"arr", TokenType.Arr}, {"unit", TokenType.Unit}, {"true", TokenType.True},
-        {"false", TokenType.False}
+        {"false", TokenType.False}, 
     };
 
     public readonly TokenType Tag = tag;
@@ -21,6 +21,11 @@ public readonly struct Token(TokenType tag, string lexeme, int line, int column,
     public override string ToString()
     {
         return $"{Tag}: {Lexeme}";
+    }
+
+    public static Token None()
+    {
+        return new(TokenType.None, "", -1, -1, "");
     }
 }
 
@@ -45,7 +50,7 @@ public enum TokenType
     LBracket, RBracket, LBrace, RBrace, LPar, RPar,
 
     // structural
-    Equal, Semicolon, Comma,
+    Equal, Semicolon, Comma, WildCard,
 
     // operators
     Plus, Minus, Star, Slash, Mod, // arithmetic
@@ -54,4 +59,7 @@ public enum TokenType
     And, Or, Not, // logical
     ColonColon, Question, Colon, // misc
     Pipe, Arrow,
+
+    // special 
+    None
 }

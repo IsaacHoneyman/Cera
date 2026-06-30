@@ -39,12 +39,14 @@ public partial class Parser
         RegisterPrefix(TokenType.StringLiteral, ParseLiteral);
         RegisterPrefix(TokenType.True, ParseLiteral);
         RegisterPrefix(TokenType.False, ParseLiteral);
+        RegisterPrefix(TokenType.WildCard, ParseLiteral);
 
         // Identifiers
         RegisterPrefix(TokenType.Identifier, ParseIdentifier);
+        RegisterPrefix(TokenType.Constructor, ParseConstructor);
 
         // Grouping & Complex Literals
-        RegisterPrefix(TokenType.LPar, ParseGroupingOrTuple);
+        RegisterPrefix(TokenType.LPar, ParseGroupingOrTupleOrUnit);
         RegisterPrefix(TokenType.LBracket, ParseListLit);
         RegisterPrefix(TokenType.Arr, ParseArrLit);
 
