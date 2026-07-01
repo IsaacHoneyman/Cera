@@ -94,8 +94,8 @@ def foo() : unit = {
     var w: bool arr = arr[true, false, true];
     var u: (int * int * int) = (1, 2, 3);
     var f: int -> int -> int = 
-        func (x: int, y: int) : int = x + y;
-    ()
+      func (x: int, y: int) : int = x + y;
+    ();
 }
 \end{lstlisting}
 
@@ -122,7 +122,7 @@ def foo() : unit = {
     var greeting = ['H', 'i']; // char list
     var greeting2 = "Hi"; // char list
 
-    ()
+    ();
 }
 \end{lstlisting}
 
@@ -149,8 +149,7 @@ def foo() : unit = {
     var sameTuple: bool = (1, 2) == (1, 2); // true
     var combined: int list = concat([1, 2], (3::[4, 5]));
     var result: int = isValid ? 100 : a > 20 ? 200 : 300; // 300
-
-    ()
+    ();
 }
 \end{lstlisting}
 
@@ -189,7 +188,7 @@ def foo() : unit = {
         (x, y) -> 4,
     }
 
-    ()
+    ();
 }
 \end{lstlisting}
 

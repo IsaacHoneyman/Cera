@@ -44,7 +44,7 @@ public class Compiler
         // Parser
 
         Parser.Parser p = new(tokens, diag);
-        INodeAST? ast = null;
+        ProgramNode? ast = null;
 
         try { ast = p.Parse(); }
         catch (ParserException)
@@ -56,6 +56,19 @@ public class Compiler
         diag.TryASTDump(ast);
         diag.EndSection(Diagnostics.TimerScope.Task, "Parsing completed");
 
+        Analyzer.Analyzer a = new(ast, diag);
+        Analyzer.Environment? e = null;
+
+        try { e = a.Analyze(); }
+        catch (AnalyzerException)
+        {
+            diag.Close();
+            Environment.Exit(4);
+        }
+
+        diag.TryAnalyzerDump(e);
+        diag.EndSection(Diagnostics.TimerScope.Task, "Analysis completed");
+
         diag.EndSection(Diagnostics.TimerScope.Global, "Compilation completed");
         diag.Close();
     }
@@ -66,7 +79,7 @@ public class Compiler
             args.Contains("--dump") || args.Contains("--du"), 
             args.Contains("--detail") || args.Contains("--de"),
             args.Contains("--tokens") || args.Contains("--t"),
-            args.Contains("--ast") || args.Contains("--a")
+            args.Contains("--ast"), args.Contains("--an")
             );
 
         string? filePath = args.FirstOrDefault(a => !a.StartsWith('-'));
@@ -76,7 +89,7 @@ public class Compiler
             diag.LogError("No file path specified. Usage: compiler <filepath> [flags]");
             return;
         }
-        
-        new Compiler(filePath, diag);
+
+        _ = new Compiler(filePath, diag);
     }
 }

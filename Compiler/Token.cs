@@ -25,7 +25,12 @@ public readonly struct Token(TokenType tag, string lexeme, int line, int column,
 
     public static Token None()
     {
-        return new(TokenType.None, "", -1, -1, "");
+        return new(TokenType.None, "", 0, 0, "");
+    }
+
+    public static Token BuiltIn(TokenType type, string lexeme)
+    {
+        return new(type, lexeme, 0, 0, "<builtin>");
     }
 }
 

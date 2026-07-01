@@ -21,19 +21,21 @@ public class Diagnostics
 
     private readonly bool tokenDump;
     private readonly bool astDump;
+    private readonly bool analyzerDump;
 
     private readonly string dumpFilePath;
     private readonly StringBuilder sb = new();
 
     private readonly Stopwatch[] sw = [new(), new(), new()]; // global, task, sub-task
 
-    public Diagnostics(bool dumpToFile, bool detailedDiag, bool tokenDump, bool astDump)
+    public Diagnostics(bool dumpToFile, bool detailedDiag, bool tokenDump, bool astDump, bool analyzerDump)
     {
         this.dumpToFile = dumpToFile;
         this.detailedDiag = detailedDiag;
 
         this.tokenDump = tokenDump;
         this.astDump = astDump;
+        this.analyzerDump = analyzerDump;
 
         dumpFilePath = $"Out/Dump/Cera_Dump_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
         if (dumpToFile)
@@ -89,6 +91,8 @@ public class Diagnostics
         long time = sw[(int)scope].ElapsedTicks;
         sw[(int)scope].Restart();
 
+        if (scope == TimerScope.Task) sw[(int)TimerScope.SubTask].Restart();
+
         DetailLog($"{preMessage} In {Math.Round((double)time / TimeSpan.TicksPerSecond, 2)}s. {postMessage}");
         if (scope == TimerScope.Task) DetailLog("");
     }
@@ -111,6 +115,12 @@ public class Diagnostics
             Log(t.ToString(), true);
         }
         Log("", true);
+        return true;
+    }
+
+    public bool TryAnalyzerDump(Analyzer.Environment global)
+    {
+        if (!analyzerDump) return false;
         return true;
     }
 
