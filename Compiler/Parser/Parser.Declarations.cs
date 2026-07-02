@@ -206,12 +206,12 @@ public partial class Parser
         Consume(TokenType.RPar, "Expected ')'");
 
         if (exprs.Count == 1) return exprs[0];
-        return new TupleLitExpr(exprs);
+        return new TupleLitExpr(lPar, exprs);
     }
 
     private IExprAST ParseListLit()
     {
-        Consume(TokenType.LBracket, "Expected '['");
+        var lBrac = Consume(TokenType.LBracket, "Expected '['");
 
         List<IExprAST> exprs = [];
         if (!Check(TokenType.RBracket))
@@ -222,13 +222,13 @@ public partial class Parser
 
         Consume(TokenType.RBracket, "Expected ']'");
 
-        return new ListLitExpr(exprs);
+        return new ListLitExpr(lBrac, exprs);
     }
 
     private IExprAST ParseArrLit()
     {
         Consume(TokenType.Arr, "Expected 'arr' keyword");
-        Consume(TokenType.LBracket, "Expected '['");
+        var lBrac =  Consume(TokenType.LBracket, "Expected '['");
 
         List<IExprAST> exprs = [];
         if (!Check(TokenType.RBracket))
@@ -239,13 +239,13 @@ public partial class Parser
 
         Consume(TokenType.RBracket, "Expected ']'");
 
-        return new ArrLitExpr(exprs);
+        return new ArrLitExpr(lBrac, exprs);
     }
 
     private IExprAST ParseIfExpr()
     {
         Consume(TokenType.If, "Expected 'if' keyword");
-        Consume(TokenType.LPar, "Expected '(' after 'if'");
+        var op = Consume(TokenType.LPar, "Expected '(' after 'if'");
         var condition = ParseExpression();
         Consume(TokenType.RPar, "Expected ')' after if condition");
 
@@ -270,13 +270,13 @@ public partial class Parser
             }
         }
 
-        return new IfExpr(condition, trueBlock, elseIfs, elseBlock);
+        return new IfExpr(op, condition, trueBlock, elseIfs, elseBlock);
     }
 
     private IExprAST ParseSwitchExpr()
     {
         Consume(TokenType.Switch, "Expected 'switch' keyword");
-        Consume(TokenType.LPar, "Expected '(' after switch");
+        var op = Consume(TokenType.LPar, "Expected '(' after switch");
         var target = ParseExpression();
         Consume(TokenType.RPar, "Expected ')' after switch target");
         Consume(TokenType.LBrace, "Expected '{' to begin switch cases");
@@ -293,7 +293,7 @@ public partial class Parser
 
         Consume(TokenType.RBrace, "Expected '}' to close switch cases");
 
-        return new SwitchExpr(target, cases);
+        return new SwitchExpr(op, target, cases);
     }
 
     private IExprAST ParseLambda()
@@ -338,11 +338,11 @@ public partial class Parser
 
     private IExprAST ParseTernary(IExprAST left)
     {
-        Consume(TokenType.Question, "Expected '?'");
+        Token op = Consume(TokenType.Question, "Expected '?'");
         var trueBranch = ParseExpression();
         Consume(TokenType.Colon, "Expected ':' in ternary expression");
         var falseBranch = ParseExpression((Precedence)((int)Precedence.Ternary - 1)); // as right associative
-        return new TernaryExpr(left, trueBranch, falseBranch);
+        return new TernaryExpr(left, op, trueBranch, falseBranch);
     }
 
 

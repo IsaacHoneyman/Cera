@@ -24,5 +24,5 @@ def min(x: float, y: float) : float = { x <= y ? x : y }
 def minInt(x: int, y: int) : int = { x <= y ? x : y }
 def max(x: float, y: float) : float = { x <= y ? y : x }
 def maxInt(x : int, y : int) : int = {  x <= y ? y : x }
-def abs(x : float) : float = { x >= 0 ? x : -x }
+def abs(x : float) : float = { x >= 0.0 ? x : -x }
 def absInt(x : int) : int = { x >= 0 ? x : -x }

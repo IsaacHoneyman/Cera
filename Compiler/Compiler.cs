@@ -5,8 +5,8 @@ namespace Cera.Compiler;
 
 public class Compiler
 {
-    private string filePath;
-    private Diagnostics diag;
+    private readonly string filePath;
+    private readonly Diagnostics diag;
 
     private Compiler(string filePath, Diagnostics diag)
     {
@@ -73,14 +73,23 @@ public class Compiler
         diag.Close();
     }
 
+    private static bool[] GenerateDiagnosticsArgs(string[] args)
+    {
+        bool[] diagArgs = new bool[5];
+        diagArgs[1] = args.Contains("--verbose") || args.Contains("-v");
+        diagArgs[2] = args.Contains("--tokens") || args.Contains("-t");
+        diagArgs[3] = args.Contains("--ast") || args.Contains("-a");
+        diagArgs[4] = args.Contains("--analyzer") || args.Contains("-s");
+
+        diagArgs[0] = args.Contains("--dump") || args.Contains("-d") 
+            || diagArgs[2] || diagArgs[3] || diagArgs[4];
+
+        return diagArgs;
+    }
+
     public static void Main(string[] args)
     {
-        Diagnostics diag = new(
-            args.Contains("--dump") || args.Contains("--du"), 
-            args.Contains("--detail") || args.Contains("--de"),
-            args.Contains("--tokens") || args.Contains("--t"),
-            args.Contains("--ast"), args.Contains("--an")
-            );
+        Diagnostics diag = new(GenerateDiagnosticsArgs(args));
 
         string? filePath = args.FirstOrDefault(a => !a.StartsWith('-'));
 

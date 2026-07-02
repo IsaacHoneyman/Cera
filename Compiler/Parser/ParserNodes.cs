@@ -48,20 +48,20 @@ public record UnaryExpr(Token Operator, IExprAST Right) : IExprAST;
 
 public record CallExpr(IExprAST Callee, List<IExprAST> Arguments) : IExprAST;
 
-public record TernaryExpr(IExprAST Condition, IExprAST TrueBranch, IExprAST FalseBranch) : IExprAST;
+public record TernaryExpr(IExprAST Condition, Token Operator, IExprAST TrueBranch, IExprAST FalseBranch) : IExprAST;
 
-public record IfExpr(IExprAST Condition, ExprBlock TrueBlock,
+public record IfExpr(Token Operator, IExprAST Condition, ExprBlock TrueBlock,
 List<(IExprAST Condition, ExprBlock Block)> ElseIfs, ExprBlock? ElseBlock) : IExprAST;
 
-public record SwitchExpr(IExprAST TargetExpression, List<PatternMatchNode> Cases) : IExprAST;
+public record SwitchExpr(Token Operator, IExprAST TargetExpression, List<PatternMatchNode> Cases) : IExprAST;
 
 public record LambdaExpr(List<ParamNode> Parameters, ITypeAST ReturnType, IExprAST Body) : IExprAST;  
 
-public record ListLitExpr(List<IExprAST> Elements) : IExprAST;
+public record ListLitExpr(Token Operator, List<IExprAST> Elements) : IExprAST;
 
-public record ArrLitExpr(List<IExprAST> Elements) : IExprAST;
+public record ArrLitExpr(Token Operator, List<IExprAST> Elements) : IExprAST;
 
-public record TupleLitExpr(List<IExprAST> Elements) : IExprAST; 
+public record TupleLitExpr(Token Operator, List<IExprAST> Elements) : IExprAST; 
 
 // --- Types ---
 

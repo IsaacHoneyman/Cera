@@ -35,7 +35,7 @@ def mem<g>(lst: g list, elm: g) : bool = {
         [] -> false,
         (h::tl) -> 
             if (h == elm) { true } 
-            else { mem(tl, g) }
+            else { mem(tl, elm) }
     }
 }
 
@@ -69,7 +69,7 @@ type stream<g> = Nil | Cons : (g * (unit -> stream<g>));
 def counter(start: int, end: int) : stream<int> = {
     if (start == end) { Nil }
     else {
-        Cons(start, func (u : unit) : stream<int> = counter(start + 1))
+        Cons(start, func (u : unit) : stream<int> = counter(start + 1, end))
     }
 }
 

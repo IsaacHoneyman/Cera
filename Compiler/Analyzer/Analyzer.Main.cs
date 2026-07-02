@@ -26,12 +26,6 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         return globalEnv;
     }
 
-    private void AnalyzeFunction(FuncDeclNode func)
-    {
-        currentEnv = new Environment(currentEnv);
-        currentEnv = currentEnv.Parent;
-    }
-
     private void RegisterType(TypeDeclNode type)
     {
         string tName = type.Identifier.Lexeme;
@@ -76,45 +70,19 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
             if (!seenGen.Add(gt.Lexeme)) FatalError($"Duplicate generic parameter '{gt.Lexeme}' in function '{fName}'", gt);
 
         ValidateTypeExists(func.ReturnType, seenGen);
+
+        List<ITypeAST> paramTypes = [];
         foreach (var param in func.Parameters)
-            ValidateTypeExists(param.DeclaredType, seenGen);
-
-        globalEnv.Define(fName, new FuncSymbol(func.Identifier, func.ReturnType, func.Parameters.Count, gens));
-    }
-
-    private void ValidateTypeExists(ITypeAST typeNode, HashSet<string> validGenerics)
-    {
-        switch (typeNode)
         {
-            case BaseType b:
-                string name = b.TypeName.Lexeme;
-                if (!validGenerics.Contains(name) && globalEnv.Resolve(name) is not TypeSymbol)
-                {
-                    FatalError($"Semantic Error: Undefined type '{name}'", b.TypeName);
-                }
-                break;
-            case ListType l:
-                ValidateTypeExists(l.InnerType, validGenerics);
-                break;
-            case ArrType a:
-                ValidateTypeExists(a.InnerType, validGenerics);
-                break;
-            case FuncType f:
-                ValidateTypeExists(f.ParameterType, validGenerics);
-                ValidateTypeExists(f.ReturnType, validGenerics);
-                break;
-            case TupleType t:
-                foreach (var innerType in t.Types)
-                    ValidateTypeExists(innerType, validGenerics);
-                break;
-            case GenericType gt:
-                string baseName = gt.BaseName.Lexeme;
-                if (globalEnv.Resolve(baseName) is not TypeSymbol) 
-                    FatalError($"Undefined generic base type '{baseName}'", gt.BaseName);
-                foreach (var typeArg in gt.TypeArguments)
-                    ValidateTypeExists(typeArg, validGenerics);
-                break;
+            ValidateTypeExists(param.DeclaredType, seenGen);
+            paramTypes.Add(param.DeclaredType);
         }
+        ITypeAST fullSignature;
+        if (paramTypes.Count == 0) fullSignature = new FuncType(new BaseType(intrT["unit"]), func.ReturnType);
+        else if (paramTypes.Count == 1) fullSignature = new FuncType(paramTypes[0], func.ReturnType);
+        else fullSignature = new FuncType(new TupleType(paramTypes), func.ReturnType);
+
+        globalEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens));
     }
 
     [DoesNotReturn]
@@ -123,5 +91,12 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         AnalyzerException e = new(message, token);
         diag.LogError(e.Message);
         throw e;
+    }
+
+    [DoesNotReturn]
+    private ITypeAST FatalErrorReturn(string message, Token token)
+    {
+        FatalError(message, token);
+        return null!;
     }
 }

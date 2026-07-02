@@ -19,6 +19,8 @@ public class Environment(Environment? parent = null)
         return null;
     }
 
+    public IEnumerable<Symbol> GetLocalSymbols() { return locals.Values; }
+
     public static Environment None() { return new Environment(); }
     
 }

@@ -4,7 +4,7 @@ import "Collection.cera";
 def entry(args : char list arr) : int = { 
     out("Hello World");
     out("The Area Of A Circle Radius 5 Is: ");
-    out(floatToChars(circleArea(5)));
+    out(floatToChars(circleArea(5.0)));
     0
 }
 
