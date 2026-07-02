@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using Cera.Compiler.Exceptions;
+using Cera.Compiler.Logging;
+using Cera.Compiler.Lexer;
 
 namespace Cera.Compiler.Parser;
 

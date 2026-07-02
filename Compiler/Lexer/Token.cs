@@ -1,4 +1,4 @@
-namespace Cera.Compiler;
+namespace Cera.Compiler.Lexer;
 
 public readonly struct Token(TokenType tag, string lexeme, int line, int column, string file)
 {

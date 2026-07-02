@@ -1,7 +1,7 @@
 namespace Cera.Compiler.Lexer;
 
 using System.Diagnostics.CodeAnalysis;
-using Cera.Compiler.Exceptions;
+using Cera.Compiler.Logging;
 
 public class ImportResolver(Diagnostics diag)
 {

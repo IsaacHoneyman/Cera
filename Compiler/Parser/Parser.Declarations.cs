@@ -1,3 +1,5 @@
+using Cera.Compiler.Lexer;
+
 namespace Cera.Compiler.Parser;
 
 public partial class Parser

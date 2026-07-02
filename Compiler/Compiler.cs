@@ -1,4 +1,5 @@
-﻿using Cera.Compiler.Exceptions;
+﻿using Cera.Compiler.Logging;
+using Cera.Compiler.Lexer;
 using Cera.Compiler.Parser;
 
 namespace Cera.Compiler;
@@ -22,8 +23,8 @@ public class Compiler
 
         // Lexer
 
-        Lexer.ImportResolver ir = new(diag);
-        List<Token> tokens = [];
+        ImportResolver ir = new(diag);
+        List<Lexer.Token> tokens = [];
 
         try { tokens = ir.ResolveAllImports(filePath); }
         catch (LexerException)
@@ -95,7 +96,7 @@ public class Compiler
 
         if (string.IsNullOrWhiteSpace(filePath))
         {
-            diag.LogError("No file path specified. Usage: compiler <filepath> [flags]");
+            diag.LogError("No file path specified. Usage: compiler 'filepath' [flags]");
             return;
         }
 

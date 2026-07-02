@@ -2,8 +2,9 @@ using System.Diagnostics;
 using System.Text;
 using Cera.Compiler.Parser;
 using Cera.Compiler.Analyzer;
+using Cera.Compiler.Lexer;
 
-namespace Cera.Compiler;
+namespace Cera.Compiler.Logging;
 
 /// <summary> Feedback class for the compiler. </summary>
 public class Diagnostics

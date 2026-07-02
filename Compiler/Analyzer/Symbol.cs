@@ -1,7 +1,7 @@
-namespace Cera.Compiler.Analyzer;
-
+using Cera.Compiler.Lexer;
 using Cera.Compiler.Parser;
-using System.Collections.Generic;
+
+namespace Cera.Compiler.Analyzer;
 
 /// <summary> The abstract base record for all named entities in the Cera environment. </summary>
 public abstract record Symbol(Token DeclToken, ITypeAST? Type);

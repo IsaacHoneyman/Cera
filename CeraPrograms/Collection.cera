@@ -6,22 +6,35 @@
 
 // --- Lists ---
 
-def hd<g>(lst: g list, default: g) : g = {
+def headd<g>(lst: g list, default: g) : g = {
     switch (lst) {
         [] -> default,
         (h::_) -> h
     }
 } 
 
-def tl<g>(lst: g list) : g list = {
+def tail<g>(lst: g list) : g list = {
     switch (lst) {
         [] -> [],
         (_::tl) -> tl
     }
 }
 
+def length<g>(lst: g list) : int = {
+    foldLeft(lst, func (acc: int, val: g) : int = acc + 1, 0)
+}
+
+def nth<g>(lst: g list, index: int) : option<g> = { 
+    switch(lst) {
+        [] -> None,
+        (h::tl) -> 
+            if (index == 0) { Some(h) }
+            else { nth(tl, index - 1) }
+    }
+}
+
 def rev<g>(lst: g list) : g list = {
-    var r = func (lst : g list, acc : g list) : g list = { 
+    var r = func(lst : g list, acc : g list) : g list = { 
         switch(lst) {
             [] -> acc,
             (h::tl) -> r(tl, h::acc) 
@@ -55,10 +68,43 @@ def filter<g>(lst: g list, p: g -> bool) : g list = {
     }
 }
 
-def foldLeft<g>(lst: g list, f: (g * g) -> g, acc: g) : g = {
+def exists<g>(lst: g list, p: g -> bool) : bool = {
+    var x = find(lst, p);
+    switch (x) {
+        None -> false,
+        _ -> true
+    }
+}
+
+def forAll<g>(lst: g list, p: g -> bool) : bool = {
+    switch(lst) {
+        [] -> true,
+        (h::tl) ->
+            if (p(h)) { forAll(tl, p) }
+            else { false }
+    }
+}
+
+def find<g>(lst: g list, p: g -> bool) : option<g> = {
+    switch(lst) {
+        [] -> None,
+        (h::tl) ->
+            if (p(h)) { Some(h) }
+            else { find(tl, p) }
+    }
+}
+
+def foldLeft<g, h>(lst: g list, f: (h * g) -> h, acc: h) : h = {
     switch(lst) {
         [] -> acc,
-        (h::tl) -> foldLeft(tl, f, f(acc, h))
+        (val::tl) -> foldLeft(tl, f, f(acc, val))
+    }
+}
+
+def foldRight<g, h>(lst: g list, f: (g * h) -> h, acc: h) : h = {
+    switch (lst) {
+        [] -> acc,
+        (val::tl) -> f(val, foldRight(tl, f, acc))
     }
 }
 

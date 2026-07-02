@@ -1,6 +1,7 @@
-namespace Cera.Compiler.Analyzer;
-
 using Cera.Compiler.Parser;
+using Cera.Compiler.Lexer;
+
+namespace Cera.Compiler.Analyzer;
 
 public partial class Analyzer
 {

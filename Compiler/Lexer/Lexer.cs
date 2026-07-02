@@ -2,7 +2,7 @@ namespace Cera.Compiler.Lexer;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using Cera.Compiler.Exceptions;
+using Cera.Compiler.Logging;
 
 public class Lexer(string content, string file, Diagnostics diag)
 {
