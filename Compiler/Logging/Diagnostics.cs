@@ -3,6 +3,7 @@ using System.Text;
 using Cera.Compiler.Parser;
 using Cera.Compiler.Analyzer;
 using Cera.Compiler.Lexer;
+using System.Reflection;
 
 namespace Cera.Compiler.Logging;
 
@@ -22,6 +23,7 @@ public class Diagnostics
     private readonly bool tokenDump;
     private readonly bool astDump;
     private readonly bool analyzerDump;
+    private readonly bool emitterDump;
 
     private readonly string dumpFilePath;
     private readonly StringBuilder sb = new();
@@ -36,6 +38,7 @@ public class Diagnostics
         tokenDump = args[2];
         astDump = args[3];
         analyzerDump = args[4];
+        emitterDump = args[5];
 
         dumpFilePath = $"Out/Dump/Cera_Dump_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
         if (dumpToFile)
@@ -333,4 +336,15 @@ public class Diagnostics
             _ => $"{pad}Unknown Symbol: {symbol.DeclToken.Lexeme}\n"
         };
     }
+
+    // --- Emitter Nonsense ---
+
+    public bool TryEmitterDump(Backend.Module m)
+    {
+        if (!emitterDump) return false;
+
+        return true;
+    } 
+
+
 }

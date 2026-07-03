@@ -24,7 +24,7 @@ public class Compiler
         // Lexer
 
         ImportResolver ir = new(diag);
-        List<Lexer.Token> tokens = [];
+        List<Token> tokens = [];
 
         try { tokens = ir.ResolveAllImports(filePath); }
         catch (LexerException)
@@ -57,6 +57,8 @@ public class Compiler
         diag.TryASTDump(ast);
         diag.EndSection(Diagnostics.TimerScope.Task, "Parsing completed");
 
+        // Analyzer
+
         Analyzer.Analyzer a = new(ast, diag);
         Analyzer.Environment? e = null;
 
@@ -70,20 +72,36 @@ public class Compiler
         diag.TryAnalyzerDump(e);
         diag.EndSection(Diagnostics.TimerScope.Task, "Analysis completed");
 
+        // Emitter
+
+        Backend.Emitter em = new(ast, diag);
+        Backend.Module? m = null;
+
+        try { m = em.Compile(); } 
+        catch (EmitterException)
+        {
+            diag.Close();
+            Environment.Exit(5);
+        }
+
+        diag.TryEmitterDump(m);
+        diag.EndSection(Diagnostics.TimerScope.Task, "Emission completed");
+
         diag.EndSection(Diagnostics.TimerScope.Global, "Compilation completed");
         diag.Close();
     }
 
     private static bool[] GenerateDiagnosticsArgs(string[] args)
     {
-        bool[] diagArgs = new bool[5];
+        bool[] diagArgs = new bool[6];
         diagArgs[1] = args.Contains("--verbose") || args.Contains("-v");
         diagArgs[2] = args.Contains("--tokens") || args.Contains("-t");
         diagArgs[3] = args.Contains("--ast") || args.Contains("-a");
         diagArgs[4] = args.Contains("--analyzer") || args.Contains("-s");
+        diagArgs[5] = args.Contains("--emitter") || args.Contains("-e");
 
         diagArgs[0] = args.Contains("--dump") || args.Contains("-d") 
-            || diagArgs[2] || diagArgs[3] || diagArgs[4];
+            || diagArgs[2] || diagArgs[3] || diagArgs[4] || diagArgs[5];
 
         return diagArgs;
     }

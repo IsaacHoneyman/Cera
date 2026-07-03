@@ -363,6 +363,10 @@ public partial class Analyzer
 
             Unify(instantiatedPayload, actualPayloadType, con.ConstructorName);
         }
+        else if (con.PayloadPatterns.Count > 0)
+        {
+            FatalError($"Constructor '{cName}' does not take a payload, but the pattern provided one", con.ConstructorName);
+        }
 
         return instantiatedParent;
     }

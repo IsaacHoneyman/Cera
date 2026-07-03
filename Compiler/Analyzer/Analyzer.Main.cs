@@ -14,6 +14,8 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
     {
         currentEnv = globalEnv;
 
+        diag.DetailLog("Analyzing AST");
+
         /// --- S1, type/function population ---
         InitializeIntrinsics();
         foreach (var t in root.Types) RegisterType(t);

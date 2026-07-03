@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Cera.Compiler.Lexer;
 
 namespace Cera.Compiler.Logging;
@@ -42,3 +43,6 @@ public class ParserException(string message, Token token) :
 
 public class AnalyzerException(string message, Token token) :
     CeraException("Analyser", message, token);
+
+public class EmitterException(string message) : 
+    CeraException("Emitter", message, Token.None());

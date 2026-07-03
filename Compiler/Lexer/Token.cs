@@ -44,7 +44,7 @@ public enum TokenType
 
     // literals
     True, False, // boolean literals
-    Identifier,
+    Identifier, 
     Constructor,
     IntLiteral,
     FloatLiteral,

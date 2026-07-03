@@ -33,14 +33,6 @@
 \contentsline {subsection}{\numberline {6.2}Hindley-Milner Type Inference (Algorithm W)}{16}{subsection.6.2}%
 \contentsline {subsection}{\numberline {6.3}Generic Instantiation and Polymorphism}{16}{subsection.6.3}%
 \contentsline {subsection}{\numberline {6.4}Operator and Expression Validation}{16}{subsection.6.4}%
-\contentsline {section}{\numberline {7}Intermediate Representation (IR)}{17}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Closure Conversion and Lambda Lifting}{17}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}A-Normal Form (ANF) Flattening}{17}{subsection.7.2}%
-\contentsline {section}{\numberline {8}Bytecode Emission and Instruction Set Architecture}{17}{section.8}%
-\contentsline {subsection}{\numberline {8.1}Instruction Format}{17}{subsection.8.1}%
-\contentsline {subsection}{\numberline {8.2}The Opcode Categories}{18}{subsection.8.2}%
-\contentsline {subsection}{\numberline {8.3}The Constant Pool}{19}{subsection.8.3}%
-\contentsline {section}{\numberline {9}The Virtual Machine (VM)}{19}{section.9}%
-\contentsline {section}{\numberline {10}Planned Updates}{19}{section.10}%
-\contentsline {subsection}{\numberline {10.1}Excluded Features}{19}{subsection.10.1}%
-\contentsline {subsection}{\numberline {10.2}Planned Features}{19}{subsection.10.2}%
+\contentsline {section}{\numberline {7}Planned Updates}{17}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Excluded Features}{17}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Planned Features}{17}{subsection.7.2}%
