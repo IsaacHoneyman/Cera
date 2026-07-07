@@ -44,5 +44,5 @@ public class ParserException(string message, Token token) :
 public class AnalyzerException(string message, Token token) :
     CeraException("Analyser", message, token);
 
-public class EmitterException(string message) : 
-    CeraException("Emitter", message, Token.None());
+public class EmitterException(string message, Token token) : 
+    CeraException("Emitter", message, token);

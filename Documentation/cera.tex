@@ -66,6 +66,7 @@
     \item \textbf{Memory Model:} Heap allocations for recursive Algebraic Data Types and closures are managed via a deterministic Reference Counting system.
     \item \textbf{Backwards Compatibility:} The AST and bytecode serialization maintain strict versioning rules to ensure legacy Cera code compiles flawlessly on newer runtime iterations.
     \item \textbf{Build System:} The compilation, testing, and deployment pipeline is orchestrated via a unified Bash scripting ecosystem.
+    \item \item \textbf{File Extensions:} Human-readable source code is strictly authored in \texttt{.cera} files. Upon successful semantic and syntactic analysis, the compiler synthesizes these files into deterministic binary object executables denoted by the \texttt{.cerabc} (Cera ByteCode) extension. 
 \end{itemize}
 
 % =========================================================================
@@ -629,7 +630,185 @@ To guarantee runtime safety and eliminate algorithmic ambiguity, semantic analys
 \end{itemize}
 
 % =========================================================================
-\section{Planned Updates}
+\section{Bytecode Emission and Execution Architecture}
+% =========================================================================
+\noindent
+The final phase of the compiler frontend translates the validated Abstract Syntax Tree (AST) into a linear sequence of machine-readable bytecodes. This Intermediate Representation (IR) is explicitly designed for a custom Stack-Environment-Control (SEC) virtual machine architecture, written in C to ensure deterministic memory alignment and rapid execution.
+
+% =========================================================================
+\subsection{Virtual Machine Target Architecture}
+% =========================================================================
+\noindent
+Cera's target architecture is a strict stack machine. Variables and operands are never bound to explicit hardware registers; instead, all mathematical ALU operations, memory allocations, and control flow branching implicitly operate on the top of the operand stack. 
+
+\begin{itemize}
+    \item \textbf{Instruction Format:} The Instruction Set Architecture (ISA) utilizes a variable-length format. The base opcode is always exactly 1 byte. Depending on the operation, it is followed by 0, 1, or 2 bytes of immediate operand data (e.g., local variable indices, jump offsets, or constant pool addresses).
+    \item \textbf{Little-Endian Encoding:} To maintain compatibility with modern x86/ARM hardware targets, all multi-byte operands within the bytecode stream (such as the 16-bit addresses for \texttt{LOAD\_FUNCTION\_LONG}) are encoded using Little-Endian byte order.
+\end{itemize}
+
+% =========================================================================
+\subsection{Operational Limitations and Capacity}
+% =========================================================================
+\noindent
+To maximize execution speed and minimize cache misses during the virtual machine's fetch-decode loop, the compiler strictly enforces 8-bit and 16-bit limits on program structures. Violating these limits during emission results in a fatal compile-time error.
+
+\begin{itemize}
+    \item \textbf{8-Bit Constraints (Maximum 255):}
+    \begin{itemize}
+        \item \textbf{Arguments \& Arity:} A function may accept a maximum of 255 arguments.
+        \item \textbf{Local Variables:} A single lexical scope (stack frame) may contain up to 255 local variable bindings.
+        \item \textbf{Closures:} A lambda function may capture a maximum of 255 upvalues from its enclosing environments.
+        \item \textbf{Destructuring:} Tuples and Arrays may contain a maximum of 255 elements when unpacked via pattern matching.
+        \item \textbf{ADT Constructors:} The entire module may define a maximum of 255 unique custom Algebraic Data Type constructors (tags \texttt{0x00} to \texttt{0xFF}), with the first 16 tags reserved for intrinsic compiler structures like \texttt{Option} and \texttt{Result}.
+    \end{itemize}
+    
+    \item \textbf{16-Bit Constraints (Maximum 65,535):}
+    To accommodate larger codebases without sacrificing the performance of single-byte instructions, the compiler utilizes extended \texttt{\_LONG} opcodes for structures that commonly exceed 255 elements.
+    \begin{itemize}
+        \item \textbf{Global Functions:} Indexed up to 65,535 using \texttt{LOAD\_FUNCTION\_LONG}.
+        \item \textbf{Constant Pool:} Up to 65,535 distinct strings, large numbers, and floats per function using \texttt{LOAD\_CONST\_LONG}.
+        \item \textbf{Jump Offsets:} Control flow branching (if/else, switches) can skip up to 65,535 bytes of intermediate code.
+        \item \textbf{Array Literals:} Compile-time arrays may allocate up to 65,535 elements via \texttt{ALLOC\_ARRAY\_LONG}.
+    \end{itemize}
+\end{itemize}
+
+% =========================================================================
+\subsection{Tail Call Optimization (TCO)}
+% =========================================================================
+\noindent
+Because Cera is a pure functional language lacking iterative looping constructs (e.g., \texttt{while} or \texttt{for}), all iteration must be achieved through recursion. To prevent Stack Overflow exceptions and catastrophic memory exhaustion, the emitter rigidly enforces Tail Call Optimization.
+
+During AST traversal, a boolean \texttt{isTail} flag tracks the evaluation context. This flag is preserved through control flow boundaries—such as the final expression of an \texttt{ExprBlock}, or the terminal branches of an \texttt{IfExpr} and \texttt{SwitchExpr}. 
+
+When a \texttt{CallExpr} is evaluated in a tail position, the compiler emits the \texttt{TAIL\_CALL} (\texttt{0x62}) instruction instead of a standard \texttt{CALL} (\texttt{0x60}). This instructs the virtual machine to securely tear down the current execution frame and overwrite it with the incoming callee's arguments, maintaining an $O(1)$ spatial complexity for unbounded recursive loops.
+
+% =========================================================================
+\subsection{Pattern Matching Compilation}
+% =========================================================================
+\noindent
+Compiling the \texttt{switch} expression requires complex stack discipline to handle sequential fallthrough without leaking memory. Cera employs a ``Test-then-Bind'' architecture:
+
+\begin{enumerate}
+    \item \textbf{Target Duplication:} The target expression is pushed to the stack, immediately followed by the \texttt{DUP} (\texttt{0x02}) opcode. This allows individual cases to test the structural shape of the target without permanently consuming the pointer.
+    \item \textbf{Structural Testing:} The pattern's outer shape is evaluated via type-specific testing opcodes (e.g., \texttt{MATCH\_TAG} for ADTs, \texttt{IS\_LIST\_EMPTY} for \texttt{Nil}, or \texttt{MATCH\_ARRAY\_LENGTH}). If the test fails, a \texttt{JUMP\_IF\_FALSE} instruction routes execution to the next case.
+    \item \textbf{Memory Unpacking (Binding):} If the test succeeds, the original duplicated target must be consumed. Unpacking opcodes (e.g., \texttt{UNPACK\_TUPLE}, \texttt{UNPACK\_CON}, \texttt{UNPACK\_LIST}) extract the heap-allocated payload elements directly onto the operand stack, where they are inherently bound to the compiler's local variable tracking for the duration of the case body.
+    \item \textbf{Exhaustiveness \& Soundness:} If all pattern cases are exhausted and execution falls through, the compiler emits a terminal \texttt{MATCH\_FAIL} (\texttt{0x87}) instruction. This deliberately halts the virtual machine, preventing silent failures and guaranteeing strict evaluation soundness.
+\end{enumerate}
+\textit{Note:} To maintain an efficient $O(N)$ emission pass, V1 of the Cera compiler restricts pattern matching to flat, non-recursive structures. Deeply nested patterns (e.g., \texttt{Some(Ok(x))}) will trigger a compilation error.
+
+% =========================================================================
+\subsection{Executable Object Format (\texttt{.cerabc})}
+% =========================================================================
+\noindent
+The C\# compiler does not execute code; it serializes the synthesized \texttt{Module} into a dense, standalone binary executable format. Files using this format carry the \texttt{.cerabc} (Cera ByteCode) extension. The target C virtual machine consumes this file during initialization, dynamically allocating operational memory prior to execution.
+
+The binary file is structured sequentially into a rigid hierarchy:
+
+\subsubsection*{1. File Header}
+\begin{itemize}
+    \item \textbf{Magic Number (4 bytes):} The ASCII characters \texttt{C E R A}.
+    \item \textbf{Version Data (4 bytes):} A 32-bit integer indicating the compiler version (e.g., \texttt{1}).
+    \item \textbf{Entry Point Index (4 bytes):} A 32-bit integer pointing to the global index of the \texttt{entry} function. If the module is a library, this evaluates to \texttt{-1}.
+    \item \textbf{Function Count (4 bytes):} A 32-bit integer declaring the total number of functions in the module.
+\end{itemize}
+
+\subsubsection*{2. Function Blocks}
+For each compiled function, the file encodes a self-contained execution block:
+\begin{itemize}
+    \item \textbf{Function Metadata:} Includes the Global Index (4 bytes) and the Parameter Arity (1 byte).
+    \item \textbf{Constant Pool:} Initiated by a 16-bit Unsigned Integer (\texttt{ushort}) declaring the count of constants. Each constant is prefixed by a 1-byte \texttt{ValueTag}, dictating its subsequent payload size to the C parser:
+    \begin{itemize}
+        \item \texttt{Int} \& \texttt{Float}: 8-byte payload (64-bit IEEE 754 / Signed Int).
+        \item \texttt{Char}: 4-byte payload (UTF-32 Code Point, explicitly downcasted for memory efficiency).
+        \item \texttt{Bool}: 1-byte payload.
+        \item \texttt{Unit}: 0-byte payload. The 1-byte tag represents the entire value.
+        \item \texttt{String}: A 4-byte (\texttt{uint32\_t}) length prefix, followed strictly by a raw UTF-8 byte array to guarantee standard cross-platform C compatibility.
+    \end{itemize}
+    \item \textbf{Bytecode Sequence:} Initiated by a 32-bit integer representing the byte length of the instruction stream, followed immediately by the raw execution bytes.
+\end{itemize}
+
+% =========================================================================
+\subsection{Instruction Set Architecture (ISA)}
+% =========================================================================
+\noindent
+The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands are implicitly consumed from and pushed to the top of the operand stack. The complete instruction set is categorized logically below, mapping the 1-byte opcodes to their strict execution semantics.
+
+\subsubsection*{Stack Operations \& Constants}
+\begin{itemize}
+    \item \texttt{NOP (0x00)}: No operation. Used for memory alignment or patching.
+    \item \texttt{POP (0x01)}: Discards the top value of the stack.
+    \item \texttt{DUP (0x02)}: Duplicates the top value of the stack (critical for pattern testing).
+    \item \texttt{LOAD\_CONST (0x03)}: Consumes a 1-byte operand representing an index in the constant pool, pushing the loaded value to the stack.
+    \item \texttt{PUSH\_0 (0x04)}: Optimized instruction to push the integer $0$.
+    \item \texttt{PUSH\_1 (0x05)}: Optimized instruction to push the integer $1$.
+    \item \texttt{PUSH\_BYTE (0x06)}: Consumes a 1-byte immediate operand, pushing it as an integer (for values $-128$ to $127$).
+    \item \texttt{PUSH\_TRUE (0x07)}: Optimized instruction to push boolean \texttt{true}.
+    \item \texttt{PUSH\_FALSE (0x08)}: Optimized instruction to push boolean \texttt{false}.
+    \item \texttt{PUSH\_UNIT (0x09)}: Optimized instruction to push the \texttt{unit} literal \texttt{()}.
+    \item \texttt{PUSH\_CHAR (0x0A)}: Consumes a 4-byte immediate operand (UTF-32), pushing it as a character.
+    \item \texttt{LOAD\_CONST\_LONG (0x0B)}: Consumes a 2-byte operand (Little-Endian) to load a constant from a pool exceeding 255 items.
+\end{itemize}
+
+\subsubsection*{Environment \& Scoping}
+\begin{itemize}
+    \item \texttt{LOAD\_LOCAL (0x10)}: Consumes a 1-byte index, pushing the value of a local variable from the current Call Frame's window.
+    \item \texttt{STORE\_LOCAL (0x11)}: Consumes a 1-byte index, popping the top stack value and storing it in the local scope.
+    \item \texttt{LOAD\_UPVALUE (0x12)}: Consumes a 1-byte index, pushing a captured variable from the active closure's heap-allocated upvalue array.
+    \item \texttt{LOAD\_FUNCTION (0x13)}: Consumes a 1-byte global index, pushing a function pointer to the stack.
+    \item \texttt{LOAD\_FUNCTION\_LONG (0x14)}: Consumes a 2-byte global index (Little-Endian), pushing a function pointer.
+\end{itemize}
+
+\subsubsection*{Arithmetic \& Logic Unit (ALU)}
+\textit{Note: All binary ALU operations pop two values (Right, then Left), compute the result, and push it to the stack.}
+\begin{itemize}
+    \item \textbf{Mathematical:} \texttt{ADD (0x20)}, \texttt{SUB (0x21)}, \texttt{MUL (0x22)}, \texttt{DIV (0x23)}, \texttt{MOD (0x24)}.
+    \item \textbf{Unary Math:} \texttt{NEGATE (0x25)} pops a number and pushes its arithmetic negation.
+    \item \textbf{Bitwise:} \texttt{BIT\_AND (0x30)}, \texttt{BIT\_OR (0x31)}, \texttt{BIT\_XOR (0x32)}, \texttt{SHL (0x34)}, \texttt{SHR (0x35)}.
+    \item \textbf{Unary Bitwise:} \texttt{BIT\_NOT (0x33)} pushes the one's complement of the popped integer.
+    \item \textbf{Relational:} \texttt{EQ (0x40)}, \texttt{NEQ (0x41)}, \texttt{LT (0x42)}, \texttt{GT (0x43)}, \texttt{LTE (0x44)}, \texttt{GTE (0x45)}.
+    \item \textbf{Logical:} \texttt{NOT (0x46)} pops a boolean and pushes its logical negation.
+\end{itemize}
+
+\subsubsection*{Control Flow}
+\begin{itemize}
+    \item \texttt{JUMP (0x50)}: Consumes a 2-byte operand and unconditionally adds it to the Instruction Pointer (IP).
+    \item \texttt{JUMP\_IF\_FALSE (0x51)}: Pops a boolean. If \texttt{false}, consumes a 2-byte operand and branches the IP. Otherwise, skips the operand.
+    \item \texttt{JUMP\_IF\_TRUE (0x52)}: Pops a boolean. If \texttt{true}, branches the IP. Used for \texttt{||} short-circuit optimizations.
+\end{itemize}
+
+\subsubsection*{Functions \& Closures}
+\begin{itemize}
+    \item \texttt{CALL (0x60)}: Consumes a 1-byte argument count. Pops the arguments and closure, instantiating a new Call Frame.
+    \item \texttt{CALL\_INTRINSIC (0x61)}: Consumes a 1-byte Intrinsic ID and a 1-byte argument count. Executes native C-bound functions (e.g., I/O).
+    \item \texttt{TAIL\_CALL (0x62)}: Consumes a 1-byte argument count. Overwrites the current Call Frame, preserving $O(1)$ memory during recursion.
+    \item \texttt{RETURN (0x63)}: Pops the return value, destroys the current Call Frame, restores the parent frame, and pushes the result.
+    \item \texttt{MAKE\_CLOSURE (0x64)}: Consumes a 1-byte upvalue count. Pops a function pointer and dynamically allocates a closure object on the heap, capturing the specified surrounding variables.
+\end{itemize}
+
+\subsubsection*{Memory Allocation \& Data Structures}
+\begin{itemize}
+    \item \texttt{ALLOC\_CON (0x70)}: Consumes a 1-byte Tag ID. Pops a payload (if applicable) and allocates a tagged ADT object on the heap.
+    \item \texttt{ALLOC\_TUPLE (0x71)}: Consumes a 1-byte size operand. Pops $N$ items and packs them into a heap-allocated tuple.
+    \item \texttt{ALLOC\_ARRAY (0x72)}: Consumes a 1-byte size operand to allocate a contiguous heap array.
+    \item \texttt{ALLOC\_ARRAY\_LONG (0x7A)}: Consumes a 2-byte size operand for arrays exceeding 255 elements.
+    \item \texttt{LIST\_EMPTY (0x73)}: Pushes the \texttt{Nil} (\texttt{[]}) singleton to the stack.
+    \item \texttt{LIST\_CONS (0x74)}: Pops a Tail and a Head, allocating a linked-list node on the heap.
+\end{itemize}
+
+\subsubsection*{Pattern Matching}
+\begin{itemize}
+    \item \texttt{MATCH\_TAG (0x80)}: Consumes a 1-byte Tag ID. Peeks at the top ADT; pushes \texttt{true} if the tags match, \texttt{false} otherwise.
+    \item \texttt{UNPACK\_CON (0x81)}: Pops an ADT and pushes its inner payload to the stack.
+    \item \texttt{UNPACK\_TUPLE (0x82)}: Pops a tuple and pushes all its constituent elements sequentially onto the stack.
+    \item \texttt{UNPACK\_LIST (0x83)}: Pops a Cons node and pushes its Head, followed by its Tail.
+    \item \texttt{IS\_LIST\_EMPTY (0x84)}: Peeks at the top list node; pushes \texttt{true} if it is \texttt{Nil}, \texttt{false} otherwise.
+    \item \texttt{MATCH\_ARRAY\_LENGTH (0x85)}: Pops an integer length and peeks at an array; pushes \texttt{true} if their lengths match.
+    \item \texttt{UNPACK\_ARRAY (0x86)}: Pops an array and pushes all $N$ of its elements to the stack.
+    \item \texttt{MATCH\_FAIL (0x87)}: Triggers a fatal runtime panic indicating a non-exhaustive pattern fallthrough.
+\end{itemize}
+
+% =========================================================================
+\section{Cera's Future}
 % =========================================================================
 
 % =========================================================================

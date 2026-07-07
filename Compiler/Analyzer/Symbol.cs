@@ -12,7 +12,7 @@ public record VarSymbol(Token DeclToken, ITypeAST? Type)
 
 /// <summary>
 /// Represents named functions declared via the 'def' keyword.
-public record FuncSymbol(Token DeclToken, ITypeAST Type, int Arity, List<Token> GenericParams, bool IsIntrinsic = false) 
+public record FuncSymbol(Token DeclToken, ITypeAST Type, int Arity, List<Token> GenericParams, IntrinsicId? NativeId = null) 
     : Symbol(DeclToken, Type);
 
 

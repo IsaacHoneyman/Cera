@@ -14,12 +14,14 @@ public enum OpCode : byte
     PUSH_FALSE = 0x08,    // Optimized boolean false
     PUSH_UNIT = 0x09,     // Optimized unit literal '()'
     PUSH_CHAR = 0x0A,     // Immediate char load
+    LOAD_CONST_LONG = 0x0B, // Takes a 2-byte operand (up to 65,535 constants)
 
     // --- Environment & Scoping (0x10 - 0x1F) ---
     LOAD_LOCAL = 0x10,    // Load variable from current stack frame
     STORE_LOCAL = 0x11,   // Store variable in current stack frame (VarDeclStmt)
     LOAD_UPVALUE = 0x12,  // Load captured variable for closures (LambdaExpr)
     LOAD_FUNCTION = 0x13, // Load a top-level function definition by index
+    LOAD_FUNCTION_LONG = 0x14,
 
     // --- Mathematical ALU (0x20 - 0x2F) ---
     ADD = 0x20,
@@ -62,6 +64,8 @@ public enum OpCode : byte
     ALLOC_CON = 0x70,     // Allocate Constructor instance (ConExpr)
     ALLOC_TUPLE = 0x71,   // Allocate Tuple from N stack items (TupleLitExpr)
     ALLOC_ARRAY = 0x72,   // Allocate Array from N stack items (ArrLitExpr)
+    ALLOC_ARRAY_LONG = 0x7A, // Takes a 2-byte operand (up to 65,535 elements)
+
     LIST_EMPTY = 0x73,    // Push empty list literal '[]'
     LIST_CONS = 0x74,     // Allocate Cons node joining Head and Tail (::)
 
@@ -70,5 +74,8 @@ public enum OpCode : byte
     UNPACK_CON = 0x81,    // Extract constructor payload to stack (ConPattern)
     UNPACK_TUPLE = 0x82,  // Extract all elements of a tuple to stack (TuplePattern)
     UNPACK_LIST = 0x83,   // Pop list, push head and tail (ConsPattern)
-    IS_LIST_EMPTY = 0x84  // Check if list is empty (ListPattern termination)
+    IS_LIST_EMPTY = 0x84,  // Check if list is empty (ListPattern termination)
+    MATCH_ARRAY_LENGTH = 0x85, // Pop length, check if array length matches, push bool
+    UNPACK_ARRAY = 0x86,       // Pop array, push N elements onto the stack
+    MATCH_FAIL = 0x87,         // Runtime error, pattern matching falls through
 }

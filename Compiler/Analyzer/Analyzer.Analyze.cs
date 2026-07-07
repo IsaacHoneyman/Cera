@@ -303,6 +303,8 @@ public partial class Analyzer
 
             ListPattern lst => AnalyzeListPattern(lst),
 
+            ArrPattern arr => AnalyzeArrPattern(arr),
+
             ConsPattern cons => AnalyzeConsPattern(cons),
 
             ConPattern con => AnalyzeConstructorPattern(con),
@@ -318,6 +320,18 @@ public partial class Analyzer
         return freshVar;
     }
 
+    private ArrType AnalyzeArrPattern(ArrPattern arr)
+    {
+        if (arr.Patterns.Count == 0) return new ArrType(GenerateTypeVariable());
+
+        ITypeAST elementType = AnalyzePattern(arr.Patterns[0]);
+        for (int i = 1; i < arr.Patterns.Count; i++)
+        {
+            Unify(elementType, AnalyzePattern(arr.Patterns[i]), arr.Operator);
+        }
+        return new ArrType(elementType);
+    }
+
     private ListType AnalyzeListPattern(ListPattern lst)
     {
         if (lst.Patterns.Count == 0) return new ListType(GenerateTypeVariable());
@@ -325,7 +339,7 @@ public partial class Analyzer
         ITypeAST elementType = AnalyzePattern(lst.Patterns[0]);
         for (int i = 1; i < lst.Patterns.Count; i++)
         {
-            Unify(elementType, AnalyzePattern(lst.Patterns[i]), intrT["unit"]);
+            Unify(elementType, AnalyzePattern(lst.Patterns[i]), lst.Operator);
         }
         return new ListType(elementType);
     }
@@ -335,7 +349,7 @@ public partial class Analyzer
         ITypeAST headType = AnalyzePattern(cons.Head);
         ITypeAST tailType = AnalyzePattern(cons.Tail);
 
-        Unify(new ListType(headType), tailType, intrT["unit"]);
+        Unify(new ListType(headType), tailType, cons.Operator);
         return tailType;
     }
 

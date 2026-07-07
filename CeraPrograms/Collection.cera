@@ -6,7 +6,7 @@
 
 // --- Lists ---
 
-def headd<g>(lst: g list, default: g) : g = {
+def head<g>(lst: g list, default: g) : g = {
     switch (lst) {
         [] -> default,
         (h::_) -> h

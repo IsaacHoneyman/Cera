@@ -66,24 +66,24 @@ public partial class Analyzer
         Token gParamToken = intrT["g"];
         ITypeAST gType = new BaseType(gParamToken);
 
-        void DefineIntrinsic(string name, ITypeAST type, int arity, List<Token>? generics = null)
+        void DefineIntrinsic(string name, IntrinsicId nativeId, ITypeAST type, int arity, List<Token>? generics = null)
         {
             generics ??= [];
-            globalEnv.Define(name, new FuncSymbol(intrT[name], type, arity, generics, true));
+            globalEnv.Define(name, new FuncSymbol(intrT[name], type, arity, generics, nativeId));
         }
 
-        DefineIntrinsic("get",
+        DefineIntrinsic("get", IntrinsicId.Get,
             new FuncType(new TupleType([new ArrType(gType), new BaseType(intrT["int"])]),
             new GenericType(intrT["option"], [gType])),
             2, [gParamToken]);
 
         // arrLength<g>(array: g arr) : int
-        DefineIntrinsic("arrLength",
+        DefineIntrinsic("arrLength", IntrinsicId.ArrLength,
             new FuncType(new ArrType(gType), new BaseType(intrT["int"])),
             1, [gParamToken]);
 
         // build<g>(size: int, f: int -> g) : g list
-        DefineIntrinsic("build",
+        DefineIntrinsic("build", IntrinsicId.Build,
             new FuncType(
                 new TupleType([
                     new BaseType(intrT["int"]),
@@ -94,7 +94,7 @@ public partial class Analyzer
             2, [gParamToken]);
 
         // arrBuild<g>(size: int, f: int -> g) : g arr
-        DefineIntrinsic("arrBuild",
+        DefineIntrinsic("arrBuild", IntrinsicId.ArrBuild,
             new FuncType(
                 new TupleType([
                     new BaseType(intrT["int"]),
@@ -105,91 +105,91 @@ public partial class Analyzer
             2, [gParamToken]);
 
         // concat<g>(left: g list, right: g list) : g list
-        DefineIntrinsic("concat",
+        DefineIntrinsic("concat", IntrinsicId.Concat,
             new FuncType(new TupleType([new ListType(gType), new ListType(gType)]), new ListType(gType)),
             2, [gParamToken]);
 
         // arrConcat<g>(left: g arr, right: g arr) : g arr
-        DefineIntrinsic("arrConcat",
+        DefineIntrinsic("arrConcat", IntrinsicId.ArrConcat,
             new FuncType(new TupleType([new ArrType(gType), new ArrType(gType)]), new ArrType(gType)),
             2, [gParamToken]);
 
         // out(output: char list) : unit
-        DefineIntrinsic("out",
+        DefineIntrinsic("out", IntrinsicId.Out,
             new FuncType(new ListType(new BaseType(intrT["char"])), new BaseType(intrT["unit"])),
             1);
 
         // in() : char list
-        DefineIntrinsic("in",
+        DefineIntrinsic("in", IntrinsicId.In,
             new FuncType(new BaseType(intrT["unit"]), new ListType(new BaseType(intrT["char"]))),
             1);
 
         // read(path: char list) : result<char list, char list>
-        DefineIntrinsic("read",
+        DefineIntrinsic("read", IntrinsicId.Read,
             new FuncType(new ListType(new BaseType(intrT["char"])),
             new GenericType(intrT["result"], [new ListType(new BaseType(intrT["char"])), new ListType(new BaseType(intrT["char"]))])),
             1);
 
         // write(path: char list, content: char list) : result<unit, char list>
-        DefineIntrinsic("write",
+        DefineIntrinsic("write", IntrinsicId.Write,
             new FuncType(new TupleType([new ListType(new BaseType(intrT["char"])), new ListType(new BaseType(intrT["char"]))]),
             new GenericType(intrT["result"], [new BaseType(intrT["unit"]), new ListType(new BaseType(intrT["char"]))])),
             2);
 
         // intToFloat(x: int) : float
-        DefineIntrinsic("intToFloat",
+        DefineIntrinsic("intToFloat", IntrinsicId.IntToFloat,
             new FuncType(new BaseType(intrT["int"]), new BaseType(intrT["float"])),
             1);
 
         // floatToInt(x : float) : int
-        DefineIntrinsic("floatToInt",
+        DefineIntrinsic("floatToInt", IntrinsicId.FloatToInt,
             new FuncType(new BaseType(intrT["float"]), new BaseType(intrT["int"])),
             1);
 
         // charToInt(c : char) : int
-        DefineIntrinsic("charToInt",
+        DefineIntrinsic("charToInt", IntrinsicId.CharToInt,
             new FuncType(new BaseType(intrT["char"]), new BaseType(intrT["int"])),
             1);
 
         // intToChar(x : int) : char
-        DefineIntrinsic("intToChar",
+        DefineIntrinsic("intToChar", IntrinsicId.IntToChar,
             new FuncType(new BaseType(intrT["int"]), new BaseType(intrT["char"])),
             1);
 
         // intToChars(x : int) : char list
-        DefineIntrinsic("intToChars",
+        DefineIntrinsic("intToChars", IntrinsicId.IntToChars,
             new FuncType(new BaseType(intrT["int"]), new ListType(new BaseType(intrT["char"]))),
             1);
 
         // floatToChars(x : float) : char list
-        DefineIntrinsic("floatToChars",
+        DefineIntrinsic("floatToChars", IntrinsicId.FloatToChars,
             new FuncType(new BaseType(intrT["float"]), new ListType(new BaseType(intrT["char"]))),
             1);
 
         // boolToChars(x : bool) : char list
-        DefineIntrinsic("boolToChars",
+        DefineIntrinsic("boolToChars", IntrinsicId.BoolToChars,
             new FuncType(new BaseType(intrT["bool"]), new ListType(new BaseType(intrT["char"]))),
             1);
 
         // charsToInt(str : char list) : option<int>
-        DefineIntrinsic("charsToInt",
+        DefineIntrinsic("charsToInt", IntrinsicId.CharsToInt,
             new FuncType(new ListType(new BaseType(intrT["char"])),
             new GenericType(intrT["option"], [new BaseType(intrT["int"])])),
             1);
 
         // charsToFloat(str : char list) : option<float>
-        DefineIntrinsic("charsToFloat",
+        DefineIntrinsic("charsToFloat", IntrinsicId.CharsToFloat,
             new FuncType(new ListType(new BaseType(intrT["char"])),
             new GenericType(intrT["option"], [new BaseType(intrT["float"])])),
             1);
 
         // arrToList<g>(array: g arr) : g list
-        DefineIntrinsic("arrToList",
+        DefineIntrinsic("arrToList", IntrinsicId.ArrToList,
             new FuncType(new ArrType(gType), new ListType(gType)),
             1, [gParamToken]);
 
         // listToArr<g>(lst: g list) : g arr
-        DefineIntrinsic("listToArr",
+        DefineIntrinsic("listToArr", IntrinsicId.ListToArr,
             new FuncType(new ListType(gType), new ArrType(gType)),
             1, [gParamToken]);
     }

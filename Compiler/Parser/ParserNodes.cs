@@ -84,13 +84,13 @@ public record LiteralPattern(Token Value) : IPatternAST;
 
 public record IdPattern(Token Identifier) : IPatternAST;
 
-public record TuplePattern(List<IPatternAST> Patterns) : IPatternAST;
+public record TuplePattern(Token Operator, List<IPatternAST> Patterns) : IPatternAST;
 
-public record ListPattern(List<IPatternAST> Patterns) : IPatternAST;
+public record ListPattern(Token Operator, List<IPatternAST> Patterns) : IPatternAST;
 
-public record ArrPattern(List<IPatternAST> Patterns) : IPatternAST;
+public record ArrPattern(Token Operator,  List<IPatternAST> Patterns) : IPatternAST;
 
-public record ConsPattern(IPatternAST Head, IPatternAST Tail) : IPatternAST;
+public record ConsPattern(Token Operator, IPatternAST Head, IPatternAST Tail) : IPatternAST;
 
 public record ConPattern(Token ConstructorName, List<IPatternAST> PayloadPatterns) : IPatternAST;
 

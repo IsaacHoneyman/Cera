@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
+using Cera.Compiler.Lexer;
 using Cera.Compiler.Logging;
 using static Cera.Compiler.Backend.CeraValue;
 
 namespace Cera.Compiler.Backend;
 
-public class Chunk
+public class Chunk(Diagnostics diag)
 {
     public List<byte> Code { get; private set; } = [];
     public List<CeraValue> Constants { get; private set; } = [];
@@ -26,7 +28,7 @@ public class Chunk
             {
                 if (value.Tag == ValueTag.Int && Constants[i].IntValue == value.IntValue) return i;
                 if (value.Tag == ValueTag.Float && Constants[i].FloatValue == value.FloatValue) return i;
-                if (value.Tag == ValueTag.Object && Constants[i].ObjectValue!.Equals(value.ObjectValue)) return i;
+                if (value.Tag == ValueTag.String && Constants[i].StringValue!.Equals(value.StringValue)) return i;
             }
         }
 
@@ -48,10 +50,18 @@ public class Chunk
         int jump = Code.Count - offset - 2;
         if (jump > ushort.MaxValue)
         {
-            throw new EmitterException("Too much code to jump over, (Max 65535 bytes)");
+            FatalError("Too much code to jump over, (Max 65535 bytes)", null);
         }
 
         Code[offset] = (byte)((jump >> 8) & 0xff);
         Code[offset + 1] = (byte)(jump & 0xff);
+    }
+
+    [DoesNotReturn]
+    private void FatalError(string message, Token? token)
+    {
+        EmitterException e = new(message, token ?? Token.None());
+        diag.LogError(e.Message);
+        throw e;
     }
 }

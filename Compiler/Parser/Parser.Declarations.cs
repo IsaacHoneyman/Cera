@@ -495,7 +495,7 @@ public partial class Parser
         {
             var patternB = ParsePattern();
             Consume(TokenType.RPar, "Expected ')' after cons pattern");
-            return new ConsPattern(patternA, patternB);
+            return new ConsPattern(lPar, patternA, patternB);
         }
         
         if (Match(TokenType.RPar)) return patternA;
@@ -504,12 +504,12 @@ public partial class Parser
         while (Match(TokenType.Comma)) patterns.Add(ParsePattern());
 
         Consume(TokenType.RPar, "Expected ')' after tuple pattern");
-        return new TuplePattern(patterns);
+        return new TuplePattern(lPar, patterns);
     }
 
     private ListPattern ParseListPattern()
     {
-        Consume(TokenType.LBracket, "Expected '[' to begin list pattern");
+        var lBrac = Consume(TokenType.LBracket, "Expected '[' to begin list pattern");
         List<IPatternAST> patterns = [];
 
         if (!Check(TokenType.RBracket))
@@ -519,13 +519,13 @@ public partial class Parser
         }
 
         Consume(TokenType.RBracket, "Expected ']' to end list pattern");
-        return new ListPattern(patterns);
+        return new ListPattern(lBrac, patterns);
     }
 
     private ArrPattern ParseArrPattern()
     {
         Consume(TokenType.Arr, "Expected 'arr' keyword");
-        Consume(TokenType.LBracket, "Expected '[' to begin array pattern");
+        var lBrac = Consume(TokenType.LBracket, "Expected '[' to begin array pattern");
         List<IPatternAST> patterns = [];
 
         if (!Check(TokenType.RBracket))
@@ -535,6 +535,6 @@ public partial class Parser
         }
 
         Consume(TokenType.RBracket, "Expected ']' to end array pattern");
-        return new ArrPattern(patterns);
+        return new ArrPattern(lBrac, patterns);
     }
 }

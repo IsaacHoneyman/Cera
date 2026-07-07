@@ -1,0 +1,4 @@
+Cera VM Memory Layout (Flat Closure):
+- ObjHeader: { int ref_count; uint8_t type_tag; }
+- CeraValue: { uint8_t tag; union { long int_val; double float_val; void* heap_ref; } as; }
+- ObjClosure: { ObjHeader header; int function_index; uint8_t arity; uint8_t upvalue_count; CeraValue upvalues[]; }

@@ -1,57 +1,631 @@
 using Cera.Compiler.Parser;
 using Cera.Compiler.Lexer;
+using Cera.Compiler.Analyzer;
+using static Cera.Compiler.Logging.Diagnostics;
 
 namespace Cera.Compiler.Backend;
 
 public partial class Emitter
 {
-    private void EmitExpression(IExprAST expr)
+    private void EmitExpression(IExprAST expr, bool isTail = false)
     {
         switch (expr)
         {
-            case ExprBlock block: EmitExpressionBlock(block); break;
+            case ExprBlock block: EmitExpressionBlock(block, isTail); break;
+            case TernaryExpr tern: EmitTernaryExpression(tern, isTail); break;
+            case SwitchExpr sw: EmitSwitchExpression(sw, isTail); break;
+            case CallExpr call: EmitCall(call, isTail); break;
+            case IfExpr ifExpr: EmitIfExpr(ifExpr, isTail); break;
+
             case IdentifierExpr id: EmitIdentifier(id); break;
             case LiteralExpr lit: EmitLiteral(lit); break;
-            default: throw new NotImplementedException($"Emittion not implemented for '{expr.GetType().Name}'");
+            case UnaryExpr unary: EmitUnaryExpression(unary); break;
+            case BinaryExpr bin: EmitBinaryExpression(bin); break;
+            case LambdaExpr lambda: EmitLambda(lambda); break;
+            case TupleLitExpr tuple: EmitTupleLiteral(tuple); break;
+            case ArrLitExpr arr: EmitArrayLiteral(arr); break;
+            case ListLitExpr list: EmitListLiteral(list); break;
+            case ConExpr con: EmitConstructor(con); break;
+            default: FatalError($"Emittion not implemented for '{expr.GetType().Name}'", GetLeadToken(expr)); break;
 
         }
     }
 
-    private void EmitExpressionBlock(ExprBlock block)
+    private void EmitSwitchExpression(SwitchExpr sw, bool isTail)
     {
-        int scopeDepth = locals.Count;
+        EmitExpression(sw.TargetExpression); 
+        
+        // Bind the root target to a hidden local variable so cases can inspect it repeatedly
+        string rootTarget = $"<switch_target_{Guid.NewGuid().ToString()[..8]}>";
+        Locals.Add(rootTarget);
+
+        List<int> endJumps = [];
+
+        foreach (var matchCase in sw.Cases)
+        {
+            int scopeDepthBeforeCase = Locals.Count;
+            List<int> failureJumps = [];
+
+            CompilePatternCase(matchCase.Pattern, rootTarget, failureJumps, sw.Operator.Line);
+
+            EmitExpression(matchCase.ResultExpression, isTail);
+            
+            int rootTargetIndex = Locals.IndexOf(rootTarget);
+            if (rootTargetIndex > byte.MaxValue) FatalError("Too many local variables in scope. Limit is 255.", sw.Operator);
+            
+            CurrentChunk.WriteByte(OpCode.STORE_LOCAL, sw.Operator.Line);
+            CurrentChunk.WriteByte((byte)rootTargetIndex, sw.Operator.Line);
+
+            int variablesPushed = Locals.Count - scopeDepthBeforeCase;
+            for (int i = 0; i < variablesPushed; i++)
+            {
+                CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
+            }
+
+            endJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, sw.Operator.Line));
+
+            foreach (var jump in failureJumps)
+            {
+                CurrentChunk.PatchJump(jump);
+            }
+
+            for (int i = 0; i < variablesPushed; i++)
+            {
+                CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
+            }
+
+            Locals.RemoveRange(scopeDepthBeforeCase, variablesPushed);
+        }
+
+        CurrentChunk.WriteByte(OpCode.MATCH_FAIL, sw.Operator.Line); 
+
+        foreach (var jump in endJumps)
+        {
+            CurrentChunk.PatchJump(jump);
+        }
+
+        Locals.RemoveAt(Locals.Count - 1); 
+    }
+
+    private void EmitLoadLocal(string name, int line)
+    {
+        int index = Locals.LastIndexOf(name);
+        if (index == -1) FatalError($"Hidden local '{name}' not found.", null);
+        if (index > byte.MaxValue) FatalError("Too many local variables in scope, limit is 255.", null);
+        
+        CurrentChunk.WriteByte(OpCode.LOAD_LOCAL, line);
+        CurrentChunk.WriteByte((byte)index, line);
+    }
+
+    private void CompilePatternCase(IPatternAST pattern, string targetVar, List<int> failureJumps, int line)
+    {
+        switch (pattern)
+        {
+            case LiteralPattern lit:
+                if (lit.Value.Tag == TokenType.WildCard)
+                {
+                    break; // We emit zero instructions, allowing the VM to naturally fall through to the case body.
+                }
+                EmitLoadLocal(targetVar, line);
+                EmitLiteral(new LiteralExpr(lit.Value));
+                CurrentChunk.WriteByte(OpCode.EQ, line);
+                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                break;
+
+            case IdPattern id:
+                EmitLoadLocal(targetVar, line);
+                Locals.Add(id.Identifier.Lexeme);
+                break;
+
+           case ConPattern con:
+                EmitLoadLocal(targetVar, line);
+                CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
+                CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), line);
+                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+
+                if (con.PayloadPatterns.Count > 0)
+                {
+                    EmitLoadLocal(targetVar, line);
+                    CurrentChunk.WriteByte(OpCode.UNPACK_CON, line);
+                    
+                    if (con.PayloadPatterns.Count > 1)
+                    {
+                        CurrentChunk.WriteByte(OpCode.UNPACK_TUPLE, line);
+                        if (con.PayloadPatterns.Count > byte.MaxValue) 
+                            FatalError("Constructor payload exceeds 255 fields.", GetLeadToken(con));
+                        CurrentChunk.WriteByte((byte)con.PayloadPatterns.Count, line);
+                    }
+                    
+                    List<string> payloadVars = [];
+                    foreach (var p in con.PayloadPatterns)
+                    {
+                        string pVar = p is IdPattern id ? id.Identifier.Lexeme : $"<payload_{Guid.NewGuid().ToString()[..8]}>";
+                        Locals.Add(pVar);
+                        payloadVars.Add(pVar);
+                    }
+
+                    for (int i = 0; i < con.PayloadPatterns.Count; i++)
+                    {
+                        if (con.PayloadPatterns[i] is not IdPattern)
+                            CompilePatternCase(con.PayloadPatterns[i], payloadVars[i], failureJumps, line);
+                    }
+                }
+                break;
+
+            case TuplePattern tuple:
+                EmitLoadLocal(targetVar, line);
+                CurrentChunk.WriteByte(OpCode.UNPACK_TUPLE, line);
+                if (tuple.Patterns.Count > byte.MaxValue) FatalError("Tuple exceeds 255 fields.", GetLeadToken(tuple));
+
+                List<string> tupleVars = [];
+                foreach (var p in tuple.Patterns)
+                {
+                    string pVar = p is IdPattern id ? id.Identifier.Lexeme : $"<tuple_{Guid.NewGuid().ToString()[..8]}>";
+                    Locals.Add(pVar);
+                    tupleVars.Add(pVar);
+                }
+
+                for (int i = 0; i < tuple.Patterns.Count; i++)
+                {
+                    if (tuple.Patterns[i] is not IdPattern)
+                        CompilePatternCase(tuple.Patterns[i], tupleVars[i], failureJumps, line);
+                }
+                break;
+
+            case ConsPattern cons:
+                EmitLoadLocal(targetVar, line);
+                CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
+                CurrentChunk.WriteByte(constructorTags["Cons"], line);
+                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+
+                EmitLoadLocal(targetVar, line);
+                CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line); 
+
+                string headVar = cons.Head is IdPattern hid ? hid.Identifier.Lexeme : $"<head_{Guid.NewGuid().ToString()[..8]}>";
+                string tailVar = cons.Tail is IdPattern tid ? tid.Identifier.Lexeme : $"<tail_{Guid.NewGuid().ToString()[..8]}>";
+                Locals.Add(headVar);
+                Locals.Add(tailVar);
+
+                if (cons.Head is not IdPattern) CompilePatternCase(cons.Head, headVar, failureJumps, line);
+                if (cons.Tail is not IdPattern) CompilePatternCase(cons.Tail, tailVar, failureJumps, line);
+                break;
+
+            case ListPattern list:
+                if (list.Patterns.Count == 0)
+                {
+                    EmitLoadLocal(targetVar, line);
+                    CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
+                    failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                }
+                else
+                {
+                    string currentListVar = targetVar;
+                    for (int i = 0; i < list.Patterns.Count; i++)
+                    {
+                        EmitLoadLocal(currentListVar, line);
+                        CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
+                        CurrentChunk.WriteByte(constructorTags["Cons"], line);
+                        failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+
+                        EmitLoadLocal(currentListVar, line);
+                        CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
+                        
+                        string hVar = list.Patterns[i] is IdPattern id ? id.Identifier.Lexeme : $"<list_el_{Guid.NewGuid().ToString()[..8]}>";
+                        string tVar = $"<list_tail_{Guid.NewGuid().ToString()[..8]}>";
+                        Locals.Add(hVar);
+                        Locals.Add(tVar);
+
+                        if (list.Patterns[i] is not IdPattern)
+                            CompilePatternCase(list.Patterns[i], hVar, failureJumps, line);
+                        
+                        currentListVar = tVar; 
+                    }
+
+                    // After extracting all elements, the final tail MUST be empty
+                    EmitLoadLocal(currentListVar, line);
+                    CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
+                    failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                }
+                break;
+
+            case ArrPattern arr:
+                EmitLoadLocal(targetVar, line);
+                int length = arr.Patterns.Count;
+                
+                if (length == 0) CurrentChunk.WriteByte(OpCode.PUSH_0, line);
+                else if (length == 1) CurrentChunk.WriteByte(OpCode.PUSH_1, line);
+                else if (length <= 127) 
+                {
+                    CurrentChunk.WriteByte(OpCode.PUSH_BYTE, line);
+                    CurrentChunk.WriteByte((byte)length, line);
+                }
+                else 
+                {
+                    int idx = CurrentChunk.AddConstant(CeraValue.Int(length));
+                    EmitLoadConst(idx, line);
+                }
+                
+                CurrentChunk.WriteByte(OpCode.MATCH_ARRAY_LENGTH, line);
+                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+
+                EmitLoadLocal(targetVar, line);
+                CurrentChunk.WriteByte(OpCode.UNPACK_ARRAY, line);
+                
+                List<string> arrVars = [];
+                foreach (var p in arr.Patterns)
+                {
+                    string pVar = p is IdPattern id ? id.Identifier.Lexeme : $"<arr_{Guid.NewGuid().ToString()[..8]}>";
+                    Locals.Add(pVar);
+                    arrVars.Add(pVar);
+                }
+
+                for (int i = 0; i < arr.Patterns.Count; i++)
+                {
+                    if (arr.Patterns[i] is not IdPattern)
+                        CompilePatternCase(arr.Patterns[i], arrVars[i], failureJumps, line);
+                }
+                break;
+
+            default:
+                FatalError($"Deep pattern compilation not implemented for {pattern.GetType().Name}", GetLeadToken(pattern));
+                break;
+        }
+    }
+
+    
+    private void EmitConstructor(ConExpr con)
+    {
+        if (con.Payloads.Count == 1)
+        {
+            EmitExpression(con.Payloads[0]);
+        }
+        else if (con.Payloads.Count > 1)
+        {
+            foreach (var p in con.Payloads) EmitExpression(p);
+            CurrentChunk.WriteByte(OpCode.ALLOC_TUPLE, con.ConstructorName.Line);
+            CurrentChunk.WriteByte((byte)con.Payloads.Count, con.ConstructorName.Line);
+        }
+
+        CurrentChunk.WriteByte(OpCode.ALLOC_CON, con.ConstructorName.Line);
+        CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), con.ConstructorName.Line);
+    }
+
+    private void EmitListLiteral(ListLitExpr list)
+    {
+        foreach (var expr in list.Elements) EmitExpression(expr);
+        CurrentChunk.WriteByte(OpCode.LIST_EMPTY, list.Operator.Line);
+        for (int i = 0; i < list.Elements.Count; i++)
+            CurrentChunk.WriteByte(OpCode.LIST_CONS, list.Operator.Line);
+    }
+
+    private void EmitArrayLiteral(ArrLitExpr arr)
+    {
+        int count = arr.Elements.Count;
+        if (count > ushort.MaxValue)
+            FatalError($"Array literal exceeds maximum size of {ushort.MaxValue} elements.", GetLeadToken(arr));
+
+        foreach (var expr in arr.Elements) EmitExpression(expr);
+
+        if (count <= byte.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.ALLOC_ARRAY, arr.Operator.Line);
+            CurrentChunk.WriteByte((byte)count, arr.Operator.Line);
+        }
+        else
+        {
+            CurrentChunk.WriteByte(OpCode.ALLOC_ARRAY_LONG, arr.Operator.Line);
+            CurrentChunk.WriteByte((byte)(count & 0xFF), arr.Operator.Line);
+            CurrentChunk.WriteByte((byte)((count >> 8) & 0xFF), arr.Operator.Line);
+        }
+    }
+
+    private void EmitTupleLiteral(TupleLitExpr tuple)
+    {
+        foreach (var expr in tuple.Elements) EmitExpression(expr);
+
+        CurrentChunk.WriteByte(OpCode.ALLOC_TUPLE, tuple.Operator.Line);
+        if (tuple.Elements.Count > byte.MaxValue)
+            FatalError($"Too many fields in tuple {tuple.Elements.Count}, max 255", GetLeadToken(tuple));
+        CurrentChunk.WriteByte((byte)tuple.Elements.Count, tuple.Operator.Line);
+    }
+
+    private void EmitCall(CallExpr call, bool isTail)
+    {
+        if (call.Arguments.Count > byte.MaxValue)
+            FatalError($"Too many arguments in function call {call.Arguments.Count}, max 255.", GetLeadToken(call));
+
+        if (call.Callee is IdentifierExpr idExpr)
+        {
+            string funcName = idExpr.Identifier.Lexeme;
+            Symbol? sym = env?.Resolve(funcName);
+
+            if (sym is FuncSymbol { NativeId: not null } funcSym)
+            {
+                if ((int)funcSym.NativeId > byte.MaxValue)
+                    FatalError($"Intrinsic ID '{funcSym.NativeId.Value}' exceeds byte limit.", sym.DeclToken); 
+
+                foreach (var arg in call.Arguments) EmitExpression(arg);
+
+                int line = idExpr.Identifier.Line;
+                CurrentChunk.WriteByte(OpCode.CALL_INTRINSIC, line);
+                CurrentChunk.WriteByte((byte)funcSym.NativeId.Value, line);
+                CurrentChunk.WriteByte((byte)call.Arguments.Count, line);
+                return;
+            }
+        }
+        EmitExpression(call.Callee);
+        foreach (var arg in call.Arguments) EmitExpression(arg);
+        int callLine = (call.Callee as IdentifierExpr)?.Identifier.Line ?? 0;
+        if (!isTail) CurrentChunk.WriteByte(OpCode.CALL, callLine);
+        else CurrentChunk.WriteByte(OpCode.TAIL_CALL, callLine);
+        CurrentChunk.WriteByte((byte)call.Arguments.Count, callLine);
+    }
+
+    private void EmitLambda(LambdaExpr lambda)
+    {
+        int line = lambda.Parameters.FirstOrDefault()?.Identifier.Line ?? 0;
+        var (functionIndex, captures) = CompileAnonymousFunction(lambda);
+        if (functionIndex <= byte.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.LOAD_FUNCTION, line);
+            CurrentChunk.WriteByte((byte)functionIndex, line);
+        }
+        else if (functionIndex <= ushort.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.LOAD_FUNCTION_LONG, line);
+            CurrentChunk.WriteByte((byte)(functionIndex & 0xFF), line);
+            CurrentChunk.WriteByte((byte)((functionIndex >> 8) & 0xFF), line);
+        }
+        else
+        {
+            FatalError($"Cannot load lambda. Total module functions exceed 65,535 limit.", GetLeadToken(lambda));
+        }
+
+        if (captures.Count > byte.MaxValue)
+            FatalError($"Lambda captures too many variables ({captures.Count}). Limit is 255.", GetLeadToken(lambda));
+
+        CurrentChunk.WriteByte(OpCode.MAKE_CLOSURE, line);
+        CurrentChunk.WriteByte((byte)captures.Count, line); // Tell the VM how many bytes follow
+        foreach (var capture in captures)
+        {
+            // isLocal == 1 means "grab from the current stack frame"
+            // isLocal == 0 means "grab from the current closure's upvalues"
+            CurrentChunk.WriteByte(capture.IsLocal ? (byte)1 : (byte)0, line);
+            CurrentChunk.WriteByte((byte)capture.Index, line);
+        }
+    }
+
+    private (int functionIndex, List<(string Name, bool IsLocal, int Index)> captures)
+        CompileAnonymousFunction(LambdaExpr lambda)
+    {
+        FuncState previousState = state;
+        state = new FuncState(diag) { Enclosing = previousState };
+
+        foreach (var param in lambda.Parameters)
+            Locals.Add(param.Identifier.Lexeme);
+
+        EmitExpression(lambda.Body, true);
+        CurrentChunk.WriteByte(OpCode.RETURN, 0);
+
+        int myIndex = nextFunctionIndex++;
+        string lambdaName = $"<lambda_{myIndex}>";
+
+        module.DefineFunction(new CompiledFunction(lambdaName, lambda.Parameters.Count, CurrentChunk, myIndex));
+
+        var requiredCaptures = state.Upvalues.ToList();
+        state = previousState;
+
+        return (myIndex, requiredCaptures);
+    }
+
+
+    private void EmitIfExpr(IfExpr ifExpr, bool isTail)
+    {
+        List<int> exitJumps = [];
+
+        EmitExpression(ifExpr.Condition);
+        int nextBranchJump = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, ifExpr.Operator.Line);
+
+        EmitExpressionBlock(ifExpr.TrueBlock, isTail);
+        exitJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, ifExpr.Operator.Line));
+
+        foreach (var (Condition, Block) in ifExpr.ElseIfs)
+        {
+            CurrentChunk.PatchJump(nextBranchJump);
+
+            EmitExpression(Condition, false);
+            nextBranchJump = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, ifExpr.Operator.Line);
+
+            EmitExpressionBlock(Block, isTail);
+            exitJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, ifExpr.Operator.Line));
+        }
+
+        CurrentChunk.PatchJump(nextBranchJump); // final false condition
+
+        if (ifExpr.ElseBlock != null)
+            EmitExpressionBlock(ifExpr.ElseBlock, isTail);
+        else
+            CurrentChunk.WriteByte(OpCode.PUSH_UNIT, ifExpr.Operator.Line);
+        foreach (int jump in exitJumps)
+            CurrentChunk.PatchJump(jump);
+    }
+
+    private void EmitTernaryExpression(TernaryExpr tern, bool isTail)
+    {
+        EmitExpression(tern.Condition, false);
+        int jumpIfFalse = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, tern.Operator.Line);
+        EmitExpression(tern.TrueBranch, isTail);
+        int jumpEnd = CurrentChunk.EmitJump(OpCode.JUMP, tern.Operator.Line);
+        CurrentChunk.PatchJump(jumpIfFalse);
+        EmitExpression(tern.FalseBranch, isTail);
+        CurrentChunk.PatchJump(jumpEnd);
+    }
+
+    private void EmitExpressionBlock(ExprBlock block, bool isTail)
+    {
+        int scopeDepth = Locals.Count;
 
         foreach (var stmt in block.Statements)
         {
             if (stmt is VarDeclStmt varDecl)
             {
-                EmitExpression(varDecl.Initializer);
-                locals.Add(varDecl.Identifier.Lexeme);
+                int line = varDecl.Identifier.Line;
+                
+                CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
+                
+                // 2. Register the variable in the compiler's scope BEFORE evaluating the right side.
+                Locals.Add(varDecl.Identifier.Lexeme);                
+                EmitExpression(varDecl.Initializer, false);
+                
+                // 4. Overwrite the dummy UNIT value with the actual compiled closure
+                CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
+                CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
             }
             else if (stmt is ExprStmt exprStmt)
             {
-                EmitExpression(exprStmt.Expression);
-                currentChunk.WriteByte(OpCode.POP, 0); // pop result
+                EmitExpression(exprStmt.Expression, false);
+                CurrentChunk.WriteByte(OpCode.POP, 0); // pop result
             }
         }
 
-        EmitExpression(block.ReturnExpression);
-        locals.RemoveRange(scopeDepth, locals.Count - scopeDepth);
+        EmitExpression(block.ReturnExpression, isTail);
+        Locals.RemoveRange(scopeDepth, Locals.Count - scopeDepth);
+    }
+
+    private void EmitUnaryExpression(UnaryExpr unary)
+    {
+        EmitExpression(unary.Right);
+        int line = unary.Operator.Line;
+        switch (unary.Operator.Tag)
+        {
+            case TokenType.Minus: CurrentChunk.WriteByte(OpCode.NEGATE, line); break;
+            case TokenType.Not: CurrentChunk.WriteByte(OpCode.NOT, line); break;
+            case TokenType.BitNot: CurrentChunk.WriteByte(OpCode.BIT_NOT, line); break;
+            default: FatalError($"Invalid unary operator for emission: '{unary.Operator.Lexeme}'", GetLeadToken(unary)); break;
+        }
+    }
+
+    private void EmitBinaryExpression(BinaryExpr binary)
+    {
+        if (binary.Operator.Tag == TokenType.And || binary.Operator.Tag == TokenType.Or)
+        {
+            EmitLogicalExpression(binary);
+            return;
+        }
+
+        if (binary.Operator.Tag == TokenType.ColonColon)
+        {
+            EmitConsExpression(binary);
+            return;
+        }
+
+        EmitExpression(binary.Left);
+        EmitExpression(binary.Right);
+
+        int line = binary.Operator.Line;
+        switch (binary.Operator.Tag)
+        {
+            // Mathematical ALU
+            case TokenType.Plus: CurrentChunk.WriteByte(OpCode.ADD, line); break;
+            case TokenType.Minus: CurrentChunk.WriteByte(OpCode.SUB, line); break;
+            case TokenType.Star: CurrentChunk.WriteByte(OpCode.MUL, line); break;
+            case TokenType.Slash: CurrentChunk.WriteByte(OpCode.DIV, line); break;
+            case TokenType.Mod: CurrentChunk.WriteByte(OpCode.MOD, line); break;
+
+            // Bitwise ALU
+            case TokenType.BitAnd: CurrentChunk.WriteByte(OpCode.BIT_AND, line); break;
+            case TokenType.Pipe: CurrentChunk.WriteByte(OpCode.BIT_OR, line); break;
+            case TokenType.BitXor: CurrentChunk.WriteByte(OpCode.BIT_XOR, line); break;
+            case TokenType.LShift: CurrentChunk.WriteByte(OpCode.SHL, line); break;
+            case TokenType.RShift: CurrentChunk.WriteByte(OpCode.SHR, line); break;
+
+            // Relational ALU
+            case TokenType.EqualEqual: CurrentChunk.WriteByte(OpCode.EQ, line); break;
+            case TokenType.NotEqual: CurrentChunk.WriteByte(OpCode.NEQ, line); break;
+            case TokenType.Lesser: CurrentChunk.WriteByte(OpCode.LT, line); break;
+            case TokenType.LesserEqual: CurrentChunk.WriteByte(OpCode.LTE, line); break;
+            case TokenType.Greater: CurrentChunk.WriteByte(OpCode.GT, line); break;
+            case TokenType.GreaterEqual: CurrentChunk.WriteByte(OpCode.GTE, line); break;
+
+            default: FatalError($"Invalid binary operator for emission: '{binary.Operator.Lexeme}'", GetLeadToken(binary)); break;
+        }
+    }
+
+    private void EmitLogicalExpression(BinaryExpr binary)
+    {
+        EmitExpression(binary.Left);
+
+        if (binary.Operator.Tag == TokenType.And)
+        {
+            int jumpIfFalse = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, binary.Operator.Line);
+            EmitExpression(binary.Right);
+            int jumpEnd = CurrentChunk.EmitJump(OpCode.JUMP, binary.Operator.Line);
+            CurrentChunk.PatchJump(jumpIfFalse);
+            CurrentChunk.WriteByte(OpCode.PUSH_FALSE, binary.Operator.Line);
+            CurrentChunk.PatchJump(jumpEnd);
+        }
+        else if (binary.Operator.Tag == TokenType.Or)
+        {
+            int jumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, binary.Operator.Line);
+            EmitExpression(binary.Right);
+            int jumpEnd = CurrentChunk.EmitJump(OpCode.JUMP, binary.Operator.Line);
+            CurrentChunk.PatchJump(jumpIfTrue);
+            CurrentChunk.WriteByte(OpCode.PUSH_TRUE, binary.Operator.Line);
+            CurrentChunk.PatchJump(jumpEnd);
+        }
+    }
+
+    private void EmitConsExpression(BinaryExpr binary)
+    {
+        EmitExpression(binary.Left);
+        EmitExpression(binary.Right);
+        CurrentChunk.WriteByte(OpCode.LIST_CONS, binary.Operator.Line);
     }
 
     private void EmitIdentifier(IdentifierExpr id)
     {
         string name = id.Identifier.Lexeme;
-        int index = locals.LastIndexOf(name);
+        int line = id.Identifier.Line;
 
-        if (index != -1) // local var
+        int index = Locals.LastIndexOf(name);
+        if (index != -1)
         {
-            currentChunk.WriteByte(OpCode.LOAD_LOCAL, id.Identifier.Line);
-            if (index > byte.MaxValue)
-                FatalError($"Too many local variables in function, Cannot exceed 255, Variable '{name}' exceeds limit");
-            currentChunk.WriteByte((byte)index, id.Identifier.Line);
+            if (index > byte.MaxValue) FatalError("Too many local variables in scope. Limit is 255.", id.Identifier);
+            CurrentChunk.WriteByte(OpCode.LOAD_LOCAL, line);
+            CurrentChunk.WriteByte((byte)index, line);
+            return;
         }
-        else FatalError($"Cannot resolve variable '{name}' during emission");
+
+        int upvalueIndex = ResolveUpvalue(state, name);
+        if (upvalueIndex != -1)
+        {
+            if (upvalueIndex > byte.MaxValue) FatalError("Too many captured variables. Limit is 255.", id.Identifier);
+            CurrentChunk.WriteByte(OpCode.LOAD_UPVALUE, line);
+            CurrentChunk.WriteByte((byte)upvalueIndex, line);
+            return;
+        }
+
+        // If it's not local or upvalue, it MUST be a global function. 
+        int funcIndex = GetGlobalFunctionIndex(id.Identifier);
+        
+        if (funcIndex <= byte.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.LOAD_FUNCTION, line);
+            CurrentChunk.WriteByte((byte)funcIndex, line);
+        }
+        else if (funcIndex <= ushort.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.LOAD_FUNCTION_LONG, line);
+            CurrentChunk.WriteByte((byte)(funcIndex & 0xFF), line);        
+            CurrentChunk.WriteByte((byte)((funcIndex >> 8) & 0xFF), line); 
+        }
+        else
+        {
+            FatalError($"Cannot load function '{name}'. Total module functions exceed 65,535 limit.", id.Identifier);
+        }
+        
+        CurrentChunk.WriteByte(OpCode.MAKE_CLOSURE, line);
+        CurrentChunk.WriteByte((byte)0, line);
     }
 
     private void EmitLiteral(LiteralExpr lit)
@@ -60,27 +634,27 @@ public partial class Emitter
 
         switch (lit.Value.Tag)
         {
-            case TokenType.True: currentChunk.WriteByte((byte)OpCode.PUSH_TRUE, line); break;
-            case TokenType.False: currentChunk.WriteByte((byte)OpCode.PUSH_FALSE, line); break;
-            case TokenType.Unit: currentChunk.WriteByte((byte)OpCode.PUSH_UNIT, line); break;
+            case TokenType.True: CurrentChunk.WriteByte((byte)OpCode.PUSH_TRUE, line); break;
+            case TokenType.False: CurrentChunk.WriteByte((byte)OpCode.PUSH_FALSE, line); break;
+            case TokenType.Unit: CurrentChunk.WriteByte((byte)OpCode.PUSH_UNIT, line); break;
             case TokenType.IntLiteral:
                 long intVal = long.Parse(lit.Value.Lexeme);
-                if (intVal == 0) currentChunk.WriteByte((byte)OpCode.PUSH_0, line);
-                else if (intVal == 1) currentChunk.WriteByte((byte)OpCode.PUSH_1, line);
+                if (intVal == 0) CurrentChunk.WriteByte((byte)OpCode.PUSH_0, line);
+                else if (intVal == 1) CurrentChunk.WriteByte((byte)OpCode.PUSH_1, line);
                 else if (intVal >= sbyte.MinValue && intVal <= sbyte.MaxValue)
                 {
-                    currentChunk.WriteByte((byte)OpCode.PUSH_BYTE, line);
-                    currentChunk.WriteByte((byte)(sbyte)intVal, line);
+                    CurrentChunk.WriteByte((byte)OpCode.PUSH_BYTE, line);
+                    CurrentChunk.WriteByte((byte)(sbyte)intVal, line);
                 }
                 else
                 {
-                    int idx = currentChunk.AddConstant(CeraValue.Int(intVal));
+                    int idx = CurrentChunk.AddConstant(CeraValue.Int(intVal));
                     EmitLoadConst(idx, line);
                 }
                 break;
             case TokenType.FloatLiteral:
                 double floatVal = double.Parse(lit.Value.Lexeme);
-                int fIdx = currentChunk.AddConstant(CeraValue.Float(floatVal));
+                int fIdx = CurrentChunk.AddConstant(CeraValue.Float(floatVal));
                 EmitLoadConst(fIdx, line);
                 break;
 
@@ -88,27 +662,37 @@ public partial class Emitter
                 string rawChar = lit.Value.Lexeme.Trim('\'');
                 int codePoint = char.ConvertToUtf32(rawChar, 0);
 
-                currentChunk.WriteByte((byte)OpCode.PUSH_CHAR, line);
+                CurrentChunk.WriteByte((byte)OpCode.PUSH_CHAR, line);
                 for (int i = 0; i < 4; i++)
                 {
-                    currentChunk.WriteByte((byte)((codePoint >> (i * 8)) & 0xFF), line);
+                    CurrentChunk.WriteByte((byte)((codePoint >> (i * 8)) & 0xFF), line);
                 }
                 break;
 
             case TokenType.StringLiteral:
-                int idx_ = currentChunk.AddConstant(CeraValue.Object(lit.Value.Lexeme.Trim('"')));
-                currentChunk.WriteByte((byte)OpCode.LOAD_CONST, line);
-                currentChunk.WriteByte((byte)idx_, line);
+                string rawStr = lit.Value.Lexeme.Trim('"');
+                int strIdx = CurrentChunk.AddConstant(CeraValue.String(rawStr));
+                EmitLoadConst(strIdx, line);
                 break;
-
             default:
-                FatalError($"Unknown literal type for emission '{lit.Value.Tag}'");
+                FatalError($"Unknown literal type for emission '{lit.Value.Tag}'", GetLeadToken(lit));
                 break;
         }
     }
 
     private void EmitLoadConst(int idx, int line)
     {
-        throw new NotImplementedException();
+        if (idx < byte.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.LOAD_CONST, line);
+            CurrentChunk.WriteByte((byte)idx, line);
+        }
+        else if (idx < ushort.MaxValue)
+        {
+            CurrentChunk.WriteByte(OpCode.LOAD_CONST_LONG, line);
+            CurrentChunk.WriteByte((byte)(idx & 0xFF), line);        // Low byte
+            CurrentChunk.WriteByte((byte)((idx >> 8) & 0xFF), line); // High byte
+        }
+        else FatalError($"Too many constants in one chunk, limit is 65,535.", null);
     }
 }

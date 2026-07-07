@@ -1,6 +1,7 @@
 ﻿using Cera.Compiler.Logging;
 using Cera.Compiler.Lexer;
 using Cera.Compiler.Parser;
+using Cera.Compiler.Backend;
 
 namespace Cera.Compiler;
 
@@ -74,8 +75,8 @@ public class Compiler
 
         // Emitter
 
-        Backend.Emitter em = new(ast, diag);
-        Backend.Module? m = null;
+        Emitter em = new(ast, e, diag);
+        Module? m = null;
 
         try { m = em.Compile(); } 
         catch (EmitterException)
@@ -83,6 +84,8 @@ public class Compiler
             diag.Close();
             Environment.Exit(5);
         }
+
+        BinaryExporter.Export(m, $"Out/{Path.GetFileNameWithoutExtension(filePath)}.cerabc");
 
         diag.TryEmitterDump(m);
         diag.EndSection(Diagnostics.TimerScope.Task, "Emission completed");

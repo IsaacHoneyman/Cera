@@ -117,6 +117,40 @@ public class Diagnostics
         };
     }
 
+    public static Token? GetLeadToken(INodeAST node)
+    {
+        return node switch
+        {
+            LiteralExpr lit => lit.Value,
+            IdentifierExpr id => id.Identifier,
+            BinaryExpr bin => bin.Operator,
+            UnaryExpr un => un.Operator,
+            IfExpr ifExpr => ifExpr.Operator,
+            SwitchExpr sw => sw.Operator,
+            ListLitExpr list => list.Operator,
+            ArrLitExpr arr => arr.Operator,
+            TupleLitExpr tup => tup.Operator,
+            ConExpr con => con.ConstructorName,
+            
+            // Dig down into the callee to find the function's name token
+            CallExpr call => GetLeadToken(call.Callee), 
+            
+            // Grab the first parameter's token, if it has one
+            LambdaExpr lam => lam.Parameters.FirstOrDefault()?.Identifier, 
+            
+            // Look at the return expression of the block
+            ExprBlock block => GetLeadToken(block.ReturnExpression),
+            
+            // Patterns
+            LiteralPattern lp => lp.Value,
+            IdPattern ip => ip.Identifier,
+            ConPattern cp => cp.ConstructorName,
+            ConsPattern cp => cp.Operator,
+            
+            _ => null
+        };
+    }
+
     // --- Dumps ---
 
     public bool TryTokenDump(List<Token> tokens)
@@ -318,7 +352,7 @@ public class Diagnostics
                             $"{pad}  Signature : {typeStr}\n" +
                             $"{pad}  Arity     : {f.Arity}\n" +
                             $"{pad}  Generics  : [{(f.GenericParams.Count > 0 ? string.Join(", ", f.GenericParams.Select(g => g.Lexeme)) : "None")}]\n" +
-                            $"{pad}  Intrinsic : {f.IsIntrinsic}\n",
+                            $"{pad}  Intrinsic : {f.NativeId != null}\n",
 
             TypeSymbol t => $"{pad}Type (ADT): {t.DeclToken.Lexeme}\n" +
                             $"{pad}  Signature : {typeStr}\n" +
@@ -339,12 +373,152 @@ public class Diagnostics
 
     // --- Emitter Nonsense ---
 
+    // --- Emitter Nonsense ---
+
     public bool TryEmitterDump(Backend.Module m)
     {
         if (!emitterDump) return false;
 
+        Log("", true);
+        Log("=== Backend: Bytecode Disassembly Dump ===", true);
+
+        foreach (var func in m.GetSortedFunctions())
+        {
+            Log($"--- Function: {func.Name} (Index: {func.Index}, Arity: {func.Arity}) ---", true);
+            
+            // 1. Dump Constant Pool
+            if (func.Body.Constants.Count > 0)
+            {
+                Log("  Constants:", true);
+                for (int i = 0; i < func.Body.Constants.Count; i++)
+                {
+                    var c = func.Body.Constants[i];
+                    string valStr = c.Tag switch {
+                        Backend.CeraValue.ValueTag.Int => c.IntValue.ToString(),
+                        Backend.CeraValue.ValueTag.Float => c.FloatValue.ToString(),
+                        Backend.CeraValue.ValueTag.Bool => c.IntValue == 1 ? "true" : "false",
+                        Backend.CeraValue.ValueTag.Char => $"'{char.ConvertFromUtf32((int)c.IntValue)}'",
+                        Backend.CeraValue.ValueTag.Unit => "()",
+                        Backend.CeraValue.ValueTag.String => $"\"{c.StringValue}\"",
+                        _ => "?"
+                    };
+                    
+                    // Pad the Tag to 8 characters so the values align beautifully
+                    Log($"    {i:D4} : {c.Tag,-8} {valStr}", true);
+                }
+                Log("", true);
+            }
+
+            // 2. Dump Instructions
+            Log("  Code:", true);
+            var code = func.Body.Code;
+            for (int offset = 0; offset < code.Count; )
+            {
+                offset = DisassembleInstruction(func.Body, offset);
+            }
+            Log("", true);
+        }
+
+        Log("==========================================", true);
+        Log("", true);
+
         return true;
-    } 
+    }
+
+    private int DisassembleInstruction(Backend.Chunk chunk, int offset)
+    {
+        var code = chunk.Code;
+        var lines = chunk.Lines;
+        
+        // Both strings are exactly 4 characters wide to guarantee a perfect vertical column
+        string lineStr = (offset > 0 && lines[offset] == lines[offset - 1]) 
+            ? "   |" 
+            : $"{lines[offset],4}";
+
+        byte instruction = code[offset];
+        Backend.OpCode op = (Backend.OpCode)instruction;
+        
+        // Pad the opcode to exactly 22 characters left-justified
+        string prefix = $"{offset:D4} {lineStr} {op.ToString(),-22}";
+
+        switch (op)
+        {
+            // --- 1-Byte Operand Instructions ---
+            case Backend.OpCode.LOAD_CONST:
+            case Backend.OpCode.PUSH_BYTE:
+            case Backend.OpCode.LOAD_LOCAL:
+            case Backend.OpCode.STORE_LOCAL:
+            case Backend.OpCode.LOAD_UPVALUE:
+            case Backend.OpCode.LOAD_FUNCTION:
+            case Backend.OpCode.CALL:
+            case Backend.OpCode.TAIL_CALL:
+            case Backend.OpCode.ALLOC_CON:
+            case Backend.OpCode.ALLOC_TUPLE:
+            case Backend.OpCode.ALLOC_ARRAY:
+            case Backend.OpCode.MATCH_TAG:
+                byte operand = code[offset + 1];
+                Log($"{prefix} {operand}", true);
+                return offset + 2;
+
+            // --- 2-Byte Operand Instructions (Little-Endian) ---
+            case Backend.OpCode.LOAD_CONST_LONG:
+            case Backend.OpCode.LOAD_FUNCTION_LONG:
+            case Backend.OpCode.ALLOC_ARRAY_LONG:
+                ushort longOperand = (ushort)(code[offset + 1] | (code[offset + 2] << 8));
+                Log($"{prefix} {longOperand}", true);
+                return offset + 3;
+
+            // --- 2-Byte Offset Instructions (Big-Endian from Chunk.PatchJump) ---
+            case Backend.OpCode.JUMP:
+            case Backend.OpCode.JUMP_IF_FALSE:
+            case Backend.OpCode.JUMP_IF_TRUE:
+                ushort jumpOffset = (ushort)((code[offset + 1] << 8) | code[offset + 2]);
+                // Jump targets are relative to the IP *after* the jump instruction is read
+                Log($"{prefix} {jumpOffset} (to {offset + 3 + jumpOffset:D4})", true);
+                return offset + 3;
+
+            // --- 4-Byte Operand Instructions (Little-Endian UTF-32) ---
+            case Backend.OpCode.PUSH_CHAR:
+                int charVal = code[offset + 1] | (code[offset + 2] << 8) | (code[offset + 3] << 16) | (code[offset + 4] << 24);
+                Log($"{prefix} '{char.ConvertFromUtf32(charVal)}'", true);
+                return offset + 5;
+
+            // --- Multi-Operand Intrinsic Calls ---
+            case Backend.OpCode.CALL_INTRINSIC:
+                byte intrinsicId = code[offset + 1];
+                byte argCount = code[offset + 2];
+                Log($"{prefix} id: {intrinsicId}, args: {argCount}", true);
+                return offset + 3;
+
+            // --- Variable Length Instructions (Closures) ---
+            // --- Variable Length Instructions (Closures) ---
+            case Backend.OpCode.MAKE_CLOSURE:
+                byte upvalueCount = code[offset + 1];
+                Log($"{prefix} {upvalueCount} upvalues", true);
+                
+                int currOffset = offset + 2;
+                for (int i = 0; i < upvalueCount; i++)
+                {
+                    byte isLocal = code[currOffset];
+                    byte index = code[currOffset + 1];
+                    
+                    // Extract the ternary logic outside the string interpolation
+                    string captureType = isLocal == 1 ? "local" : "upvalue";
+                    
+                    // Use exactly 22 spaces to align the 'capture' text perfectly under the opcode column
+                    Log($"{currOffset:D4}    |                        capture {captureType} {index}", true);
+                    
+                    currOffset += 2;
+                }
+                return currOffset;
+
+            // --- 0-Operand Instructions (ALU, PUSH_0, POP, RETURN, UNPACK_*, etc.) ---
+            default:
+                // .TrimEnd() prevents parameterless instructions from having massive trailing whitespace
+                Log(prefix.TrimEnd(), true);
+                return offset + 1;
+        }
+    }
 
 
 }

@@ -33,6 +33,13 @@
 \contentsline {subsection}{\numberline {6.2}Hindley-Milner Type Inference (Algorithm W)}{16}{subsection.6.2}%
 \contentsline {subsection}{\numberline {6.3}Generic Instantiation and Polymorphism}{16}{subsection.6.3}%
 \contentsline {subsection}{\numberline {6.4}Operator and Expression Validation}{16}{subsection.6.4}%
-\contentsline {section}{\numberline {7}Planned Updates}{17}{section.7}%
-\contentsline {subsection}{\numberline {7.1}Excluded Features}{17}{subsection.7.1}%
-\contentsline {subsection}{\numberline {7.2}Planned Features}{17}{subsection.7.2}%
+\contentsline {section}{\numberline {7}Bytecode Emission and Execution Architecture}{17}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Virtual Machine Target Architecture}{17}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Operational Limitations and Capacity}{17}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Tail Call Optimization (TCO)}{18}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Pattern Matching Compilation}{18}{subsection.7.4}%
+\contentsline {subsection}{\numberline {7.5}Executable Object Format (\texttt {.cerabc})}{18}{subsection.7.5}%
+\contentsline {subsection}{\numberline {7.6}Instruction Set Architecture (ISA)}{19}{subsection.7.6}%
+\contentsline {section}{\numberline {8}Cera's Future}{22}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Excluded Features}{22}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Planned Features}{22}{subsection.8.2}%
