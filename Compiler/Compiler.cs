@@ -85,7 +85,7 @@ public class Compiler
             Environment.Exit(5);
         }
 
-        BinaryExporter.Export(m, $"Out/{Path.GetFileNameWithoutExtension(filePath)}.cerabc");
+        BinaryExporter.Export(m, $"Out/ByteCode/{Path.GetFileNameWithoutExtension(filePath)}.cerabc");
 
         diag.TryEmitterDump(m);
         diag.EndSection(Diagnostics.TimerScope.Task, "Emission completed");
@@ -120,6 +120,10 @@ public class Compiler
             diag.LogError("No file path specified. Usage: compiler 'filepath' [flags]");
             return;
         }
+
+        Directory.CreateDirectory("Out/Dump");
+        Directory.CreateDirectory("Out/ByteCode");
+        Directory.CreateDirectory("Out/VirtualMachine");
 
         _ = new Compiler(filePath, diag);
     }

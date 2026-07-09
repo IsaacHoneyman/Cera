@@ -41,11 +41,6 @@ public class Diagnostics
         emitterDump = args[5];
 
         dumpFilePath = $"Out/Dump/Cera_Dump_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
-        if (dumpToFile)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(dumpFilePath) ?? "");
-        }
-
     }
 
     public void Close()

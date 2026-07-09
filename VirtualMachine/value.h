@@ -1,3 +1,6 @@
+#ifndef VALUE_H
+#define VALUE_H
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -11,10 +14,14 @@ typedef enum {
     VAL_CLOSURE = 6,
     VAL_TUPLE = 7,
     VAL_ARRAY = 8,
-    VAL_ADT = 9
+    VAL_ADT = 9,
+    VAL_LIST = 10
 } ValueTag;
 
-typedef struct sObj Obj; // base heap type
+typedef struct sObj {
+    int ref_count;
+    uint8_t type;
+} Obj;
 
 typedef struct {
     uint8_t tag;
@@ -24,11 +31,6 @@ typedef struct {
         Obj* obj; // used for all heap allocations
     } as;
 } CeraValue;
-
-struct sObj {
-    int ref_count;
-    uint8_t type;
-};
 
 typedef struct sObjUpvalue {
     Obj header;
@@ -59,3 +61,31 @@ typedef struct {
     CompiledFunction* functions;
     int entry_index;
 } Module;
+
+typedef struct {
+    Obj header;
+    uint32_t length;
+    char* chars;    
+} ObjString;
+
+typedef struct {
+    Obj header;
+    int length;
+    CeraValue* elements;
+} ObjTuple;
+ 
+typedef ObjTuple ObjArray; // help in memory the same way as a tuple 
+
+typedef struct {
+    Obj header;
+    uint8_t adt_tag;     // e.g., 0x00 for None, 0x01 for Some
+    CeraValue payload;   // The inner wrapped value
+} ObjADT;
+
+typedef struct {
+    Obj header;
+    CeraValue head;      // The current element
+    CeraValue tail;      // The rest of the list (will point to another ObjList or Nil)
+} ObjList;
+
+#endif
