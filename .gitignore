@@ -59,6 +59,8 @@ dlldata.c
 
 Out/
 
+.VSCodeCounter
+
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
 

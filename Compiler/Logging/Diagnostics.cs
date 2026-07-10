@@ -40,7 +40,7 @@ public class Diagnostics
         analyzerDump = args[4];
         emitterDump = args[5];
 
-        dumpFilePath = $"Out/Dump/Cera_Dump_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
+        dumpFilePath = $"Out/Dump/Cera_Compiler_Dump_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
     }
 
     public void Close()

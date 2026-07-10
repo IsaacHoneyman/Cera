@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "memory.h"
+#include "logger.h"
 
 void retain(CeraValue value) { // increments ref count
     if (IS_OBJ(value)) {
@@ -19,6 +20,7 @@ void release(CeraValue value) { // decrements ref count
 }
 
 void freeObject(Obj* obj) {
+    log_detail("Freeing heap object (Type: %d)", obj->type); 
     switch (obj -> type) {
         case VAL_STRING: {
             ObjString* string = (ObjString*)obj;
@@ -61,6 +63,7 @@ void freeObject(Obj* obj) {
 }
 
 static Obj* allocateObject(size_t size, uint8_t type) {
+    log_detail("Allocating heap object (Type: %d, Size: %zu bytes)", type, size); 
     Obj* obj = (Obj*)malloc(size);
     obj -> type = type;
     obj -> ref_count = 1;

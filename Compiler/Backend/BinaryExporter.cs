@@ -11,7 +11,7 @@ public static class BinaryExporter
 
         // header
         writer.Write(['C', 'E', 'R', 'A']);
-        writer.Write((byte)1); // version 1.0.0
+        writer.Write((uint)1); // version 1.0.0
         writer.Write(module.EntryPoint?.Index ?? -1);
 
         var functions = module.GetSortedFunctions();

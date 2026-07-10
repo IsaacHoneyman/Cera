@@ -2,22 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include "loader.h"
+#include "memory.h"
+#include "logger.h"
 
 Module* loadModule(const char* file_path) {
     FILE* file = fopen(file_path, "rb");
     if (file == NULL) {
+        log_error("Could not open file: %s", file_path); 
         return NULL;
     }
 
     char magic[4];
     if (fread(magic, sizeof(char), 4, file) != 4 || strncmp(magic, "CERA", 4) != 0) {
-        fprintf(stderr, "Error: Invalid or corrupted .cerabc file.\n");
+        log_error("Invalid or corrupted .cerabc file signature"); 
         fclose(file);
         return NULL;
     }
 
     uint32_t version;
     fread(&version, sizeof(uint32_t), 1, file);
+    log_detail("Detected CeraBC Version: %d", version); 
 
     Module* module = malloc(sizeof(Module));
     
@@ -25,6 +29,74 @@ Module* loadModule(const char* file_path) {
     fread(&module->function_count, sizeof(uint32_t), 1, file);
 
     module->functions = malloc(sizeof(CompiledFunction) * module->function_count);
+
+    for (uint32_t i = 0; i < module -> function_count; i++) {
+        CompiledFunction* func = &(module->functions[i]);
+
+        fread(&func -> index, sizeof(int32_t), 1, file);
+        fread(&func -> arity, sizeof(uint8_t), 1, file);
+        fread(&func -> constant_count, sizeof(uint16_t), 1, file);
+
+        log_detail("  -> Decoding Function [%d] (Arity: %d, Constants: %d)", 
+                   func->index, func->arity, func->constant_count);
+
+        func -> constants = malloc(sizeof(CeraValue) * func->constant_count);
+
+        for (uint16_t c = 0; c < func->constant_count; c++) {
+            uint8_t tag;
+            fread(&tag, sizeof(uint8_t), 1, file);
+
+            switch (tag) {
+                case VAL_INT:
+                    fread(&func->constants[c].as.int_val, sizeof(int64_t), 1, file);
+                    break;
+                case VAL_FLOAT:
+                    fread(&func->constants[c].as.float_val, sizeof(double), 1, file);
+                    break;
+                case VAL_CHAR: {
+                    uint32_t char_val;
+                    fread(&char_val, sizeof(uint32_t), 1, file);
+                    func->constants[c].as.int_val = char_val; 
+                    break;
+                }
+                case VAL_BOOL: {
+                    uint8_t bool_val;
+                    fread(&bool_val, sizeof(uint8_t), 1, file);
+                    func->constants[c].as.int_val = bool_val;
+                    break;
+                }
+                case VAL_UNIT:
+                    func->constants[c].as.int_val = 0;
+                    break;
+                case VAL_STRING: {
+                    uint32_t length;
+                    fread(&length, sizeof(uint32_t), 1, file);
+                    
+                    ObjString* str = malloc(sizeof(ObjString));
+                    str->header.type = VAL_STRING;
+                    str->header.ref_count = 1; // It lives in the constant pool
+                    str->length = length;
+                    
+                    str->chars = malloc(length + 1); // +1 for null terminator
+                    fread(str->chars, sizeof(char), length, file);
+                    str->chars[length] = '\0';
+                    
+                    func->constants[c].tag = VAL_STRING;
+                    func->constants[c].as.obj = (Obj*)str;
+                    break;
+                }
+                default:
+                    log_error("Unknown constant tag %d at index %d", tag, c); 
+                    exit(1);
+            }
+        }
+
+        fread(&func->code_size, sizeof(uint32_t), 1, file);
+        func->code = malloc(sizeof(uint8_t) * func->code_size);
+        fread(func->code, sizeof(uint8_t), func->code_size, file);
+
+        log_detail("     Loaded %d bytes of bytecode", func->code_size); 
+    }
     
     fclose(file);
     return module;
@@ -33,7 +105,20 @@ Module* loadModule(const char* file_path) {
 void freeModule(Module* module) {
     if (!module) return;
     
-    // TODO: Loop through functions and free their bytecode and constant arrays
+    for (uint32_t i = 0; i < module->function_count; i++) {
+        CompiledFunction* func = &module->functions[i];
+        
+        free(func->code);
+        
+        for (uint16_t c = 0; c < func->constant_count; c++) {
+            if (func->constants[c].tag == VAL_STRING) {
+                release(func->constants[c]);
+            }
+        }
+        
+        free(func->constants);
+    }
+    
     free(module->functions);
     free(module);
 }
