@@ -1,0 +1,19 @@
+import "Math.cera";
+import "IO.cera";
+
+def entry(args: char list list) : int = {
+    out("--- Cera Number Game ---\nPlay[p], Quit [q]");
+    var inp = in();
+
+    if (inp == "q" || inp == "Q") { 
+        0; 
+    }
+    else {
+        play(0, 3);
+        entry(args);
+    }
+}
+
+def play(score: int, lives: int) : unit = {
+    outF("Current Score: %, Lives: %", ["5", "3"]);
+}

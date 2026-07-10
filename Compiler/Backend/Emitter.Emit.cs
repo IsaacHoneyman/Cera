@@ -33,8 +33,8 @@ public partial class Emitter
 
     private void EmitSwitchExpression(SwitchExpr sw, bool isTail)
     {
-        EmitExpression(sw.TargetExpression); 
-        
+        EmitExpression(sw.TargetExpression);
+
         // Bind the root target to a hidden local variable so cases can inspect it repeatedly
         string rootTarget = $"<switch_target_{Guid.NewGuid().ToString()[..8]}>";
         Locals.Add(rootTarget);
@@ -49,10 +49,10 @@ public partial class Emitter
             CompilePatternCase(matchCase.Pattern, rootTarget, failureJumps, sw.Operator.Line);
 
             EmitExpression(matchCase.ResultExpression, isTail);
-            
+
             int rootTargetIndex = Locals.IndexOf(rootTarget);
             if (rootTargetIndex > byte.MaxValue) FatalError("Too many local variables in scope. Limit is 255.", sw.Operator);
-            
+
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, sw.Operator.Line);
             CurrentChunk.WriteByte((byte)rootTargetIndex, sw.Operator.Line);
 
@@ -77,14 +77,14 @@ public partial class Emitter
             Locals.RemoveRange(scopeDepthBeforeCase, variablesPushed);
         }
 
-        CurrentChunk.WriteByte(OpCode.MATCH_FAIL, sw.Operator.Line); 
+        CurrentChunk.WriteByte(OpCode.MATCH_FAIL, sw.Operator.Line);
 
         foreach (var jump in endJumps)
         {
             CurrentChunk.PatchJump(jump);
         }
 
-        Locals.RemoveAt(Locals.Count - 1); 
+        Locals.RemoveAt(Locals.Count - 1);
     }
 
     private void EmitLoadLocal(string name, int line)
@@ -92,7 +92,7 @@ public partial class Emitter
         int index = Locals.LastIndexOf(name);
         if (index == -1) FatalError($"Hidden local '{name}' not found.", null);
         if (index > byte.MaxValue) FatalError("Too many local variables in scope, limit is 255.", null);
-        
+
         CurrentChunk.WriteByte(OpCode.LOAD_LOCAL, line);
         CurrentChunk.WriteByte((byte)index, line);
     }
@@ -117,7 +117,7 @@ public partial class Emitter
                 Locals.Add(id.Identifier.Lexeme);
                 break;
 
-           case ConPattern con:
+            case ConPattern con:
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                 CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), line);
@@ -127,15 +127,15 @@ public partial class Emitter
                 {
                     EmitLoadLocal(targetVar, line);
                     CurrentChunk.WriteByte(OpCode.UNPACK_CON, line);
-                    
+
                     if (con.PayloadPatterns.Count > 1)
                     {
                         CurrentChunk.WriteByte(OpCode.UNPACK_TUPLE, line);
-                        if (con.PayloadPatterns.Count > byte.MaxValue) 
+                        if (con.PayloadPatterns.Count > byte.MaxValue)
                             FatalError("Constructor payload exceeds 255 fields.", GetLeadToken(con));
                         CurrentChunk.WriteByte((byte)con.PayloadPatterns.Count, line);
                     }
-                    
+
                     List<string> payloadVars = [];
                     foreach (var p in con.PayloadPatterns)
                     {
@@ -179,7 +179,7 @@ public partial class Emitter
                 failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
 
                 EmitLoadLocal(targetVar, line);
-                CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line); 
+                CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
 
                 string headVar = cons.Head is IdPattern hid ? hid.Identifier.Lexeme : $"<head_{Guid.NewGuid().ToString()[..8]}>";
                 string tailVar = cons.Tail is IdPattern tid ? tid.Identifier.Lexeme : $"<tail_{Guid.NewGuid().ToString()[..8]}>";
@@ -209,7 +209,7 @@ public partial class Emitter
 
                         EmitLoadLocal(currentListVar, line);
                         CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
-                        
+
                         string hVar = list.Patterns[i] is IdPattern id ? id.Identifier.Lexeme : $"<list_el_{Guid.NewGuid().ToString()[..8]}>";
                         string tVar = $"<list_tail_{Guid.NewGuid().ToString()[..8]}>";
                         Locals.Add(hVar);
@@ -217,8 +217,8 @@ public partial class Emitter
 
                         if (list.Patterns[i] is not IdPattern)
                             CompilePatternCase(list.Patterns[i], hVar, failureJumps, line);
-                        
-                        currentListVar = tVar; 
+
+                        currentListVar = tVar;
                     }
 
                     // After extracting all elements, the final tail MUST be empty
@@ -231,26 +231,26 @@ public partial class Emitter
             case ArrPattern arr:
                 EmitLoadLocal(targetVar, line);
                 int length = arr.Patterns.Count;
-                
+
                 if (length == 0) CurrentChunk.WriteByte(OpCode.PUSH_0, line);
                 else if (length == 1) CurrentChunk.WriteByte(OpCode.PUSH_1, line);
-                else if (length <= 127) 
+                else if (length <= 127)
                 {
                     CurrentChunk.WriteByte(OpCode.PUSH_BYTE, line);
                     CurrentChunk.WriteByte((byte)length, line);
                 }
-                else 
+                else
                 {
                     int idx = CurrentChunk.AddConstant(CeraValue.Int(length));
                     EmitLoadConst(idx, line);
                 }
-                
+
                 CurrentChunk.WriteByte(OpCode.MATCH_ARRAY_LENGTH, line);
                 failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
 
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.UNPACK_ARRAY, line);
-                
+
                 List<string> arrVars = [];
                 foreach (var p in arr.Patterns)
                 {
@@ -272,7 +272,7 @@ public partial class Emitter
         }
     }
 
-    
+
     private void EmitConstructor(ConExpr con)
     {
         if (con.Payloads.Count == 1)
@@ -342,7 +342,7 @@ public partial class Emitter
             if (sym is FuncSymbol { NativeId: not null } funcSym)
             {
                 if ((int)funcSym.NativeId > byte.MaxValue)
-                    FatalError($"Intrinsic ID '{funcSym.NativeId.Value}' exceeds byte limit.", sym.DeclToken); 
+                    FatalError($"Intrinsic ID '{funcSym.NativeId.Value}' exceeds byte limit.", sym.DeclToken);
 
                 foreach (var arg in call.Arguments) EmitExpression(arg);
 
@@ -400,6 +400,8 @@ public partial class Emitter
     {
         FuncState previousState = state;
         state = new FuncState(diag) { Enclosing = previousState };
+
+        Locals.Add("<closure_reserved>"); // padding for VM
 
         foreach (var param in lambda.Parameters)
             Locals.Add(param.Identifier.Lexeme);
@@ -470,13 +472,13 @@ public partial class Emitter
             if (stmt is VarDeclStmt varDecl)
             {
                 int line = varDecl.Identifier.Line;
-                
+
                 CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
-                
+
                 // 2. Register the variable in the compiler's scope BEFORE evaluating the right side.
-                Locals.Add(varDecl.Identifier.Lexeme);                
+                Locals.Add(varDecl.Identifier.Lexeme);
                 EmitExpression(varDecl.Initializer, false);
-                
+
                 // 4. Overwrite the dummy UNIT value with the actual compiled closure
                 CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
                 CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
@@ -607,7 +609,7 @@ public partial class Emitter
 
         // If it's not local or upvalue, it MUST be a global function. 
         int funcIndex = GetGlobalFunctionIndex(id.Identifier);
-        
+
         if (funcIndex <= byte.MaxValue)
         {
             CurrentChunk.WriteByte(OpCode.LOAD_FUNCTION, line);
@@ -616,14 +618,14 @@ public partial class Emitter
         else if (funcIndex <= ushort.MaxValue)
         {
             CurrentChunk.WriteByte(OpCode.LOAD_FUNCTION_LONG, line);
-            CurrentChunk.WriteByte((byte)(funcIndex & 0xFF), line);        
-            CurrentChunk.WriteByte((byte)((funcIndex >> 8) & 0xFF), line); 
+            CurrentChunk.WriteByte((byte)(funcIndex & 0xFF), line);
+            CurrentChunk.WriteByte((byte)((funcIndex >> 8) & 0xFF), line);
         }
         else
         {
             FatalError($"Cannot load function '{name}'. Total module functions exceed 65,535 limit.", id.Identifier);
         }
-        
+
         CurrentChunk.WriteByte(OpCode.MAKE_CLOSURE, line);
         CurrentChunk.WriteByte((byte)0, line);
     }

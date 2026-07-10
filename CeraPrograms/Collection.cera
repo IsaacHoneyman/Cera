@@ -94,6 +94,18 @@ def find<g>(lst: g list, p: g -> bool) : option<g> = {
     }
 }
 
+def findIndex<g>(lst: g list, p: g -> bool) : option<int> = {
+    var fi = func(lst: g list, i: int) : option<int> = {
+        switch (lst) {
+            [] -> None,
+            (h::tl) -> 
+                if (p(h)) { Some(i); }
+                else { fi(tl, i + 1); }
+        }
+    };
+    fi(lst, 0);
+}
+
 def foldLeft<g, h>(lst: g list, f: (h * g) -> h, acc: h) : h = {
     switch(lst) {
         [] -> acc,
@@ -106,6 +118,30 @@ def foldRight<g, h>(lst: g list, f: (g * h) -> h, acc: h) : h = {
         [] -> acc,
         (val::tl) -> f(val, foldRight(tl, f, acc))
     }
+}
+
+def take<g>(lst: g list, num: int) : g list = {
+    var t = func(lst: g list, i: int, acc: g list) : g list = {
+        switch(lst) {
+            [] -> acc,
+            (h::tl) ->
+                if (i >= num) { acc; }
+                else { t(tl, i + 1, (h::acc)); }
+        }
+    };
+    rev(t(lst, 0, []));
+}
+
+def skip<g>(lst: g list, num: int) : g list = {
+    var s = func(lst: g list, i: int) : g list = {
+        switch(lst) {
+            [] -> [],
+            (h::tl) ->
+                if (i >= num) { lst; }
+                else { s(tl, i + 1); } 
+        }
+    };
+    s(lst, 0);
 }
 
 /// --- Streams ---

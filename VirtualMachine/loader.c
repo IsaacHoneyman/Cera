@@ -46,6 +46,7 @@ Module* loadModule(const char* file_path) {
             uint8_t tag;
             fread(&tag, sizeof(uint8_t), 1, file);
 
+            func->constants[c].tag = tag;
             switch (tag) {
                 case VAL_INT:
                     fread(&func->constants[c].as.int_val, sizeof(int64_t), 1, file);

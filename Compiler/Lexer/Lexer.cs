@@ -2,6 +2,7 @@ namespace Cera.Compiler.Lexer;
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Cera.Compiler.Logging;
 
 public class Lexer(string content, string file, Diagnostics diag)
@@ -227,7 +228,7 @@ public class Lexer(string content, string file, Diagnostics diag)
             FatalError("Unterminated string literal");
         }
 
-        Emit(TokenType.StringLiteral, content[start..index]);
+        Emit(TokenType.StringLiteral, Regex.Unescape(content[start..index]));
     }
 
     // --- Helper Methods ---

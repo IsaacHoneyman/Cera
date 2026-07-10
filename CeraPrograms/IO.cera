@@ -1,0 +1,25 @@
+import "Collection.cera";
+
+/* 
+    The offical IO libary for Cera.
+    Offers support for expanded I/O functionality.
+*/
+
+
+def outN(output: char list) : unit = {
+    out(output);
+    out("\n");
+}
+
+def outF(output: char list, insert: char list list) : unit = {
+    var cf = func(output: char list, insert: char list list) : char list = {
+        var next = findIndex(output, func(c: char) : bool = { c == '%'; });
+        switch ((next, insert)) {
+            (None, _) -> [],
+            (_, []) -> [],
+            (Some(x), (h::tl)) ->
+                concat(concat(take(output, x), h), cf(skip(output, x), tl)) 
+        }
+    };
+    out(cf(output, insert));
+}

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "vm.h"
 #include "memory.h"
 #include "logger.h"
@@ -97,9 +98,114 @@ void freeVM(VM* vm) {
 #define READ_CONSTANT_LONG() (active_function->constants[READ_SHORT()])
 #define PEEK(distance) (vm->stack_top[-1 - (distance)])
 
+static CompiledFunction* get_function(Module* module, int target_index) {
+    for (uint32_t i = 0; i < module->function_count; i++) {
+        if (module->functions[i].index == target_index) {
+            return &module->functions[i];
+        }
+    }
+    return NULL; // Should never be reached
+}
+
+static int call_function(VM* vm, ObjClosure* closure, uint8_t arg_count) {
+    CompiledFunction* func = get_function(vm->active_module, closure->function_index);
+    
+    if (func == NULL) {
+        log_error("Fatal: Attempted to call unknown function index %d.", closure->function_index);
+        return 1;
+    }
+    
+    if (func->code_size == 0) {
+        log_error("Fatal: Function %d has 0 bytes of bytecode compiled.", func->index);
+        return 1;
+    }
+
+    if (arg_count != func->arity) {
+        log_error("Expected %d arguments but got %d.", func->arity, arg_count);
+        return 1;
+    }
+
+    if (vm->frame_count == FRAMES_MAX) {
+        log_error("Stack overflow. Infinite recursion detected.");
+        return 1;
+    }
+
+    CallFrame* frame = &vm->frames[vm->frame_count++];
+    frame->closure = closure;
+    frame->ip = func->code;
+    
+    frame->slots = vm->stack_top - arg_count - 1;
+    return 0; 
+}
+
+static int execute_intrinsic(VM* vm, uint8_t intrinsic_id, uint8_t arg_count) {
+    switch (intrinsic_id) {
+        
+        case INTR_OUT: {
+            if (arg_count != 1) { log_error("out() expects exactly 1 argument."); return 1; }
+            CeraValue arg = pop(vm);
+            
+            if (arg.tag == VAL_STRING) {
+                ObjString* str = (ObjString*)arg.as.obj;                
+                printf(ANSI_COLOR_WHITE "%s" ANSI_COLOR_RESET, str->chars);                
+                fflush(stdout); 
+                
+            } else {
+                log_error("out() currently only supports native Strings.");
+                return 1;
+            }
+            
+            release(arg); 
+            CeraValue unit; 
+            unit.tag = VAL_UNIT; 
+            unit.as.int_val = 0;
+            push(vm, unit);
+            return 0; 
+        }
+        
+        case INTR_FLOAT_TO_CHARS: {
+            if (arg_count != 1) { log_error("floatToChars() expects exactly 1 argument."); return 1; }
+            
+            CeraValue arg = pop(vm);
+            if (arg.tag != VAL_FLOAT) { log_error("floatToChars() requires a float."); return 1; }
+            
+            char buffer[64];
+            int len = snprintf(buffer, sizeof(buffer), "%g", arg.as.float_val);
+            
+            ObjString* str = malloc(sizeof(ObjString));
+            str->header.type = VAL_STRING;
+            str->header.ref_count = 1; 
+            str->length = len;
+            str->chars = malloc(len + 1);
+            strcpy(str->chars, buffer);
+            
+            CeraValue result;
+            result.tag = VAL_STRING;
+            result.as.obj = (Obj*)str;
+            
+            push(vm, result);
+            return 0; 
+        }
+
+        default:
+            log_error("Fatal: Unimplemented intrinsic ID: %d", intrinsic_id);
+            return 1; 
+    }
+}
+
+static void close_upvalues(VM* vm, CeraValue* last) {
+    while (vm->open_upvalues != NULL && vm->open_upvalues->location >= last) {
+        ObjUpvalue* upvalue = vm->open_upvalues;
+        
+        upvalue->closed_value = *upvalue->location;        
+        upvalue->location = &upvalue->closed_value;        
+        vm->open_upvalues = upvalue->next;
+    }
+}
+
 int runVM(VM* vm) {
     CallFrame* frame = &vm->frames[vm->frame_count-1];
-    CompiledFunction* active_function = &vm->active_module->functions[frame->closure->function_index];
+    CompiledFunction* active_function = get_function(vm->active_module, frame->closure->function_index);
 
     log_info("--- Execution Started ---");
 
@@ -300,9 +406,8 @@ int runVM(VM* vm) {
             }
 
             case OP_RETURN: {
-                CeraValue result = pop(vm);
-                
-                // TODO: Close upvalues logic
+                CeraValue result = pop(vm);                
+                close_upvalues(vm, frame->slots);
                 
                 vm->frame_count--;
                 if (vm->frame_count == 0) {
@@ -317,17 +422,96 @@ int runVM(VM* vm) {
                 push(vm, result); 
                 
                 frame = &vm->frames[vm->frame_count - 1];
-                active_function = &vm->active_module->functions[frame->closure->function_index];
+                active_function = get_function(vm->active_module, frame->closure->function_index);
                 break;
             }
             
-            case OP_CALL:
-            case OP_CALL_INTRINSIC:
-            case OP_TAIL_CALL:
-            case OP_MAKE_CLOSURE:
-                log_error("Function Call/Closure operations not yet implemented");
-                return 1;
+            case OP_CALL: {
+                uint8_t arg_count = READ_BYTE();
+                CeraValue callee = PEEK(arg_count);
 
+                if (callee.tag != VAL_CLOSURE) {
+                    log_error("Attempted to call a non-function value.");
+                    return 1;
+                }
+                if (call_function(vm, (ObjClosure*)callee.as.obj, arg_count) != 0) {
+                    return 1; 
+                }             
+
+                frame = &vm->frames[vm->frame_count - 1];
+                active_function = get_function(vm->active_module, frame->closure->function_index);
+                break;
+            }
+
+            case OP_CALL_INTRINSIC:
+                uint8_t intrinsic_id = READ_BYTE();
+                uint8_t arg_count = READ_BYTE();                
+                if (execute_intrinsic(vm, intrinsic_id, arg_count) != 0) {
+                    return 1; 
+                }
+                break;
+
+            case OP_TAIL_CALL: {
+                uint8_t arg_count = READ_BYTE();
+                CeraValue callee = PEEK(arg_count);
+                
+                if (callee.tag != VAL_CLOSURE) {
+                    log_error("Attempted to tail-call a non-function.");
+                    return 1;
+                }
+                
+                ObjClosure* closure = (ObjClosure*)callee.as.obj;
+                CompiledFunction* func = get_function(vm->active_module, closure->function_index);
+                
+                if (func == NULL) {
+                    log_error("Fatal: Unknown function index %d in tail call.", closure->function_index);
+                    return 1;
+                }
+                if (func->code_size == 0) {
+                    log_error("Fatal: Function %d has 0 bytes of bytecode.", func->index);
+                    return 1;
+                }
+                
+                if (arg_count != func->arity) {
+                    log_error("Expected %d arguments but got %d.", func->arity, arg_count);
+                    return 1;
+                }
+
+                frame->closure = closure;
+                frame->ip = func->code;
+                
+                // Shift the new arguments down the stack to replace the current function's locals
+                for (int i = 0; i <= arg_count; i++) {
+                    frame->slots[i] = PEEK(arg_count - i);
+                }
+                vm->stack_top = frame->slots + arg_count + 1;                
+                active_function = func;
+                break;
+            }
+            case OP_MAKE_CLOSURE: {                
+                uint8_t upvalue_count = READ_BYTE();                
+                CeraValue func_val = pop(vm);
+                if (func_val.tag != VAL_INT) {
+                    log_error("Runtime Error: OP_MAKE_CLOSURE expected int on stack.");
+                    return 1;
+                }
+                
+                uint32_t func_index = (uint32_t)func_val.as.int_val;
+                CompiledFunction* function = get_function(vm->active_module, func_index);
+                
+                if (function == NULL) {
+                    log_error("Fatal: Attempted to make closure for unknown function index %d", func_index);
+                    return 1;
+                }
+                
+                ObjClosure* closure = newClosure(func_index, function->arity, upvalue_count);                
+                frame->ip += (upvalue_count * 2);                
+                CeraValue closure_val;
+                closure_val.tag = VAL_CLOSURE;
+                closure_val.as.obj = (Obj*)closure;
+                push(vm, closure_val);
+                break;
+            }
             case OP_ALLOC_CON:
             case OP_ALLOC_TUPLE:
             case OP_ALLOC_ARRAY:

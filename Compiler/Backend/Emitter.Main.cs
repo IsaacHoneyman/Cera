@@ -55,7 +55,7 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
                 if (!constructorTags.ContainsKey(cName))
                 {
                     if (nextConstructorTag == byte.MaxValue)
-                        FatalError("Too many ADT constructors across the module. Limit is 255.", typeDecl.Identifier);
+                        FatalError("Too many ADT constructors across the module. Limit is 255", typeDecl.Identifier);
                         
                     constructorTags[cName] = nextConstructorTag++;
                 }
@@ -73,6 +73,7 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
     private void CompileFunction(FuncDeclNode func)
     {
         state = new FuncState(diag) { Enclosing = null };
+        Locals.Add("<closure_reserved>");
 
         foreach (var param in func.Parameters)
             Locals.Add(param.Identifier.Lexeme);
@@ -119,14 +120,14 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
         if (globalFunctionIndices.TryGetValue(identifier.Lexeme, out int index))
             return index;
             
-        FatalError($"Global function '{identifier.Lexeme}' has no assigned index.", identifier);
+        FatalError($"Global function '{identifier.Lexeme}' has no assigned index", identifier);
         return -1;
     }
 
     private byte GetConstructorTagIndex(Token identifier)
     {
         if (constructorTags.TryGetValue(identifier.Lexeme, out byte tagId)) return tagId;
-        throw ThrowableFatalError($"Emitter Error: Unknown ADT constructor '{identifier.Lexeme}' encountered during emission.", identifier);
+        throw ThrowableFatalError($"Emitter Error: Unknown ADT constructor '{identifier.Lexeme}' encountered during emission", identifier);
     }
 
     [DoesNotReturn]

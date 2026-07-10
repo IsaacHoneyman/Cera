@@ -104,4 +104,33 @@ typedef enum {
     OP_MATCH_FAIL = 0x87,         
 } OpCode;
 
+typedef enum {
+    // --- Array & List Memory Operations ---
+    INTR_GET = 0x00,
+    INTR_ARR_LENGTH = 0x01,
+    INTR_BUILD = 0x02,
+    INTR_ARR_BUILD = 0x03,
+    INTR_CONCAT = 0x04,
+    INTR_ARR_CONCAT = 0x05,
+    INTR_ARR_TO_LIST = 0x06,
+    INTR_LIST_TO_ARR = 0x07,
+
+    // --- I/O Operations ---
+    INTR_OUT = 0x10,
+    INTR_IN = 0x11,
+    INTR_READ = 0x12,
+    INTR_WRITE = 0x13,
+
+    // --- Type Conversions ---
+    INTR_INT_TO_FLOAT = 0x20,
+    INTR_FLOAT_TO_INT = 0x21,
+    INTR_CHAR_TO_INT = 0x22,
+    INTR_INT_TO_CHAR = 0x23,
+    INTR_INT_TO_CHARS = 0x24,
+    INTR_FLOAT_TO_CHARS = 0x25,
+    INTR_BOOL_TO_CHARS = 0x26,
+    INTR_CHARS_TO_INT = 0x27,
+    INTR_CHARS_TO_FLOAT = 0x28
+} IntrinsicId;
+
 #endif 
