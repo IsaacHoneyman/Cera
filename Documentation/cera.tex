@@ -685,7 +685,6 @@ When a \texttt{CallExpr} is evaluated in a tail position, the compiler emits the
 % =========================================================================
 \subsection{Pattern Matching Compilation}
 % =========================================================================
-\noindent
 Compiling the \texttt{switch} expression requires complex stack discipline to handle sequential fallthrough without leaking memory. Cera employs a ``Test-then-Bind'' architecture:
 
 \begin{enumerate}
@@ -694,7 +693,6 @@ Compiling the \texttt{switch} expression requires complex stack discipline to ha
     \item \textbf{Memory Unpacking (Binding):} If the test succeeds, the original duplicated target must be consumed. Unpacking opcodes (e.g., \texttt{UNPACK\_TUPLE}, \texttt{UNPACK\_CON}, \texttt{UNPACK\_LIST}) extract the heap-allocated payload elements directly onto the operand stack, where they are inherently bound to the compiler's local variable tracking for the duration of the case body.
     \item \textbf{Exhaustiveness \& Soundness:} If all pattern cases are exhausted and execution falls through, the compiler emits a terminal \texttt{MATCH\_FAIL} (\texttt{0x87}) instruction. This deliberately halts the virtual machine, preventing silent failures and guaranteeing strict evaluation soundness.
 \end{enumerate}
-\textit{Note:} To maintain an efficient $O(N)$ emission pass, V1 of the Cera compiler restricts pattern matching to flat, non-recursive structures. Deeply nested patterns (e.g., \texttt{Some(Ok(x))}) will trigger a compilation error.
 
 % =========================================================================
 \subsection{Executable Object Format (\texttt{.cerabc})}

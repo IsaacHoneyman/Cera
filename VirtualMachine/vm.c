@@ -86,9 +86,23 @@ void freeVM(VM* vm) {
         CeraValue b = pop(vm); \
         CeraValue a = pop(vm); \
         CeraValue res; res.tag = VAL_BOOL; \
-        if (a.tag == VAL_INT && b.tag == VAL_INT) res.as.int_val = (a.as.int_val op b.as.int_val) ? 1 : 0; \
-        else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT) res.as.int_val = (a.as.float_val op b.as.float_val) ? 1 : 0; \
-        else { log_error("Invalid types for comparison"); return 1; } \
+        if (a.tag != b.tag) { \
+            log_error("Type mismatch during comparison"); return 1; \
+        } \
+        if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT) { \
+            res.as.int_val = (a.as.int_val op b.as.int_val) ? 1 : 0; \
+        } \
+        else if (a.tag == VAL_FLOAT) { \
+            res.as.int_val = (a.as.float_val op b.as.float_val) ? 1 : 0; \
+        } \
+        else if (a.tag == VAL_STRING) { \
+            ObjString* strA = (ObjString*)a.as.obj; \
+            ObjString* strB = (ObjString*)b.as.obj; \
+            res.as.int_val = (strcmp(strA->chars, strB->chars) op 0) ? 1 : 0; \
+        } \
+        else { \
+            log_error("Invalid or unimplemented types for comparison"); return 1; \
+        } \
         push(vm, res); \
     } while (false)
 
@@ -140,7 +154,6 @@ static int call_function(VM* vm, ObjClosure* closure, uint8_t arg_count) {
 
 static int execute_intrinsic(VM* vm, uint8_t intrinsic_id, uint8_t arg_count) {
     switch (intrinsic_id) {
-        
         case INTR_OUT: {
             if (arg_count != 1) { log_error("out() expects exactly 1 argument."); return 1; }
             CeraValue arg = pop(vm);
@@ -161,8 +174,115 @@ static int execute_intrinsic(VM* vm, uint8_t intrinsic_id, uint8_t arg_count) {
             unit.as.int_val = 0;
             push(vm, unit);
             return 0; 
+        }   
+        case INTR_IN: {
+            char buffer[1024];
+            if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+                buffer[0] = '\0';
+            } else {
+                size_t len = strlen(buffer);
+                if (len > 0 && buffer[len-1] == '\n') {
+                    buffer[len-1] = '\0';
+                    len--;
+                }
+            }
+            
+            size_t final_len = strlen(buffer);
+            ObjString* str = malloc(sizeof(ObjString));
+            str->header.type = VAL_STRING;
+            str->header.ref_count = 1; 
+            str->length = final_len;
+            
+            str->chars = malloc(final_len + 1);
+            strcpy(str->chars, buffer);
+            
+            CeraValue result;
+            result.tag = VAL_STRING;
+            result.as.obj = (Obj*)str;
+            
+            push(vm, result);
+            return 0; 
         }
-        
+
+        case INTR_INT_TO_FLOAT: {
+            CeraValue arg = pop(vm);
+            CeraValue result;
+            result.tag = VAL_FLOAT;
+            result.as.float_val = (double)arg.as.int_val;
+            push(vm, result);
+            return 0;
+        }
+
+        case INTR_FLOAT_TO_INT: {
+            CeraValue arg = pop(vm);
+            CeraValue result;
+            result.tag = VAL_INT;
+            result.as.int_val = (int64_t)arg.as.float_val; 
+            push(vm, result);
+            return 0;
+        }
+
+        case INTR_CHAR_TO_INT: {
+            CeraValue arg = pop(vm);
+            CeraValue result;
+            result.tag = VAL_INT;
+            result.as.int_val = arg.as.int_val; 
+            push(vm, result);
+            return 0;
+        }
+
+        case INTR_INT_TO_CHAR: {
+            CeraValue arg = pop(vm);
+            CeraValue result;
+            result.tag = VAL_CHAR;
+            result.as.int_val = arg.as.int_val;
+            push(vm, result);
+            return 0;
+        }
+
+        case INTR_INT_TO_CHARS: {
+            CeraValue arg = pop(vm);
+            
+            char buffer[64];
+            int len = snprintf(buffer, sizeof(buffer), "%ld", (long)arg.as.int_val);
+            
+            ObjString* str = malloc(sizeof(ObjString));
+            str->header.type = VAL_STRING;
+            str->header.ref_count = 1; 
+            str->length = len;
+            
+            str->chars = malloc(len + 1);
+            strcpy(str->chars, buffer);
+            
+            CeraValue result;
+            result.tag = VAL_STRING;
+            result.as.obj = (Obj*)str;
+            
+            push(vm, result);
+            return 0;
+        }
+
+        case INTR_BOOL_TO_CHARS: {
+            CeraValue arg = pop(vm);
+            
+            const char* text = arg.as.int_val ? "true" : "false";
+            int len = strlen(text);
+            
+            ObjString* str = malloc(sizeof(ObjString));
+            str->header.type = VAL_STRING;
+            str->header.ref_count = 1;
+            str->length = len;
+            
+            str->chars = malloc(len + 1);
+            strcpy(str->chars, text);
+            
+            CeraValue result;
+            result.tag = VAL_STRING;
+            result.as.obj = (Obj*)str;
+            
+            push(vm, result);
+            return 0;
+        }
         case INTR_FLOAT_TO_CHARS: {
             if (arg_count != 1) { log_error("floatToChars() expects exactly 1 argument."); return 1; }
             
@@ -186,6 +306,37 @@ static int execute_intrinsic(VM* vm, uint8_t intrinsic_id, uint8_t arg_count) {
             push(vm, result);
             return 0; 
         }
+        case INTR_CONCAT: {
+            CeraValue right = pop(vm);
+            CeraValue left = pop(vm);
+            
+            // Intercept standard String concatenation
+            if (left.tag == VAL_STRING && right.tag == VAL_STRING) {
+                ObjString* s1 = (ObjString*)left.as.obj;
+                ObjString* s2 = (ObjString*)right.as.obj;
+                
+                uint32_t len = s1->length + s2->length;
+                ObjString* new_str = malloc(sizeof(ObjString));
+                new_str->header.type = VAL_STRING;
+                new_str->header.ref_count = 1;
+                new_str->length = len;
+                new_str->chars = malloc(len + 1);
+                
+                strcpy(new_str->chars, s1->chars);
+                strcat(new_str->chars, s2->chars);
+                
+                CeraValue res; 
+                res.tag = VAL_STRING; 
+                res.as.obj = (Obj*)new_str;
+                
+                push(vm, res);
+                return 0;
+            }
+            
+            // Fallback for standard list concatenation (to be implemented later)
+            log_error("List concatenation not fully implemented for non-strings yet");
+            return 1;
+        }
 
         default:
             log_error("Fatal: Unimplemented intrinsic ID: %d", intrinsic_id);
@@ -201,6 +352,38 @@ static void close_upvalues(VM* vm, CeraValue* last) {
         upvalue->location = &upvalue->closed_value;        
         vm->open_upvalues = upvalue->next;
     }
+}
+
+static ObjUpvalue* capture_upvalue(VM* vm, CeraValue* local) {
+    ObjUpvalue* prev_upvalue = NULL;
+    ObjUpvalue* upvalue = vm->open_upvalues;
+
+    while (upvalue != NULL && upvalue->location > local) {
+        prev_upvalue = upvalue;
+        upvalue = upvalue->next;
+    }
+
+    if (upvalue != NULL && upvalue->location == local) {
+        upvalue -> header.ref_count++;
+        return upvalue;
+    }
+
+    ObjUpvalue* created_upvalue = malloc(sizeof(ObjUpvalue));
+    created_upvalue->header.type = 0; // Upvalues are internal 
+    created_upvalue->header.ref_count = 1;
+    created_upvalue->location = local;
+    
+    created_upvalue->closed_value.tag = VAL_INT; 
+    created_upvalue->closed_value.as.int_val = 0;
+    created_upvalue->next = upvalue;
+
+    if (prev_upvalue == NULL) {
+        vm->open_upvalues = created_upvalue;
+    } else {
+        prev_upvalue->next = created_upvalue;
+    }
+
+    return created_upvalue;
 }
 
 int runVM(VM* vm) {
@@ -315,11 +498,12 @@ int runVM(VM* vm) {
                 break;
             }
             case OP_LOAD_UPVALUE: {
-                uint8_t slot = READ_BYTE();
-                log_error("OP_LOAD_UPVALUE not implemented");
-                return 1;
+                uint8_t slot = READ_BYTE();                
+                CeraValue upvalue = *frame->closure->upvalues[slot]->location;
+                retain(upvalue);
+                push(vm, upvalue);
+                break;
             }
-
             case OP_ADD: {
                 CeraValue b = pop(vm);
                 CeraValue a = pop(vm);
@@ -505,32 +689,233 @@ int runVM(VM* vm) {
                 }
                 
                 ObjClosure* closure = newClosure(func_index, function->arity, upvalue_count);                
-                frame->ip += (upvalue_count * 2);                
+                
+                for (int i = 0; i < upvalue_count; i++) {
+                    uint8_t is_local = READ_BYTE();
+                    uint8_t index = READ_BYTE();
+
+                    if (is_local) {
+                        closure->upvalues[i] = capture_upvalue(vm, frame->slots + index);
+                    } else {
+                        closure->upvalues[i] = frame->closure->upvalues[index];
+                    }
+                }
+                
                 CeraValue closure_val;
                 closure_val.tag = VAL_CLOSURE;
                 closure_val.as.obj = (Obj*)closure;
                 push(vm, closure_val);
                 break;
             }
-            case OP_ALLOC_CON:
-            case OP_ALLOC_TUPLE:
-            case OP_ALLOC_ARRAY:
-            case OP_ALLOC_ARRAY_LONG:
-            case OP_LIST_EMPTY:
-            case OP_LIST_CONS:
-                log_error("Heap Allocation operations not yet implemented");
-                return 1;
+            case OP_ALLOC_CON: {
+                uint8_t tag_id = READ_BYTE();
+                CeraValue payload = pop(vm);
+                
+                ObjADT* adt = malloc(sizeof(ObjADT));
+                adt->header.type = VAL_ADT;
+                adt->header.ref_count = 1;
+                adt->adt_tag = tag_id;
+                
+                retain(payload); 
+                adt->payload = payload;
+                
+                CeraValue res;
+                res.tag = VAL_ADT;
+                res.as.obj = (Obj*)adt;
+                push(vm, res);
+                break;
+            }
+            case OP_ALLOC_TUPLE: {
+                uint8_t size = READ_BYTE();
+                ObjTuple* tuple = malloc(sizeof(ObjTuple));
+                tuple->header.type = VAL_TUPLE;
+                tuple->header.ref_count = 1;
+                tuple->length = size;
+                tuple->elements = malloc(sizeof(CeraValue) * size);
+                
+                for (int i = size - 1; i >= 0; i--) {
+                    CeraValue elem = pop(vm);
+                    retain(elem);
+                    tuple->elements[i] = elem;
+                }
+                
+                CeraValue res;
+                res.tag = VAL_TUPLE;
+                res.as.obj = (Obj*)tuple;
+                push(vm, res);
+                break;
+            }
 
-            case OP_MATCH_TAG:
-            case OP_UNPACK_CON:
-            case OP_UNPACK_TUPLE:
-            case OP_UNPACK_LIST:
-            case OP_IS_LIST_EMPTY:
-            case OP_MATCH_ARRAY_LENGTH:
-            case OP_UNPACK_ARRAY:
-            case OP_MATCH_FAIL:
-                log_error("Pattern Matching operations not yet implemented");
+            case OP_ALLOC_ARRAY: {
+                uint8_t size = READ_BYTE();
+                ObjArray* arr = malloc(sizeof(ObjArray));
+                arr->header.type = VAL_ARRAY;
+                arr->header.ref_count = 1;
+                arr->length = size;
+                arr->elements = malloc(sizeof(CeraValue) * size);
+                
+                for (int i = size - 1; i >= 0; i--) {
+                    CeraValue elem = pop(vm);
+                    retain(elem);
+                    arr->elements[i] = elem;
+                }
+                
+                CeraValue res;
+                res.tag = VAL_ARRAY;
+                res.as.obj = (Obj*)arr;
+                push(vm, res);
+                break;
+            }
+
+            case OP_ALLOC_ARRAY_LONG: {
+                uint16_t size = READ_SHORT(); // Extract 16-bit payload
+                ObjArray* arr = malloc(sizeof(ObjArray));
+                arr->header.type = VAL_ARRAY;
+                arr->header.ref_count = 1;
+                arr->length = size;
+                arr->elements = malloc(sizeof(CeraValue) * size);
+                
+                for (int i = size - 1; i >= 0; i--) {
+                    CeraValue elem = pop(vm);
+                    retain(elem);
+                    arr->elements[i] = elem;
+                }
+                
+                CeraValue res;
+                res.tag = VAL_ARRAY;
+                res.as.obj = (Obj*)arr;
+                push(vm, res);
+                break;
+            }
+
+            case OP_LIST_EMPTY: {
+                CeraValue res; 
+                res.tag = VAL_LIST; 
+                res.as.obj = NULL; 
+                push(vm, res);
+                break;
+            }
+
+            case OP_LIST_CONS: {
+                CeraValue tail = pop(vm);
+                CeraValue head = pop(vm);
+                
+                ObjList* list = malloc(sizeof(ObjList));
+                list->header.type = VAL_LIST;
+                list->header.ref_count = 1;
+                
+                retain(head);
+                retain(tail);
+                list->head = head;
+                list->tail = tail;
+                
+                CeraValue res; 
+                res.tag = VAL_LIST; 
+                res.as.obj = (Obj*)list;
+                push(vm, res);
+                break;
+            }
+
+            case OP_MATCH_TAG: {
+                uint8_t tag_id = READ_BYTE();
+                CeraValue top = PEEK(0);
+                CeraValue res; 
+                res.tag = VAL_BOOL;
+                
+                if (top.tag == VAL_ADT && ((ObjADT*)top.as.obj)->adt_tag == tag_id) {
+                    res.as.int_val = 1;
+                } else {
+                    res.as.int_val = 0;
+                }
+                push(vm, res);
+                break;
+            }
+
+            case OP_UNPACK_CON: {
+                CeraValue val = pop(vm);
+                ObjADT* adt = (ObjADT*)val.as.obj;
+                CeraValue payload = adt->payload;
+                
+                retain(payload);
+                release(val);
+                
+                push(vm, payload);
+                break;
+            }
+
+            case OP_UNPACK_TUPLE: {
+                CeraValue val = pop(vm);
+                ObjTuple* tuple = (ObjTuple*)val.as.obj;
+                
+                // Push forward: elements[0] is correctly assigned to the first local slot
+                for (int i = 0; i < tuple->length; i++) {
+                    CeraValue elem = tuple->elements[i];
+                    retain(elem);
+                    push(vm, elem);
+                }
+                release(val);
+                break;
+            }
+
+            case OP_UNPACK_LIST: {
+                CeraValue val = pop(vm);
+                ObjList* list = (ObjList*)val.as.obj;
+                
+                CeraValue head = list->head;
+                CeraValue tail = list->tail;
+                
+                retain(head);
+                retain(tail);
+                release(val);
+                
+                // Push head then tail to align with left-to-right variable slots
+                push(vm, head);
+                push(vm, tail);
+                break;
+            }
+
+            case OP_UNPACK_ARRAY: {
+                CeraValue val = pop(vm);
+                ObjArray* arr = (ObjArray*)val.as.obj;
+                
+                for (int i = 0; i < arr->length; i++) {
+                    CeraValue elem = arr->elements[i];
+                    retain(elem);
+                    push(vm, elem);
+                }
+                release(val); 
+                break;
+            }
+
+            case OP_IS_LIST_EMPTY: {
+                CeraValue top = PEEK(0);
+                CeraValue res; 
+                res.tag = VAL_BOOL;
+                
+                res.as.int_val = (top.tag == VAL_LIST && top.as.obj == NULL) ? 1 : 0;
+                push(vm, res);
+                break;
+            }
+
+            case OP_MATCH_ARRAY_LENGTH: {
+                CeraValue expected_len = pop(vm); 
+                CeraValue top = PEEK(0);          
+                CeraValue res; 
+                res.tag = VAL_BOOL;
+                
+                if (top.tag == VAL_ARRAY && ((ObjArray*)top.as.obj)->length == expected_len.as.int_val) {
+                    res.as.int_val = 1;
+                } else {
+                    res.as.int_val = 0;
+                }
+                push(vm, res);
+                break;
+            }
+
+            case OP_MATCH_FAIL: {
+                log_error("Non-exhaustive pattern match fallthrough.");
                 return 1;
+            }
 
             default:
                 log_error("Fatal: Unknown opcode 0x%02X at offset %d", instruction, (int)(frame->ip - active_function->code - 1));

@@ -3,13 +3,13 @@
 #include "logger.h"
 
 void retain(CeraValue value) { // increments ref count
-    if (IS_OBJ(value)) {
+    if (IS_OBJ(value) && AS_OBJ(value) != NULL) {
         AS_OBJ(value) -> ref_count++; 
     }
 }
 
 void release(CeraValue value) { // decrements ref count
-    if (IS_OBJ(value)) {
+    if (IS_OBJ(value) && AS_OBJ(value) != NULL) {
         Obj* obj = AS_OBJ(value);
         obj -> ref_count--;
 
@@ -53,7 +53,13 @@ void freeObject(Obj* obj) {
         case VAL_CLOSURE: { 
             ObjClosure* closure = (ObjClosure*)obj;
             for (int i = 0; i < closure -> upvalue_count; i++) {
-                release(closure->upvalues[i]->closed_value);
+                ObjUpvalue* upvalue = closure->upvalues[i];                
+                upvalue->header.ref_count--;
+                
+                if (upvalue->header.ref_count == 0) {
+                    release(upvalue->closed_value); 
+                    free(upvalue);                  
+                }
             }
             free(closure->upvalues);
             free(closure);

@@ -15,10 +15,10 @@ def outF(output: char list, insert: char list list) : unit = {
     var cf = func(output: char list, insert: char list list) : char list = {
         var next = findIndex(output, func(c: char) : bool = { c == '%'; });
         switch ((next, insert)) {
-            (None, _) -> [],
-            (_, []) -> [],
+            (None, _) -> output,  
+            (_, []) -> output,    
             (Some(x), (h::tl)) ->
-                concat(concat(take(output, x), h), cf(skip(output, x), tl)) 
+                concat(concat(take(output, x), h), cf(skip(output, x + 1), tl)) 
         }
     };
     out(cf(output, insert));

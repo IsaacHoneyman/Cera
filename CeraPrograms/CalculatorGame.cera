@@ -2,7 +2,7 @@ import "Math.cera";
 import "IO.cera";
 
 def entry(args: char list list) : int = {
-    out("--- Cera Number Game ---\nPlay[p], Quit [q]");
+    outN("--- Cera Number Game ---\nPlay [p], Quit [q]");
     var inp = in();
 
     if (inp == "q" || inp == "Q") { 
