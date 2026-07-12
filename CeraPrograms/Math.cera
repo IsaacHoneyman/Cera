@@ -26,3 +26,12 @@ def max(x: float, y: float) : float = { x <= y ? y : x }
 def maxInt(x : int, y : int) : int = {  x <= y ? y : x }
 def abs(x : float) : float = { x >= 0.0 ? x : -x }
 def absInt(x : int) : int = { x >= 0 ? x : -x }
+
+def randRange(min: float, max: float) : float = {
+    min + (rand() * (max - min));
+} 
+
+def randRangeInt(min: int, max: int) : int = {
+    var diff: int = (max - min) + 1;
+    min + absInt(randInt() % diff);
+}

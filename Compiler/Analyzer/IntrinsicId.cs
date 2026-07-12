@@ -27,5 +27,9 @@ public enum IntrinsicId : byte
     FloatToChars = 0x25,
     BoolToChars = 0x26,
     CharsToInt = 0x27,
-    CharsToFloat = 0x28
+    CharsToFloat = 0x28,
+
+    // --- Math ---
+    Rand = 0x30,
+    RandInt = 0x31,
 }

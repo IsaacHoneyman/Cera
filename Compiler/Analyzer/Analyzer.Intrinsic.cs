@@ -28,6 +28,7 @@ public partial class Analyzer
             "charsToInt", "str", "charsToFloat",
             "arrToList", "listToArr", "lst",
             "build", "arrBuild", "size", "f",
+            "rand", "randInt"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
@@ -192,5 +193,15 @@ public partial class Analyzer
         DefineIntrinsic("listToArr", IntrinsicId.ListToArr,
             new FuncType(new ListType(gType), new ArrType(gType)),
             1, [gParamToken]);
+
+        // rand() : float
+        DefineIntrinsic("rand", IntrinsicId.Rand,
+            new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["float"])),
+            0);
+
+        // randInt() : int
+        DefineIntrinsic("randInt", IntrinsicId.RandInt, 
+            new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["int"])), 
+            0);
     }
 }

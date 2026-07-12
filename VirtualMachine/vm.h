@@ -130,7 +130,11 @@ typedef enum {
     INTR_FLOAT_TO_CHARS = 0x25,
     INTR_BOOL_TO_CHARS = 0x26,
     INTR_CHARS_TO_INT = 0x27,
-    INTR_CHARS_TO_FLOAT = 0x28
+    INTR_CHARS_TO_FLOAT = 0x28,
+
+    // --- Math ---
+    INTR_RAND = 0x30,
+    INTR_RAND_INT = 0x31
 } IntrinsicId;
 
 #endif 

@@ -2,6 +2,7 @@ import "Math.cera";
 import "IO.cera";
 
 def entry(args: char list list) : int = {
+    outC();
     outN("--- Cera Number Game ---\nPlay [p], Quit [q]");
     var inp = in();
 
@@ -15,5 +16,54 @@ def entry(args: char list list) : int = {
 }
 
 def play(score: int, lives: int) : unit = {
-    outF("Current Score: %, Lives: %", ["5", "3"]);
+    if (lives == 0) {
+        outFN("Game Over, Final Score: %", [intToChars(score)]);
+        outN("Press Enter To Continue...");
+        in();
+        ();
+    }
+    else {
+        outFN("Current Score: %, Lives: %", [intToChars(score), intToChars(lives)]);
+        var x = randRangeInt(1, 10);
+        var y = randRangeInt(1, 10);
+        var op = randRangeInt(0, 2);
+        outN(getOpStr(x, y, op));
+        var a = charsToInt(in());
+        
+        var handleFail = func(u: unit) : unit = {
+            outN("Incorrect");
+            play(score, lives - 1);
+        };
+        
+        switch (a) {
+            None -> handleFail(()),
+            Some(z) ->
+                if (z == getOpResult(x, y, op)) {
+                    outN("Correct");
+                    play(score + 1, lives)
+                }
+                else {
+                    handleFail(())
+                }
+        }
+    }
+}
+
+
+def getOpStr(x: int, y: int, op: int) : char list = {
+    var xC : char list = intToChars(x);
+    var yC : char list = intToChars(y);
+    switch (op) {
+        0 -> strF("% + %", [xC, yC]),
+        1 -> strF("% - %", [xC, yC]),
+        2 -> strF("% * %", [xC, yC])
+    }
+}
+
+def getOpResult(x: int, y: int, op: int) : int = {
+    switch (op) {
+        0 -> x + y,
+        1 -> x - y,
+        2 -> x * y
+    }
 }

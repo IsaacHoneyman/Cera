@@ -198,7 +198,7 @@ public partial class Parser
         var lPar = Consume(TokenType.LPar, "Expected '('");
 
         if (Match(TokenType.RPar))
-            return new LiteralExpr(new(TokenType.LPar, "()", lPar.Line, lPar.Column, lPar.File));
+            return new LiteralExpr(new(TokenType.Unit, "()", lPar.Line, lPar.Column, lPar.File));
 
         List<IExprAST> exprs = [];
 

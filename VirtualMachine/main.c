@@ -16,6 +16,8 @@ int main(int argc, char** argv) {
             log_detailed = true;
         } else if (strcmp(argv[i], "-f") == 0) {
             log_dump_to_file = true;
+        } else if (strcmp(argv[i], "-s") == 0) {
+            log_silent = true;
         } else if (argv[i][0] == '-') {
             log_warning("Unknown VM flag: %s", argv[i]);
         } else {

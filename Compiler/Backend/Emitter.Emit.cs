@@ -31,85 +31,34 @@ public partial class Emitter
         }
     }
 
-    private void EmitSwitchExpression(SwitchExpr sw, bool isTail)
+    private void EmitFailureCleanup(int baseScopeDepth, List<int> failureJumps, int line)
     {
-        EmitExpression(sw.TargetExpression);
-
-        // Bind the root target to a hidden local variable so cases can inspect it repeatedly
-        string rootTarget = $"<switch_target_{Guid.NewGuid().ToString()[..8]}>";
-        Locals.Add(rootTarget);
-
-        List<int> endJumps = [];
-
-        foreach (var matchCase in sw.Cases)
+        // Dynamically calculate how many items are currently polluting the stack
+        int varsToPop = Locals.Count - baseScopeDepth;
+        for (int i = 0; i < varsToPop; i++)
         {
-            int scopeDepthBeforeCase = Locals.Count;
-            List<int> failureJumps = [];
-
-            CompilePatternCase(matchCase.Pattern, rootTarget, failureJumps, sw.Operator.Line);
-
-            EmitExpression(matchCase.ResultExpression, isTail);
-
-            int rootTargetIndex = Locals.IndexOf(rootTarget);
-            if (rootTargetIndex > byte.MaxValue) FatalError("Too many local variables in scope. Limit is 255.", sw.Operator);
-
-            CurrentChunk.WriteByte(OpCode.STORE_LOCAL, sw.Operator.Line);
-            CurrentChunk.WriteByte((byte)rootTargetIndex, sw.Operator.Line);
-
-            int variablesPushed = Locals.Count - scopeDepthBeforeCase;
-            for (int i = 0; i < variablesPushed; i++)
-            {
-                CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
-            }
-
-            endJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, sw.Operator.Line));
-
-            foreach (var jump in failureJumps)
-            {
-                CurrentChunk.PatchJump(jump);
-            }
-
-            for (int i = 0; i < variablesPushed; i++)
-            {
-                CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
-            }
-
-            Locals.RemoveRange(scopeDepthBeforeCase, variablesPushed);
+            CurrentChunk.WriteByte(OpCode.POP, line);
         }
-
-        CurrentChunk.WriteByte(OpCode.MATCH_FAIL, sw.Operator.Line);
-
-        foreach (var jump in endJumps)
-        {
-            CurrentChunk.PatchJump(jump);
-        }
-
-        Locals.RemoveAt(Locals.Count - 1);
+        
+        // Append an unconditional jump to the next switch case
+        failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, line));
     }
 
-    private void EmitLoadLocal(string name, int line)
-    {
-        int index = Locals.LastIndexOf(name);
-        if (index == -1) FatalError($"Hidden local '{name}' not found.", null);
-        if (index > byte.MaxValue) FatalError("Too many local variables in scope, limit is 255.", null);
-
-        CurrentChunk.WriteByte(OpCode.LOAD_LOCAL, line);
-        CurrentChunk.WriteByte((byte)index, line);
-    }
-
-    private void CompilePatternCase(IPatternAST pattern, string targetVar, List<int> failureJumps, int line)
+    private void CompilePatternCase(IPatternAST pattern, string targetVar, List<int> failureJumps, int baseScopeDepth, int line)
     {
         switch (pattern)
         {
             case LiteralPattern lit:
-                if (lit.Value.Tag == TokenType.WildCard)
-                {
-                    break; // We emit zero instructions, allowing the VM to naturally fall through to the case body.
-                }
+                if (lit.Value.Tag == TokenType.WildCard) break;
+                
                 EmitLoadLocal(targetVar, line);
                 EmitLiteral(new LiteralExpr(lit.Value));
                 CurrentChunk.WriteByte(OpCode.EQ, line);
-                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                
+                // Jump over the cleanup block if the test succeeds
+                int jumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                CurrentChunk.PatchJump(jumpIfTrue);
                 break;
 
             case IdPattern id:
@@ -121,7 +70,10 @@ public partial class Emitter
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                 CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), line);
-                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                
+                int conJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                CurrentChunk.PatchJump(conJumpIfTrue);
 
                 if (con.PayloadPatterns.Count > 0)
                 {
@@ -147,7 +99,7 @@ public partial class Emitter
                     for (int i = 0; i < con.PayloadPatterns.Count; i++)
                     {
                         if (con.PayloadPatterns[i] is not IdPattern)
-                            CompilePatternCase(con.PayloadPatterns[i], payloadVars[i], failureJumps, line);
+                            CompilePatternCase(con.PayloadPatterns[i], payloadVars[i], failureJumps, baseScopeDepth, line);
                     }
                 }
                 break;
@@ -168,7 +120,7 @@ public partial class Emitter
                 for (int i = 0; i < tuple.Patterns.Count; i++)
                 {
                     if (tuple.Patterns[i] is not IdPattern)
-                        CompilePatternCase(tuple.Patterns[i], tupleVars[i], failureJumps, line);
+                        CompilePatternCase(tuple.Patterns[i], tupleVars[i], failureJumps, baseScopeDepth, line);
                 }
                 break;
 
@@ -176,7 +128,10 @@ public partial class Emitter
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                 CurrentChunk.WriteByte(constructorTags["Cons"], line);
-                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                
+                int consJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                CurrentChunk.PatchJump(consJumpIfTrue);
 
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
@@ -186,8 +141,8 @@ public partial class Emitter
                 Locals.Add(headVar);
                 Locals.Add(tailVar);
 
-                if (cons.Head is not IdPattern) CompilePatternCase(cons.Head, headVar, failureJumps, line);
-                if (cons.Tail is not IdPattern) CompilePatternCase(cons.Tail, tailVar, failureJumps, line);
+                if (cons.Head is not IdPattern) CompilePatternCase(cons.Head, headVar, failureJumps, baseScopeDepth, line);
+                if (cons.Tail is not IdPattern) CompilePatternCase(cons.Tail, tailVar, failureJumps, baseScopeDepth, line);
                 break;
 
             case ListPattern list:
@@ -195,7 +150,10 @@ public partial class Emitter
                 {
                     EmitLoadLocal(targetVar, line);
                     CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
-                    failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                    
+                    int emptyJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                    EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                    CurrentChunk.PatchJump(emptyJumpIfTrue);
                 }
                 else
                 {
@@ -205,7 +163,10 @@ public partial class Emitter
                         EmitLoadLocal(currentListVar, line);
                         CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                         CurrentChunk.WriteByte(constructorTags["Cons"], line);
-                        failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                        
+                        int listJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                        EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                        CurrentChunk.PatchJump(listJumpIfTrue);
 
                         EmitLoadLocal(currentListVar, line);
                         CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
@@ -216,15 +177,17 @@ public partial class Emitter
                         Locals.Add(tVar);
 
                         if (list.Patterns[i] is not IdPattern)
-                            CompilePatternCase(list.Patterns[i], hVar, failureJumps, line);
+                            CompilePatternCase(list.Patterns[i], hVar, failureJumps, baseScopeDepth, line);
 
                         currentListVar = tVar;
                     }
 
-                    // After extracting all elements, the final tail MUST be empty
                     EmitLoadLocal(currentListVar, line);
                     CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
-                    failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                    
+                    int finalEmptyJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                    EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                    CurrentChunk.PatchJump(finalEmptyJumpIfTrue);
                 }
                 break;
 
@@ -246,7 +209,10 @@ public partial class Emitter
                 }
 
                 CurrentChunk.WriteByte(OpCode.MATCH_ARRAY_LENGTH, line);
-                failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line));
+                
+                int arrJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                CurrentChunk.PatchJump(arrJumpIfTrue);
 
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.UNPACK_ARRAY, line);
@@ -262,7 +228,7 @@ public partial class Emitter
                 for (int i = 0; i < arr.Patterns.Count; i++)
                 {
                     if (arr.Patterns[i] is not IdPattern)
-                        CompilePatternCase(arr.Patterns[i], arrVars[i], failureJumps, line);
+                        CompilePatternCase(arr.Patterns[i], arrVars[i], failureJumps, baseScopeDepth, line);
                 }
                 break;
 
@@ -270,6 +236,16 @@ public partial class Emitter
                 FatalError($"Deep pattern compilation not implemented for {pattern.GetType().Name}", GetLeadToken(pattern));
                 break;
         }
+    }
+
+    private void EmitLoadLocal(string name, int line)
+    {
+        int index = Locals.LastIndexOf(name);
+        if (index == -1) FatalError($"Hidden local '{name}' not found.", null);
+        if (index > byte.MaxValue) FatalError("Too many local variables in scope, limit is 255.", null);
+
+        CurrentChunk.WriteByte(OpCode.LOAD_LOCAL, line);
+        CurrentChunk.WriteByte((byte)index, line);
     }
 
 
@@ -472,27 +448,100 @@ public partial class Emitter
             if (stmt is VarDeclStmt varDecl)
             {
                 int line = varDecl.Identifier.Line;
-
                 CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
-
-                // 2. Register the variable in the compiler's scope BEFORE evaluating the right side.
                 Locals.Add(varDecl.Identifier.Lexeme);
                 EmitExpression(varDecl.Initializer, false);
-
-                // 4. Overwrite the dummy UNIT value with the actual compiled closure
+                
                 CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
                 CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
+                
+                // FIX: Pop the ghost variable left behind by the VM's PEEK!
+                CurrentChunk.WriteByte(OpCode.POP, line); 
             }
             else if (stmt is ExprStmt exprStmt)
             {
                 EmitExpression(exprStmt.Expression, false);
-                CurrentChunk.WriteByte(OpCode.POP, 0); // pop result
+                CurrentChunk.WriteByte(OpCode.POP, 0); // pop statement result
             }
         }
 
         EmitExpression(block.ReturnExpression, isTail);
-        Locals.RemoveRange(scopeDepth, Locals.Count - scopeDepth);
+
+        // FIX: Dynamically collapse the leaked local variables out from UNDER the result
+        int varsToPop = Locals.Count - scopeDepth;
+        if (varsToPop > 0)
+        {
+            int line = (block.ReturnExpression as IdentifierExpr)?.Identifier.Line ?? 0;
+            
+            // Overwrite the lowest scoped local with the final result
+            CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
+            CurrentChunk.WriteByte((byte)scopeDepth, line);
+            
+            // Pop the ghost result and all the dead locals beneath it
+            for (int i = 0; i < varsToPop; i++)
+            {
+                CurrentChunk.WriteByte(OpCode.POP, line);
+            }
+        }
+
+        Locals.RemoveRange(scopeDepth, varsToPop);
     }
+
+    private void EmitSwitchExpression(SwitchExpr sw, bool isTail)
+    {
+        EmitExpression(sw.TargetExpression);
+
+        string rootTarget = $"<switch_target_{Guid.NewGuid().ToString()[..8]}>";
+        Locals.Add(rootTarget);
+
+        List<int> endJumps = [];
+
+        foreach (var matchCase in sw.Cases)
+        {
+            int scopeDepthBeforeCase = Locals.Count;
+            List<int> failureJumps = [];
+
+            CompilePatternCase(matchCase.Pattern, rootTarget, failureJumps, scopeDepthBeforeCase, sw.Operator.Line);
+
+            EmitExpression(matchCase.ResultExpression, isTail);
+
+            int rootTargetIndex = Locals.IndexOf(rootTarget);
+            if (rootTargetIndex > byte.MaxValue) FatalError("Too many local variables in scope. Limit is 255.", sw.Operator);
+
+            // Overwrite the root target with the result of the case
+            CurrentChunk.WriteByte(OpCode.STORE_LOCAL, sw.Operator.Line);
+            CurrentChunk.WriteByte((byte)rootTargetIndex, sw.Operator.Line);
+            
+            // FIX: Pop the ghost result left behind by the VM's PEEK!
+            CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line); 
+
+            // Safely clean up the destructured pattern variables
+            int variablesPushed = Locals.Count - scopeDepthBeforeCase;
+            for (int i = 0; i < variablesPushed; i++)
+            {
+                CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
+            }
+
+            endJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, sw.Operator.Line));
+
+            foreach (var jump in failureJumps)
+            {
+                CurrentChunk.PatchJump(jump);
+            }
+
+            Locals.RemoveRange(scopeDepthBeforeCase, variablesPushed);
+        }
+
+        CurrentChunk.WriteByte(OpCode.MATCH_FAIL, sw.Operator.Line);
+
+        foreach (var jump in endJumps)
+        {
+            CurrentChunk.PatchJump(jump);
+        }
+
+        Locals.RemoveAt(Locals.Count - 1);
+    }
+
 
     private void EmitUnaryExpression(UnaryExpr unary)
     {

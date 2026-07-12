@@ -5,6 +5,7 @@
 
 bool log_detailed = false;
 bool log_dump_to_file = false;
+bool log_silent = false;
 
 static FILE* dump_file = NULL;
 
@@ -31,6 +32,8 @@ void close_logger() {
 }
 
 void log_info(const char* format, ...) {
+    if (log_silent) return;
+
     va_list args;
     va_start(args, format);
     
@@ -50,7 +53,7 @@ void log_info(const char* format, ...) {
 }
 
 void log_detail(const char* format, ...) {
-    if (!log_detailed) return;
+    if (!log_detailed || log_silent) return;
     
     va_list args;
     va_start(args, format);

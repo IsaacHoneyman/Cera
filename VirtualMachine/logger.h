@@ -12,6 +12,7 @@
 
 extern bool log_detailed;
 extern bool log_dump_to_file;
+extern bool log_silent;
 
 void init_logger();
 void close_logger();

@@ -102,7 +102,7 @@ public partial class Analyzer
             TokenType.CharLiteral => new BaseType(intrT["char"]),
             TokenType.StringLiteral => new ListType(new BaseType(intrT["char"])),
             TokenType.Unit => new BaseType(intrT["unit"]),
-            _ => FatalErrorReturn($"Unknown literal type '{lit.Value.Lexeme}'", lit.Value),
+            _ => FatalErrorReturn($"Unknown literal type '{lit.Value.Lexeme}' : {lit.Value.Tag}", lit.Value),
         };
     }
 
@@ -296,6 +296,7 @@ public partial class Analyzer
                 TokenType.CharLiteral => new BaseType(intrT["char"]),
                 TokenType.StringLiteral => new ListType(new BaseType(intrT["char"])),
                 TokenType.WildCard => GenerateTypeVariable(),
+                TokenType.Unit => new BaseType(intrT["unit"]),
                 _ => FatalErrorReturn($"Unknown literal pattern '{lit.Value.Tag}'", lit.Value)
             },
 

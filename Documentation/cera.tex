@@ -374,6 +374,8 @@ Finally, the list of built-in functions:
     \item \textbf{Chars To Float: } \texttt{charsToFloat(str : char list) : option<float>}
     \item \textbf{Arr To List: } \texttt{arrToList<g>(array: g arr) : g list}
     \item \textbf{List To Arr: } \texttt{listToArr<g>(lst: g list) : g arr}
+    \item \textbf{Random Float: } \texttt{rand() : float} (random float from 0 to 1 (inclusive)).
+    \item \textbf{Random Int:} \texttt{randInt() : int} (random 64 bit integer (inclusive)).
 \end{itemize}
 
 % =========================================================================
@@ -830,5 +832,6 @@ Now we may take an optimistic look into the future of the language:
     \item \textbf{Hidden Keyword:} Basic protection modifier, reduces the scope of a type of function to purely the file it was written in.
     \item \textbf{Inner Named Functions:} As the name states, this functionality is possible with variables and recursive lambda calls, but syntactically ugly, and could be improved. 
     \item \textbf{Better Error Messages:} Certain error messages appear vague, missing end of patterns or similar syntax will point to end of file, as well as column number being hard to track.
+    \item \textbf{Natural Tuple Unpacking:} Allow pattern matching in variable decleration, to allow statements such as \texttt{var (x, y) = tup;}
 \end{itemize}
 \end{document}

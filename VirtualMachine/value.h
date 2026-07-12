@@ -65,7 +65,8 @@ typedef struct {
 typedef struct {
     Obj header;
     uint32_t length;
-    char* chars;    
+    char* chars;
+    uint32_t start_offset; 
 } ObjString;
 
 typedef struct {

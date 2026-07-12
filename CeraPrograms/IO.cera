@@ -5,13 +5,9 @@ import "Collection.cera";
     Offers support for expanded I/O functionality.
 */
 
+// --- Strings ---
 
-def outN(output: char list) : unit = {
-    out(output);
-    out("\n");
-}
-
-def outF(output: char list, insert: char list list) : unit = {
+def strF(output: char list, insert: char list list) : char list = { 
     var cf = func(output: char list, insert: char list list) : char list = {
         var next = findIndex(output, func(c: char) : bool = { c == '%'; });
         switch ((next, insert)) {
@@ -21,5 +17,25 @@ def outF(output: char list, insert: char list list) : unit = {
                 concat(concat(take(output, x), h), cf(skip(output, x + 1), tl)) 
         }
     };
-    out(cf(output, insert));
+    cf(output, insert);
+}
+
+// --- Output ---
+
+def outN(output: char list) : unit = {
+    out(output);
+    out("\n");
+}
+
+def outF(output: char list, insert: char list list) : unit = {
+    out(strF(output, insert));
+}
+
+def outFN(output: char list, insert: char list list) : unit = {
+    outF(output, insert);
+    outN("");
+}
+
+def outC() : unit = {
+    out("\x1b[2J\x1b[H");
 }
