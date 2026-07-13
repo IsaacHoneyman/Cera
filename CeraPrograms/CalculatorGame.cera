@@ -1,21 +1,23 @@
 import "Math.cera";
 import "IO.cera";
 
-def entry(args: char list list) : int = {
+def entry(args: char list arr) : int = {
     outC();
     outN("--- Cera Number Game ---\nPlay [p], Quit [q]");
+    outN(arrMem(args, "-h") ? "Hard Mode" : "Normal Mode");
+
     var inp = in();
 
     if (inp == "q" || inp == "Q") { 
         0; 
     }
     else {
-        play(0, 3);
+        play(0, 3, arrMem(args, "-h"));
         entry(args);
     }
 }
 
-def play(score: int, lives: int) : unit = {
+def play(score: int, lives: int, hard: bool) : unit = {
     if (lives == 0) {
         outFN("Game Over, Final Score: %", [intToChars(score)]);
         outN("Press Enter To Continue...");
@@ -24,15 +26,15 @@ def play(score: int, lives: int) : unit = {
     }
     else {
         outFN("Current Score: %, Lives: %", [intToChars(score), intToChars(lives)]);
-        var x = randRangeInt(1, 10);
-        var y = randRangeInt(1, 10);
+        var x = randRangeInt(1, hard ? 14 : 10);
+        var y = randRangeInt(1, hard ? 14 : 10);
         var op = randRangeInt(0, 2);
         outN(getOpStr(x, y, op));
         var a = charsToInt(in());
         
         var handleFail = func(u: unit) : unit = {
             outN("Incorrect");
-            play(score, lives - 1);
+            play(score, lives - 1, hard);
         };
         
         switch (a) {
@@ -40,7 +42,7 @@ def play(score: int, lives: int) : unit = {
             Some(z) ->
                 if (z == getOpResult(x, y, op)) {
                     outN("Correct");
-                    play(score + 1, lives)
+                    play(score + 1, lives, hard)
                 }
                 else {
                     handleFail(())

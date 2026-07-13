@@ -22,6 +22,18 @@ typedef struct {
     ObjUpvalue* open_upvalues; // Head of the open upvalue linked list
 } VM;
 
+static inline void push(VM *vm, CeraValue value) {
+    *vm->stack_top = value;
+    vm->stack_top++;
+}
+
+static inline CeraValue pop(VM *vm) {
+    vm->stack_top--;
+    return *vm->stack_top;
+}
+
+char* flatten_char_list(CeraValue val);
+
 void initVM(VM* vm, Module* module, int argc, char** argv);
 void freeVM(VM* vm);
 int runVM(VM* vm);
@@ -108,12 +120,10 @@ typedef enum {
     // --- Array & List Memory Operations ---
     INTR_GET = 0x00,
     INTR_ARR_LENGTH = 0x01,
-    INTR_BUILD = 0x02,
-    INTR_ARR_BUILD = 0x03,
-    INTR_CONCAT = 0x04,
-    INTR_ARR_CONCAT = 0x05,
-    INTR_ARR_TO_LIST = 0x06,
-    INTR_LIST_TO_ARR = 0x07,
+    INTR_CONCAT = 0x02,
+    INTR_ARR_CONCAT = 0x03,
+    INTR_ARR_TO_LIST = 0x04,
+    INTR_LIST_TO_ARR = 0x05,
 
     // --- I/O Operations ---
     INTR_OUT = 0x10,

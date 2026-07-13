@@ -11,4 +11,7 @@ void release(CeraValue value);
 void freeObject(Obj* object);
 ObjClosure* newClosure(int function_index, uint8_t arity, uint8_t upvalue_count);
 
+ObjString* newString(const char* text);
+ObjArray* newArray(int length);
+
 #endif

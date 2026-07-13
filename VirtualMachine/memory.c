@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "memory.h"
 #include "logger.h"
 
@@ -94,4 +95,28 @@ ObjClosure* newClosure(int function_index, uint8_t arity, uint8_t upvalue_count)
     }
     
     return closure;
+}
+
+ObjString* newString(const char* text) {
+    ObjString* string = (ObjString*)allocateObject(sizeof(ObjString), VAL_STRING);
+    
+    string->length = strlen(text);
+    string->chars = malloc(string->length + 1); // +1 for the null terminator
+    strcpy(string->chars, text);
+    
+    return string;
+}
+
+ObjArray* newArray(int length) {
+    ObjArray* array = (ObjArray*)allocateObject(sizeof(ObjArray), VAL_ARRAY);
+    
+    array->length = length;
+    
+    if (length > 0) {
+        array->elements = malloc(sizeof(CeraValue) * length);
+    } else {
+        array->elements = NULL;
+    }
+    
+    return array;
 }

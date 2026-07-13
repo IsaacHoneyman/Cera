@@ -5,12 +5,10 @@ public enum IntrinsicId : byte
     // --- Array & List Memory Operations ---
     Get = 0x00,
     ArrLength = 0x01,
-    Build = 0x02,
-    ArrBuild = 0x03,
-    Concat = 0x04,
-    ArrConcat = 0x05,
-    ArrToList = 0x06,
-    ListToArr = 0x07,
+    Concat = 0x02,
+    ArrConcat = 0x03,
+    ArrToList = 0x04,
+    ListToArr = 0x05,
 
     // --- I/O Operations ---
     Out = 0x10,

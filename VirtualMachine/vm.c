@@ -6,20 +6,9 @@
 #include "vm.h"
 #include "memory.h"
 #include "logger.h"
+#include "intrinsic.h"
 
 #define DEBUG_TRACE_EXECUTION // to comment out for actual builds
-
-static inline void push(VM *vm, CeraValue value)
-{
-    *vm->stack_top = value;
-    vm->stack_top++;
-}
-
-static inline CeraValue pop(VM *vm)
-{
-    vm->stack_top--;
-    return *vm->stack_top;
-}
 
 void initVM(VM *vm, Module *module, int argc, char **argv)
 {
@@ -48,12 +37,35 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
     closure_val.as.obj = (Obj *)entry_closure;
     push(vm, closure_val);
 
-    // TODO: Loop through argc/argv and construct 'char list' linked lists.
+    // Construct the 'char list arr' using the VM's optimized String objects
     ObjArray *args_array = (ObjArray *)malloc(sizeof(ObjArray));
     args_array->header.type = VAL_ARRAY;
     args_array->header.ref_count = 1;
-    args_array->length = 0;
-    args_array->elements = NULL;
+    args_array->length = argc;
+
+    if (argc > 0) {
+        args_array->elements = malloc(sizeof(CeraValue) * argc);
+        
+        for (int i = 0; i < argc; i++) {
+            size_t arg_len = strlen(argv[i]);
+            
+            ObjString *str = malloc(sizeof(ObjString));
+            str->header.type = VAL_STRING;
+            str->header.ref_count = 1;
+            str->length = arg_len;
+            
+            str->chars = malloc(arg_len + 1);
+            strcpy(str->chars, argv[i]);
+            
+            CeraValue arg_val;
+            arg_val.tag = VAL_STRING;
+            arg_val.as.obj = (Obj *)str;
+            
+            args_array->elements[i] = arg_val;
+        }
+    } else {
+        args_array->elements = NULL;
+    }
 
     CeraValue args_val;
     args_val.tag = VAL_ARRAY;
@@ -105,7 +117,7 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
         }                                                                                         \
         else if (a.tag != b.tag)                                                                  \
         {                                                                                         \
-            log_error("Type mismatch during comparison.");                                        \
+            log_error("Type mismatch during comparison");                                        \
             return 1;                                                                             \
         }                                                                                         \
         else if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT) \
@@ -151,25 +163,25 @@ static int call_function(VM *vm, ObjClosure *closure, uint8_t arg_count)
 
     if (func == NULL)
     {
-        log_error("Fatal: Attempted to call unknown function index %d.", closure->function_index);
+        log_error("Fatal: Attempted to call unknown function index %d", closure->function_index);
         return 1;
     }
 
     if (func->code_size == 0)
     {
-        log_error("Fatal: Function %d has 0 bytes of bytecode compiled.", func->index);
+        log_error("Fatal: Function %d has 0 bytes of bytecode compiled", func->index);
         return 1;
     }
 
     if (arg_count != func->arity)
     {
-        log_error("Expected %d arguments but got %d.", func->arity, arg_count);
+        log_error("Expected %d arguments but got %d", func->arity, arg_count);
         return 1;
     }
 
     if (vm->frame_count == FRAMES_MAX)
     {
-        log_error("Stack overflow. Infinite recursion detected.");
+        log_error("Stack overflow, infinite recursion detected");
         return 1;
     }
 
@@ -181,7 +193,7 @@ static int call_function(VM *vm, ObjClosure *closure, uint8_t arg_count)
     return 0;
 }
 
-static char *flatten_char_list(CeraValue val)
+char *flatten_char_list(CeraValue val)
 {
     if (val.tag == VAL_STRING)
     {
@@ -224,368 +236,6 @@ static char *flatten_char_list(CeraValue val)
     char *buf = malloc(1);
     buf[0] = '\0';
     return buf;
-}
-
-static int execute_intrinsic(VM *vm, uint8_t intrinsic_id, uint8_t arg_count)
-{
-    switch (intrinsic_id)
-    {
-    case INTR_OUT:
-    {
-        if (arg_count != 1)
-        {
-            log_error("out() expects exactly 1 argument.");
-            return 1;
-        }
-        CeraValue arg = pop(vm);
-
-        if (arg.tag == VAL_STRING)
-        {
-            ObjString *str = (ObjString *)arg.as.obj;
-            printf(ANSI_COLOR_WHITE "%s" ANSI_COLOR_RESET, str->chars);
-            fflush(stdout);
-        }
-        else
-        {
-            log_error("out() currently only supports native Strings.");
-            return 1;
-        }
-
-        release(arg);
-        CeraValue unit;
-        unit.tag = VAL_UNIT;
-        unit.as.int_val = 0;
-        push(vm, unit);
-        return 0;
-    }
-    case INTR_IN:
-    {
-        char buffer[1024];
-        if (fgets(buffer, sizeof(buffer), stdin) == NULL)
-        {
-            buffer[0] = '\0';
-        }
-        else
-        {
-            size_t len = strlen(buffer);
-            if (len > 0 && buffer[len - 1] == '\n')
-            {
-                buffer[len - 1] = '\0';
-                len--;
-            }
-        }
-
-        size_t final_len = strlen(buffer);
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = final_len;
-
-        str->chars = malloc(final_len + 1);
-        strcpy(str->chars, buffer);
-
-        CeraValue result;
-        result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
-
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_INT_TO_FLOAT:
-    {
-        CeraValue arg = pop(vm);
-        CeraValue result;
-        result.tag = VAL_FLOAT;
-        result.as.float_val = (double)arg.as.int_val;
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_FLOAT_TO_INT:
-    {
-        CeraValue arg = pop(vm);
-        CeraValue result;
-        result.tag = VAL_INT;
-        result.as.int_val = (int64_t)arg.as.float_val;
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_CHAR_TO_INT:
-    {
-        CeraValue arg = pop(vm);
-        CeraValue result;
-        result.tag = VAL_INT;
-        result.as.int_val = arg.as.int_val;
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_INT_TO_CHAR:
-    {
-        CeraValue arg = pop(vm);
-        CeraValue result;
-        result.tag = VAL_CHAR;
-        result.as.int_val = arg.as.int_val;
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_INT_TO_CHARS:
-    {
-        CeraValue arg = pop(vm);
-
-        char buffer[64];
-        int len = snprintf(buffer, sizeof(buffer), "%ld", (long)arg.as.int_val);
-
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = len;
-
-        str->chars = malloc(len + 1);
-        strcpy(str->chars, buffer);
-
-        CeraValue result;
-        result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
-
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_BOOL_TO_CHARS:
-    {
-        CeraValue arg = pop(vm);
-
-        const char *text = arg.as.int_val ? "true" : "false";
-        int len = strlen(text);
-
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = len;
-
-        str->chars = malloc(len + 1);
-        strcpy(str->chars, text);
-
-        CeraValue result;
-        result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
-
-        push(vm, result);
-        return 0;
-    }
-    case INTR_FLOAT_TO_CHARS:
-    {
-        if (arg_count != 1)
-        {
-            log_error("floatToChars() expects exactly 1 argument.");
-            return 1;
-        }
-
-        CeraValue arg = pop(vm);
-        if (arg.tag != VAL_FLOAT)
-        {
-            log_error("floatToChars() requires a float.");
-            return 1;
-        }
-
-        char buffer[64];
-        int len = snprintf(buffer, sizeof(buffer), "%g", arg.as.float_val);
-
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = len;
-        str->chars = malloc(len + 1);
-        strcpy(str->chars, buffer);
-
-        CeraValue result;
-        result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
-
-        push(vm, result);
-        return 0;
-    }
-    case INTR_CHARS_TO_INT:
-    {
-        if (arg_count != 1)
-        {
-            log_error("charsToInt() expects exactly 1 argument.");
-            return 1;
-        }
-
-        CeraValue arg = pop(vm);
-        char *str = flatten_char_list(arg);
-
-        char *endptr;
-        int64_t parsed_val = strtoll(str, &endptr, 10);
-
-        // Skip any trailing whitespace (like \n or Windows \r) that in() might have caught
-        while (*endptr != '\0' && isspace((unsigned char)*endptr))
-        {
-            endptr++;
-        }
-
-        ObjADT *adt = malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
-
-        // Use the tags revealed by your debug probe
-        if (str == endptr || *endptr != '\0')
-        {
-            adt->adt_tag = 0x02; // Update from 0x00 to the compiler's 'None' tag
-            adt->payload.tag = VAL_UNIT;
-            adt->payload.as.int_val = 0;
-        }
-        else
-        {
-            adt->adt_tag = 0x03; // Update from 0x01 to the compiler's 'Some' tag
-            adt->payload.tag = VAL_INT;
-            adt->payload.as.int_val = parsed_val;
-        }
-
-        free(str);
-        release(arg); // Prevent memory leak of the consumed string
-
-        CeraValue result;
-        result.tag = VAL_ADT;
-        result.as.obj = (Obj *)adt;
-
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_CHARS_TO_FLOAT:
-    {
-        if (arg_count != 1)
-        {
-            log_error("charsToFloat() expects exactly 1 argument.");
-            return 1;
-        }
-
-        CeraValue arg = pop(vm);
-        char *str = flatten_char_list(arg);
-
-        char *endptr;
-        double parsed_val = strtod(str, &endptr);
-
-        while (*endptr != '\0' && isspace((unsigned char)*endptr))
-        {
-            endptr++;
-        }
-
-        ObjADT *adt = malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
-
-        if (str == endptr || *endptr != '\0')
-        {
-            adt->adt_tag = 0x02; // None
-            adt->payload.tag = VAL_UNIT;
-            adt->payload.as.int_val = 0;
-        }
-        else
-        {
-            adt->adt_tag = 0x03; // Some
-            adt->payload.tag = VAL_FLOAT;
-            adt->payload.as.float_val = parsed_val;
-        }
-
-        free(str);
-        release(arg);
-
-        CeraValue result;
-        result.tag = VAL_ADT;
-        result.as.obj = (Obj *)adt;
-
-        push(vm, result);
-        return 0;
-    }
-    case INTR_CONCAT:
-    {
-        CeraValue right = pop(vm);
-        CeraValue left = pop(vm);
-
-        bool left_is_str = (left.tag == VAL_STRING || left.tag == VAL_LIST);
-        bool right_is_str = (right.tag == VAL_STRING || right.tag == VAL_LIST);
-
-        // Intercept and unify List and String concatenation
-        if (left_is_str && right_is_str)
-        {
-            char *s1 = flatten_char_list(left);
-            char *s2 = flatten_char_list(right);
-
-            uint32_t len = strlen(s1) + strlen(s2);
-            ObjString *new_str = malloc(sizeof(ObjString));
-            new_str->header.type = VAL_STRING;
-            new_str->header.ref_count = 1;
-            new_str->length = len;
-            new_str->chars = malloc(len + 1);
-
-            strcpy(new_str->chars, s1);
-            strcat(new_str->chars, s2);
-
-            free(s1);
-            free(s2);
-            release(left);  // Prevent memory leak of consumed left operand
-            release(right); // Prevent memory leak of consumed right operand
-
-            CeraValue res;
-            res.tag = VAL_STRING;
-            res.as.obj = (Obj *)new_str;
-
-            push(vm, res);
-            return 0;
-        }
-
-        // Fallback for standard list concatenation (e.g., int lists)
-        log_error("List concatenation not fully implemented for non-strings yet");
-        return 1;
-    }
-
-    case INTR_RAND:
-    {
-        if (arg_count != 0)
-        {
-            log_error("rand() expects 0 arguments.");
-            return 1;
-        }
-
-        CeraValue result;
-        result.tag = VAL_FLOAT;
-        result.as.float_val = (double)rand() / (double)RAND_MAX;
-
-        push(vm, result);
-        return 0;
-    }
-
-    case INTR_RAND_INT:
-    {
-        if (arg_count != 0)
-        {
-            log_error("randInt() expects 0 arguments.");
-            return 1;
-        }
-
-        CeraValue result;
-        result.tag = VAL_INT;
-
-        int64_t high = (int64_t)rand();
-        int64_t low = (int64_t)rand();
-
-        result.as.int_val = (high << 32) | low;
-
-        push(vm, result);
-        return 0;
-    }
-
-    default:
-        log_error("Fatal: Unimplemented intrinsic ID: %d", intrinsic_id);
-        return 1;
-    }
 }
 
 static void close_upvalues(VM *vm, CeraValue *last)
@@ -1016,7 +666,7 @@ int runVM(VM *vm)
             vm->frame_count--;
             if (vm->frame_count == 0)
             {
-                log_info("Program Terminated Cleanly.");
+                log_info("Program Terminated Cleanly");
                 return 0;
             }
 
@@ -1039,7 +689,7 @@ int runVM(VM *vm)
 
             if (callee.tag != VAL_CLOSURE)
             {
-                log_error("Attempted to call a non-function value.");
+                log_error("Attempted to call a non-function value");
                 return 1;
             }
             if (call_function(vm, (ObjClosure *)callee.as.obj, arg_count) != 0)
@@ -1068,7 +718,7 @@ int runVM(VM *vm)
 
             if (callee.tag != VAL_CLOSURE)
             {
-                log_error("Attempted to tail-call a non-function.");
+                log_error("Attempted to tail-call a non-function");
                 return 1;
             }
 
@@ -1077,18 +727,18 @@ int runVM(VM *vm)
 
             if (func == NULL)
             {
-                log_error("Fatal: Unknown function index %d in tail call.", closure->function_index);
+                log_error("Fatal: Unknown function index %d in tail call", closure->function_index);
                 return 1;
             }
             if (func->code_size == 0)
             {
-                log_error("Fatal: Function %d has 0 bytes of bytecode.", func->index);
+                log_error("Fatal: Function %d has 0 bytes of bytecode", func->index);
                 return 1;
             }
 
             if (arg_count != func->arity)
             {
-                log_error("Expected %d arguments but got %d.", func->arity, arg_count);
+                log_error("Expected %d arguments but got %d", func->arity, arg_count);
                 return 1;
             }
 
@@ -1123,7 +773,7 @@ int runVM(VM *vm)
             CeraValue func_val = pop(vm);
             if (func_val.tag != VAL_INT)
             {
-                log_error("Runtime Error: OP_MAKE_CLOSURE expected int on stack.");
+                log_error("Runtime Error: OP_MAKE_CLOSURE expected int on stack");
                 return 1;
             }
 
@@ -1492,7 +1142,7 @@ int runVM(VM *vm)
 
         case OP_MATCH_FAIL:
         {
-            log_error("Non-exhaustive pattern match fallthrough.");
+            log_error("Pattern match fail");
             return 1;
         }
 

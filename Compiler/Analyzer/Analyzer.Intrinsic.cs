@@ -83,28 +83,6 @@ public partial class Analyzer
             new FuncType(new ArrType(gType), new BaseType(intrT["int"])),
             1, [gParamToken]);
 
-        // build<g>(size: int, f: int -> g) : g list
-        DefineIntrinsic("build", IntrinsicId.Build,
-            new FuncType(
-                new TupleType([
-                    new BaseType(intrT["int"]),
-            new FuncType(new BaseType(intrT["int"]), gType)
-                ]),
-                new ListType(gType)
-            ),
-            2, [gParamToken]);
-
-        // arrBuild<g>(size: int, f: int -> g) : g arr
-        DefineIntrinsic("arrBuild", IntrinsicId.ArrBuild,
-            new FuncType(
-                new TupleType([
-                    new BaseType(intrT["int"]),
-            new FuncType(new BaseType(intrT["int"]), gType)
-                ]),
-                new ArrType(gType)
-            ),
-            2, [gParamToken]);
-
         // concat<g>(left: g list, right: g list) : g list
         DefineIntrinsic("concat", IntrinsicId.Concat,
             new FuncType(new TupleType([new ListType(gType), new ListType(gType)]), new ListType(gType)),

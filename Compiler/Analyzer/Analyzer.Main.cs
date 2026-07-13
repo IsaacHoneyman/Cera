@@ -85,6 +85,16 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         else if (paramTypes.Count == 1) fullSignature = new FuncType(paramTypes[0], func.ReturnType);
         else fullSignature = new FuncType(new TupleType(paramTypes), func.ReturnType);
 
+        if (fName == "entry")
+        {
+            if (gens.Count > 0) FatalError("The program entry point cannot have generic type parameters.", func.Identifier); 
+            ITypeAST expectedEntryType = new FuncType(
+                new ArrType(new ListType(new BaseType(intrT["char"]))),
+                new BaseType(intrT["int"])
+            );
+            Unify(expectedEntryType, fullSignature, func.Identifier);
+        }
+
         globalEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens));
     }
 
