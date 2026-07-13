@@ -144,7 +144,8 @@ typedef enum {
 
     // --- Math ---
     INTR_RAND = 0x30,
-    INTR_RAND_INT = 0x31
+    INTR_RAND_INT = 0x31,
+    INTR_SQRT = 0x32
 } IntrinsicId;
 
 #endif 

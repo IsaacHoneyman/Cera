@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 #include "intrinsic.h"
 #include "memory.h"
 #include "logger.h"
 
-int execute_intrinsic(VM *vm, uint8_t intrinsic_id, uint8_t arg_count)
+int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 {
     switch (intrinsic_id)
     {
@@ -512,6 +513,23 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id, uint8_t arg_count)
         int64_t low = (int64_t)rand();
 
         result.as.int_val = (high << 32) | low;
+
+        push(vm, result);
+        return 0;
+    }
+
+    case INTR_SQRT: {
+        CeraValue arg = pop(vm);
+        
+        if (arg.tag != VAL_FLOAT)
+        {
+            log_error("sqrt() requires a float operand.");
+            return 1;
+        }
+
+        CeraValue result;
+        result.tag = VAL_FLOAT;
+        result.as.float_val = sqrt(arg.as.float_val);
 
         push(vm, result);
         return 0;

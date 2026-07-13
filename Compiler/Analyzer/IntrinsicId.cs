@@ -30,4 +30,5 @@ public enum IntrinsicId : byte
     // --- Math ---
     Rand = 0x30,
     RandInt = 0x31,
+    Sqrt = 0x32,
 }

@@ -704,8 +704,7 @@ int runVM(VM *vm)
 
         case OP_CALL_INTRINSIC:
             uint8_t intrinsic_id = READ_BYTE();
-            uint8_t arg_count = READ_BYTE();
-            if (execute_intrinsic(vm, intrinsic_id, arg_count) != 0)
+            if (execute_intrinsic(vm, intrinsic_id) != 0)
             {
                 return 1;
             }

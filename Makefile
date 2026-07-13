@@ -1,6 +1,7 @@
-# Compiler settings
 CC = gcc
 CFLAGS = -Wall -Wextra -g
+# Define your linker libraries here
+LIBS = -lm 
 
 # Directories and files
 SRC_DIR = VirtualMachine
@@ -16,7 +17,8 @@ all: $(TARGET)
 # The rule to build the VM
 $(TARGET): $(SRCS)
 	@echo "Building CeraVM..."
-	$(CC) $(SRCS) -o $(TARGET) $(CFLAGS)
+	# Append $(LIBS) strictly at the end of the command
+	$(CC) $(SRCS) -o $(TARGET) $(CFLAGS) $(LIBS)
 	@echo "Build complete!"
 
 # A rule to clean up the compiled executable

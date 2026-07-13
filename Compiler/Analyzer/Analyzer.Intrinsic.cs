@@ -181,5 +181,10 @@ public partial class Analyzer
         DefineIntrinsic("randInt", IntrinsicId.RandInt, 
             new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["int"])), 
             0);
+
+        // sqrt(x : float) : float
+        DefineIntrinsic("sqrt", IntrinsicId.Sqrt, 
+            new FuncType(new BaseType(intrT["float"]), new BaseType(intrT["float"])),
+            1);
     }
 }

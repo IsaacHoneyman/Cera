@@ -1,0 +1,11 @@
+import "Vector.cera";
+
+type mat = Phong: (vec3 * vec3 * vec3 * float); // ambient, diffuse, specular, shininess
+
+type light = Light: (vec3 * vec3); // position, intensity 
+
+type obj = 
+    Sphere: (vec3 * float * mat) | // position, radius, material
+    Plane: (vec3 * vec3 * mat);   // position, normal, material 
+
+type scene = Scene: (obj list * light list * vec3); // objects, lights, scene ambience

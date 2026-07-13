@@ -1,0 +1,56 @@
+type vec3 = Vec: (float * float * float); // x, y, z
+
+def vAdd(a: vec3, b: vec3) = {
+    switch ((a, b)) {
+        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
+            Vec(x1 + x2, y1 + y2, z1 + z2)
+    }
+}
+
+def vSub(a: vec3, b: vec3) : vec3 = {
+    switch ((a, b)) {
+        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
+            Vec(x1 - x2, y1 - y2, z1 - z2)
+    }
+}
+
+def vMul(v: vec3, scalar: float) : vec3 = {
+    switch (v) {
+        Vec(x, y, z) -> Vec(x * scalar, y * scalar, z * scalar)
+    }
+}
+
+def vColorMul(a: vec3, b: vec3) : vec3 = {
+    switch ((a, b)) {
+        (Vec(r1, g1, b1), Vec(r2, g2, b2)) -> 
+            Vec(r1 * r2, g1 * g2, b1 * b2)
+    }
+}
+
+def dot(a: vec3, b: vec3) : float = {
+    switch ((a, b)) {
+        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
+            (x1 * x2) + (y1 * y2) + (z1 * z2)
+    }
+}
+
+def cross(a: vec3, b: vec3) : vec3 = {
+    switch ((a, b)) {
+        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
+            Vec((y1 * z2) - (z1 * y2), (z1 * x2) - (x1 * z2), (x1 * y2) - (y1 * x2))
+    }
+}
+
+def mag(v: vec3) : float = {
+    sqrt(dot(v, v));
+}
+
+def normalize(v: vec3) : vec3 = {
+    var m: float = mag(v);    
+    (m == 0.0) ? v : vMul(v, 1.0 / m);
+}
+
+def reflect(incident: vec3, normal: vec3) : vec3 = {
+    var scaledNormal: vec3 = vMul(normal, 2.0 * dot(incident, normal));    
+    vSub(incident, scaledNormal);
+}
