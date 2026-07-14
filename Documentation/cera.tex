@@ -500,7 +500,7 @@ Following are the expression definitions:
     \langle \text{UnOp} \rangle &\Coloneqq \textbf{!} \mid \sim \mid \textbf{-} \\
     \langle \text{IfExpr} \rangle &\Coloneqq \textbf{if} \; \textbf{(} \langle \text{Expr} \rangle \textbf{)} \; \langle \text{ExprBlock} \rangle \; (\textbf{else if} \; \textbf{(} \langle \text{Expr} \rangle \textbf{)}  \; \langle \text{ExprBlock} \rangle)^* \; [\textbf{else} \; \langle \text{ExprBlock} \rangle] \\
     \langle \text{SwitchExpr} \rangle &\Coloneqq \textbf{switch} \; \textbf{(} \langle \text{Expr} \rangle \textbf{)} \; \textbf{\{} \langle \text{PatternMatch} \rangle \; (\textbf{,} \; \langle \text{PatternMatch} \rangle)^* \textbf{\}} \\
-    \langle \text{PatternMatch} \rangle &\Coloneqq \langle \text{Pattern} \rangle \; \mathbf{-} \mathbf{>} \; \langle \text{Expr} \rangle \\
+    \langle \text{PatternMatch} \rangle &\Coloneqq \langle \text{Pattern} \rangle \; \mathbf{-} \mathbf{>} \; (\langle \text{Expr} \rangle \mid \langle \text{ExprBlock} \rangle) \\
     \langle \text{Pattern} \rangle &\Coloneqq \langle \text{Literal} \rangle \mid \textbf{id} \mid \_  \mid \textbf{(} \langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^+ \textbf{)} \mid \textbf{[}[\langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^*]\textbf{]} \\
     &\mid \textbf{arr} \; \textbf{[}[\langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^*]\textbf{]} \mid \textbf{(} \langle \text{Pattern} \rangle \; \textbf{::} \; \langle \text{Pattern} \rangle \textbf{)} \\ 
     &\mid \textbf{con} [\textbf{(} \langle \text{Pattern} \rangle \; (\textbf{,} \; \langle \text{Pattern} \rangle)^*\textbf{)}] \\

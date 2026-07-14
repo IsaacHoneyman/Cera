@@ -1,0 +1,29 @@
+import "Scene.cera";
+import "Renderer.cera";
+
+def entry(args: char list arr) : int = {
+    var width: int = 200;
+    var height: int = 100;
+    
+    out("Starting render...\n");
+    
+    var header: char list = concat("P3\n", 
+        concat(intToChars(width), concat(" ", 
+            concat(intToChars(height), "\n255\n"))));
+            
+    var pixels: char list = renderScreen(0, width, height, "");
+    var finalData: char list = concat(header, pixels);
+    
+    switch (write("sky.ppm", finalData)) {
+        Ok(u) -> {
+            out("Render successfully saved to sky.ppm!\n");
+            0;
+        },
+        Error(err) -> {
+            out("Fatal I/O Error: ");
+            out(err);
+            out("\n");
+            1;
+        }
+    }
+}

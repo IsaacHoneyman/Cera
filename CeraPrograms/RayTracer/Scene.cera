@@ -1,7 +1,6 @@
 import "Vector.cera";
 
 type mat = Phong: (vec3 * vec3 * vec3 * float); // ambient, diffuse, specular, shininess
-
 type light = Light: (vec3 * vec3); // position, intensity 
 
 type obj = 
@@ -9,3 +8,58 @@ type obj =
     Plane: (vec3 * vec3 * mat);   // position, normal, material 
 
 type scene = Scene: (obj list * light list * vec3); // objects, lights, scene ambience
+
+type ray = Ray: (vec3 * vec3); // origin, normalised direction
+type hit = Hit: (float * vec3 * vec3 * vec3 * mat); // distance, intersect, surface norm, mat
+
+def getScene() : scene = {
+    
+    // --- Materials ---
+
+    // Red: Highly shiny (simulates smooth plastic or metal)
+    var matRed: mat = Phong(
+        Vec(0.1, 0.0, 0.0), 
+        Vec(1.0, 0.0, 0.0), 
+        Vec(1.0, 1.0, 1.0), // Pure white specular highlight
+        64.0                // High alpha restricts the highlight spread
+    );
+
+    // Green: Matte/rough surface (low specular reflection)
+    var matGreen: mat = Phong(
+        Vec(0.0, 0.1, 0.0), 
+        Vec(0.0, 1.0, 0.0), 
+        Vec(0.2, 0.2, 0.2), // Dim, grey specular highlight
+        8.0                 // Low alpha creates a wide, dull spread
+    );
+
+    // Blue: Medium shininess
+    var matBlue: mat = Phong(
+        Vec(0.0, 0.0, 0.1), 
+        Vec(0.0, 0.0, 1.0), 
+        Vec(0.5, 0.5, 0.5), 
+        32.0
+    );
+
+    // Floor: Neutral gray, slightly reflective
+    var matFloor: mat = Phong(
+        Vec(0.1, 0.1, 0.1), 
+        Vec(0.5, 0.5, 0.5), 
+        Vec(0.3, 0.3, 0.3), 
+        16.0
+    );
+
+    
+    Scene(
+        [ 
+            Plane(Vec(0.0, -1.0, 0.0), Vec(0.0, 1.0, 0.0), matFloor),
+            
+            Sphere(Vec(-2.0, 0.0, 5.0), 1.0, matRed),   // Left side
+            Sphere(Vec(0.0, 0.0, 6.0), 1.0, matGreen),  // Center, slightly pushed back
+            Sphere(Vec(2.0, 0.0, 5.0), 1.0, matBlue)    // Right side
+        ],
+        [
+            Light(Vec(0.0, 10.0, -2.0), Vec(1.0, 1.0, 1.0))
+        ],
+        Vec(0.2, 0.2, 0.2)
+    )
+}

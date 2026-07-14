@@ -92,24 +92,22 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     case INTR_OUT:
     {
         CeraValue arg = pop(vm);
-
-        if (arg.tag == VAL_STRING)
+        
+        if (arg.tag != VAL_STRING && arg.tag != VAL_LIST)
         {
-            ObjString *str = (ObjString *)arg.as.obj;
-            printf(ANSI_COLOR_WHITE "%s" ANSI_COLOR_RESET, str->chars);
-            fflush(stdout);
-        }
-        else
-        {
-            log_error("out() currently only supports native Strings.");
+            log_error("out() currently only supports Strings and char lists.");
             return 1;
         }
-
-        release(arg);
-        CeraValue unit;
-        unit.tag = VAL_UNIT;
-        unit.as.int_val = 0;
-        push(vm, unit);
+        
+        char* text = flatten_char_list(arg);
+        printf("%s", text);
+        
+        free(text);
+        
+        CeraValue res;
+        res.tag = VAL_UNIT;
+        res.as.int_val = 0;
+        push(vm, res);
         return 0;
     }
     case INTR_IN:
@@ -593,51 +591,52 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 
     case INTR_WRITE:
     {
-        CeraValue content_val = pop(vm);
-        CeraValue path_val = pop(vm);
+        CeraValue content = pop(vm);
+        CeraValue path = pop(vm);
+        
+        char* file_path = flatten_char_list(path);
+        char* file_data = flatten_char_list(content);
+        
+        FILE *f = fopen(file_path, "w");
+        
+        // Allocate the ADT Wrapper
+        ObjADT* adt = (ObjADT*)malloc(sizeof(ObjADT));
+        adt->header.type = VAL_ADT;
+        adt->header.ref_count = 1;
 
-        char *path = flatten_char_list(path_val);
-        char *content = flatten_char_list(content_val);
-
-        FILE *file = fopen(path, "wb");
-        ObjADT *result_adt = malloc(sizeof(ObjADT));
-        result_adt->header.type = VAL_ADT;
-        result_adt->header.ref_count = 1;
-
-        if (file == NULL)
+        if (f == NULL)
         {
-            // Error path: Tag 0x05
-            result_adt->adt_tag = 0x05;
-
-            ObjString *err_msg = malloc(sizeof(ObjString));
-            err_msg->header.type = VAL_STRING;
-            err_msg->header.ref_count = 1;
-            err_msg->length = 24;
-            err_msg->chars = malloc(25);
-            strcpy(err_msg->chars, "File could not be opened");
-
-            result_adt->payload.tag = VAL_STRING;
-            result_adt->payload.as.obj = (Obj *)err_msg;
+            // Construct the Error(string) payload
+            adt->adt_tag = 0x05; 
+            CeraValue err_val;
+            err_val.tag = VAL_STRING;
+            
+            // NOTE: newString is defined in your memory.h
+            err_val.as.obj = (Obj*)newString("Failed to write to file");
+            adt->payload = err_val;
         }
         else
         {
-            fwrite(content, sizeof(char), strlen(content), file);
-            fclose(file);
-
-            result_adt->adt_tag = 0x04;
-            result_adt->payload.tag = VAL_UNIT;
-            result_adt->payload.as.int_val = 0;
+            // Write to disk
+            fputs(file_data, f);
+            fclose(f);
+            
+            // Construct the Ok(unit) payload
+            adt->adt_tag = 0x04; 
+            CeraValue ok_val;
+            ok_val.tag = VAL_UNIT;
+            ok_val.as.int_val = 0;
+            adt->payload = ok_val;
         }
-
-        free(path);
-        free(content);
-        release(path_val);
-        release(content_val);
-
-        CeraValue final_result;
-        final_result.tag = VAL_ADT;
-        final_result.as.obj = (Obj *)result_adt;
-        push(vm, final_result);
+        
+        free(file_path);
+        free(file_data);
+        
+        CeraValue res;
+        res.tag = VAL_ADT;
+        res.as.obj = (Obj*)adt;
+        push(vm, res);
+        
         return 0;
     }
 

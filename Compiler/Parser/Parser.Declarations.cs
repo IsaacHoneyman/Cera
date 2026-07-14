@@ -136,7 +136,7 @@ public partial class Parser
                     returnExpr = expr;
                     break;
                 }
-                
+
                 stmts.Add(new ExprStmt(expr));
             }
         }
@@ -230,7 +230,7 @@ public partial class Parser
     private IExprAST ParseArrLit()
     {
         Consume(TokenType.Arr, "Expected 'arr' keyword");
-        var lBrac =  Consume(TokenType.LBracket, "Expected '['");
+        var lBrac = Consume(TokenType.LBracket, "Expected '['");
 
         List<IExprAST> exprs = [];
         if (!Check(TokenType.RBracket))
@@ -289,7 +289,9 @@ public partial class Parser
         {
             var pattern = ParsePattern();
             Consume(TokenType.Arrow, "Expected '->' after pattern in switch case");
-            cases.Add(new PatternMatchNode(pattern, ParseExpression()));
+
+            if (Check(TokenType.LBrace)) cases.Add(new PatternMatchNode(pattern, ParseExpressionBlock()));
+            else cases.Add(new PatternMatchNode(pattern, ParseExpression()));
         }
         while (Match(TokenType.Comma));
 
@@ -335,7 +337,7 @@ public partial class Parser
 
         if (opToken.Tag == TokenType.ColonColon) precedence -= 1; // as right associative
 
-        return new BinaryExpr(left, opToken, ParseExpression((Precedence)precedence)); 
+        return new BinaryExpr(left, opToken, ParseExpression((Precedence)precedence));
     }
 
     private IExprAST ParseTernary(IExprAST left)
@@ -407,12 +409,12 @@ public partial class Parser
     private ITypeAST ParseCustomOrGenericType()
     {
         var id = Consume(TokenType.Identifier, "Expected generic type identifier");
-        
-        if (!Match(TokenType.Lesser)) 
+
+        if (!Match(TokenType.Lesser))
         {
-            return new BaseType(id); 
+            return new BaseType(id);
         }
-        
+
         List<ITypeAST> types = [];
         do types.Add(ParseType());
         while (Match(TokenType.Comma));
@@ -455,7 +457,7 @@ public partial class Parser
         return token.Tag switch
         {
             TokenType.IntLiteral or TokenType.FloatLiteral or
-            TokenType.CharLiteral or TokenType.StringLiteral or 
+            TokenType.CharLiteral or TokenType.StringLiteral or
             TokenType.True or TokenType.False or TokenType.WildCard => new LiteralPattern(Advance()),
             TokenType.Identifier => new IdPattern(Advance()),
             TokenType.Constructor => ParseConstructorPattern(),
@@ -497,7 +499,7 @@ public partial class Parser
             Consume(TokenType.RPar, "Expected ')' after cons pattern");
             return new ConsPattern(lPar, patternA, patternB);
         }
-        
+
         if (Match(TokenType.RPar)) return patternA;
 
         List<IPatternAST> patterns = [patternA];

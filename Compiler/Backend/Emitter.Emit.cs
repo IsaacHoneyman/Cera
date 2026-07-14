@@ -83,9 +83,6 @@ public partial class Emitter
                     if (con.PayloadPatterns.Count > 1)
                     {
                         CurrentChunk.WriteByte(OpCode.UNPACK_TUPLE, line);
-                        if (con.PayloadPatterns.Count > byte.MaxValue)
-                            FatalError("Constructor payload exceeds 255 fields.", GetLeadToken(con));
-                        CurrentChunk.WriteByte((byte)con.PayloadPatterns.Count, line);
                     }
 
                     List<string> payloadVars = [];

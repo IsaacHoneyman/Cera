@@ -704,6 +704,7 @@ int runVM(VM *vm)
 
         case OP_CALL_INTRINSIC:
             uint8_t intrinsic_id = READ_BYTE();
+            frame->ip++;
             if (execute_intrinsic(vm, intrinsic_id) != 0)
             {
                 return 1;
@@ -961,12 +962,6 @@ int runVM(VM *vm)
             CeraValue top = pop(vm);
             CeraValue res;
             res.tag = VAL_BOOL;
-
-            if (top.tag == VAL_ADT)
-            {
-                log_info("[DEBUG] Target ADT Tag: 0x%02X | Expected Compiler Tag: 0x%02X\n",
-                         ((ObjADT *)top.as.obj)->adt_tag, tag_id);
-            }
 
             if (top.tag == VAL_ADT && ((ObjADT *)top.as.obj)->adt_tag == tag_id)
             {

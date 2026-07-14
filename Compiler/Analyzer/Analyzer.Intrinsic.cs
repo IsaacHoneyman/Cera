@@ -28,7 +28,7 @@ public partial class Analyzer
             "charsToInt", "str", "charsToFloat",
             "arrToList", "listToArr", "lst",
             "build", "arrBuild", "size", "f",
-            "rand", "randInt"
+            "rand", "randInt", "sqrt"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);

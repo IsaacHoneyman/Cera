@@ -1,0 +1,54 @@
+// dummy shader returns a sky gradient based on ray direction
+def getRayColor(r: ray) : vec3 = {
+    switch (r) {
+        Ray(origin, dir) -> {
+            // Scale the Y direction from [-1.0, 1.0] to [0.0, 1.0]
+            var t: float = 0.5 * (getD(dir, 1) + 1.0);
+            
+            // Linear interpolation: (1.0 - t) * White + t * Blue
+            var white: vec3 = Vec(1.0, 1.0, 1.0);
+            var blue: vec3 = Vec(0.5, 0.7, 1.0);
+            
+            vAdd(vMul(white, 1.0 - t), vMul(blue, t));
+        }
+    }
+}
+
+// Converts a vec3 color into a PPM-formatted pixel string: "R G B\n"
+def colorToPPM(c: vec3) : char list = {
+    switch (c) {
+        Vec(r, g, b) -> {
+            var ir: int = floatToInt(255.99 * r);
+            var ig: int = floatToInt(255.99 * g);
+            var ib: int = floatToInt(255.99 * b);
+            
+            // Nested string concatenation to build the line
+            concat(intToChars(ir), 
+                concat(" ", concat(intToChars(ig), 
+                    concat(" ", concat(intToChars(ib), "\n")))))
+        }
+    }
+}
+
+// Iterates across the X-axis (width) using an accumulator string
+def renderRow(x: int, y: int, width: int, height: int, acc: char list) : char list = {
+    if (x >= width) {
+        acc; // End of the row
+    } else {
+        var u: float = (intToFloat(x) - (intToFloat(width) / 2.0)) / intToFloat(height);
+        var v: float = ((intToFloat(height) / 2.0) - intToFloat(y)) / intToFloat(height);
+        var r: ray = Ray(Vec(0.0, 0.0, 0.0), normalize(Vec(u, v, 1.0)));
+        var col: vec3 = getRayColor(r);        
+        renderRow(x + 1, y, width, height, concat(acc, colorToPPM(col)));
+    }
+}
+
+// Iterates down the Y-axis (height) using an accumulator string
+def renderScreen(y: int, width: int, height: int, acc: char list) : char list = {
+    if (y >= height) {
+        acc; // Screen complete
+    } else {
+        var rowPixels: char list = renderRow(0, y, width, height, "");        
+        renderScreen(y + 1, width, height, concat(acc, rowPixels));
+    }
+}
