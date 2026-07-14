@@ -607,7 +607,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         if (f == NULL)
         {
             // Construct the Error(string) payload
-            adt->adt_tag = 0x05; 
+            adt->adt_tag = 0x04; 
             CeraValue err_val;
             err_val.tag = VAL_STRING;
             
@@ -622,7 +622,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             fclose(f);
             
             // Construct the Ok(unit) payload
-            adt->adt_tag = 0x04; 
+            adt->adt_tag = 0x05; 
             CeraValue ok_val;
             ok_val.tag = VAL_UNIT;
             ok_val.as.int_val = 0;
