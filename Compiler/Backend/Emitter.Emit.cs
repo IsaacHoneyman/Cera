@@ -258,6 +258,11 @@ public partial class Emitter
             CurrentChunk.WriteByte(OpCode.ALLOC_TUPLE, con.ConstructorName.Line);
             CurrentChunk.WriteByte((byte)con.Payloads.Count, con.ConstructorName.Line);
         }
+        else
+        {
+            // dummy for the VM
+            CurrentChunk.WriteByte(OpCode.PUSH_UNIT, con.ConstructorName.Line); 
+        }
 
         CurrentChunk.WriteByte(OpCode.ALLOC_CON, con.ConstructorName.Line);
         CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), con.ConstructorName.Line);

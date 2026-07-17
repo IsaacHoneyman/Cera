@@ -52,10 +52,10 @@ def mem<g>(lst: g list, elm: g) : bool = {
     }
 }
 
-def map<g>(lst: g list, f: g -> g) : g list = {
+def map<g, h>(lst: g list, f: g -> h) : h list = {
     switch (lst) {
         [] -> [],
-        (h::tl) -> (f(h) :: map(tl, f))
+        (val::tl) -> (f(val) :: map(tl, f))
     }
 }
 

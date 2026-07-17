@@ -35,3 +35,8 @@ def randRangeInt(min: int, max: int) : int = {
     var diff: int = (max - min) + 1;
     min + absInt(randInt() % diff);
 }
+
+def pow(base: float, exp: int) : float = {
+    if (exp <= 0) { 1.0; } 
+    else { base * pow(base, exp - 1); }
+}

@@ -103,6 +103,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         printf("%s", text);
         
         free(text);
+        release(arg);
         
         CeraValue res;
         res.tag = VAL_UNIT;
@@ -407,8 +408,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         bool left_is_str = (left.tag == VAL_STRING);
         bool right_is_str = (right.tag == VAL_STRING);
 
-        // Optimized String / Char List Concatenation Path
-        if (left_is_str && right_is_str)
+        if (left_is_str || right_is_str)
         {
             char *s1 = flatten_char_list(left);
             char *s2 = flatten_char_list(right);
@@ -436,6 +436,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             return 0;
         }
 
+        // Standard Generic List Concatenation Path
         if (left.tag == VAL_LIST && right.tag == VAL_LIST)
         {
             if (left.as.obj == NULL) {
@@ -452,7 +453,6 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
                 curr = (ObjList*)curr->tail.as.obj;
             }
 
-            // Unpack left list references into stack/heap memory
             CeraValue* temp_buffer = malloc(sizeof(CeraValue) * left_len);
             curr = (ObjList*)left.as.obj;
             for (int i = 0; i < left_len; i++) {
@@ -631,6 +631,8 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         
         free(file_path);
         free(file_data);
+        release(path);   
+        release(content);
         
         CeraValue res;
         res.tag = VAL_ADT;

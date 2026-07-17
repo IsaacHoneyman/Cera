@@ -91,7 +91,11 @@ public class Diagnostics
 
         if (scope == TimerScope.Task) sw[(int)TimerScope.SubTask].Restart();
 
-        DetailLog($"{preMessage} In {Math.Round((double)time / TimeSpan.TicksPerSecond, 2)}s. {postMessage}");
+        if (scope == TimerScope.Global) 
+            Log($"{preMessage} In {Math.Round((double)time / TimeSpan.TicksPerSecond, 2)}s. {postMessage}");
+        else
+            DetailLog($"{preMessage} In {Math.Round((double)time / TimeSpan.TicksPerSecond, 2)}s. {postMessage}");
+        
         if (scope == TimerScope.Task) DetailLog("");
     }
 

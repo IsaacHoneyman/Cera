@@ -1,54 +1,217 @@
-// dummy shader returns a sky gradient based on ray direction
-def getRayColor(r: ray) : vec3 = {
-    switch (r) {
-        Ray(origin, dir) -> {
-            // Scale the Y direction from [-1.0, 1.0] to [0.0, 1.0]
-            var t: float = 0.5 * (getD(dir, 1) + 1.0);
+import "Intersection.cera";
+import "../Standard/Collection.cera";
+import "../Standard/Math.cera";
+import "../Standard/IO.cera";
+
+
+def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float) : float = {
+    // Jitter the target position
+    var jx: float = randRange(-radius, radius);
+    var jy: float = randRange(-radius, radius);
+    var jz: float = randRange(-radius, radius);
+    var target: vec3 = vAdd(lPos, Vec(jx, jy, jz));
+    
+    var lightVec: vec3 = vSub(target, p);
+    var dist: float = mag(lightVec);
+    var dir: vec3 = vMul(lightVec, 1.0 / dist);
+    var origin: vec3 = vAdd(p, vMul(n, 0.001));
+    
+    switch (nearestHit(Ray(origin, dir), objects, dist, None)) {
+        Some(hit) -> 0.0, // Ray is occluded
+        None -> 1.0       // Ray has line-of-sight
+    }
+}
+
+def getShadowFactor(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float, samples: int, current: int, acc: float) : float = {
+    if (current >= samples) {
+        acc / intToFloat(samples); 
+    } else {
+        var vis: float = getShadowSample(p, n, lPos, objects, radius);
+        getShadowFactor(p, n, lPos, objects, radius, samples, current + 1, acc + vis);
+    }
+}
+
+def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objects: obj list, shadowSamples: int) : vec3 = {
+    switch ((m, l)) {
+        (Phong(amb, diff, spec, alpha), Light(lPos, lIntens)) -> {            
+            // Replaced the hardcoded '8' with the parameterized variable
+            var shadowFactor: float = getShadowFactor(p, n, lPos, objects, 0.5, shadowSamples, 0, 0.0);
             
-            // Linear interpolation: (1.0 - t) * White + t * Blue
-            var white: vec3 = Vec(1.0, 1.0, 1.0);
-            var blue: vec3 = Vec(0.5, 0.7, 1.0);
-            
-            vAdd(vMul(white, 1.0 - t), vMul(blue, t));
+            if (shadowFactor == 0.0) {
+                Vec(0.0, 0.0, 0.0);
+            } else {
+                var lightVec: vec3 = vSub(lPos, p);
+                var lightDir: vec3 = normalize(lightVec);
+                
+                var nDotL: float = dot(n, lightDir);
+                var diffFactor: float = max(0.0, nDotL); 
+                var diffuseCol: vec3 = vColorMul(vMul(diff, diffFactor), lIntens);
+                
+                var incident: vec3 = vMul(lightDir, -1.0);
+                var reflectDir: vec3 = reflect(incident, n);
+                var rDotV: float = dot(reflectDir, v);            
+                var specFactor: float = max(0.0, rDotV);
+                var specPower: float = pow(specFactor, floatToInt(alpha)); 
+                var specCol: vec3 = vColorMul(vMul(spec, specPower), lIntens);
+                
+                var totalIllum: vec3 = vAdd(diffuseCol, specCol);
+                vMul(totalIllum, shadowFactor);
+            }
         }
     }
 }
 
-// Converts a vec3 color into a PPM-formatted pixel string: "R G B\n"
+def schlick(cosine: float, refIdx: float) : float = {
+    var r0: float = (1.0 - refIdx) / (1.0 + refIdx);
+    var r0Sq: float = r0 * r0;
+    r0Sq + ((1.0 - r0Sq) * pow((1.0 - cosine), 5));
+}
+
+def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec3 = {
+    if (depth <= 0) {
+        Vec(0.0, 0.0, 0.0);
+    } else {
+        switch (scn) {
+            Scene(objects, lights, ambient) -> {
+                var hitOpt: option<hit> = nearestHit(r, objects, 99999.0, None);
+                
+                switch (hitOpt) {
+                    Some(Hit(t, p, n, v, m)) -> {
+                        switch ((m, r)) {
+                            // --- Original Phong Path ---
+                            (Phong(amb, diff, spec, alpha), Ray(origin, dir)) -> {
+                                var ambientBase: vec3 = vColorMul(amb, ambient);
+                                var directIllum: vec3 = foldLeft(lights, 
+                                    func (acc: vec3, l: light) : vec3 = {
+                                        vAdd(acc, computeSingleLight(p, n, v, m, l, objects, shadowSamples))
+                                    }, 
+                                    Vec(0.0, 0.0, 0.0)
+                                );
+                                
+                                var localColor: vec3 = vAdd(ambientBase, directIllum);
+                                var refDir: vec3 = normalize(reflect(dir, n));                                
+                                var refOrigin: vec3 = vAdd(p, vMul(n, 0.001));
+                                var refRay: ray = Ray(refOrigin, refDir);
+        
+                                var reflectColor: vec3 = getRayColor(refRay, scn, depth - 1, shadowSamples);
+                                var attenuatedReflect: vec3 = vMul(reflectColor, 0.5);
+                                        
+                                vAdd(localColor, vColorMul(spec, attenuatedReflect));
+                            },
+                            
+                            // --- New Dielectric (Glass) Path ---
+                            (Glass(attenuation, ior), Ray(origin, dir)) -> {
+                                // Determine if we are entering or exiting the medium
+                                var isFrontFace: bool = dot(dir, n) < 0.0;
+                                var refractionRatio: float = isFrontFace ? (1.0 / ior) : ior;
+                                var outwardNormal: vec3 = isFrontFace ? n : vMul(n, -1.0);
+                                
+                                var cosTheta: float = min(1.0, dot(vMul(dir, -1.0), outwardNormal));
+                                var reflectance: float = schlick(cosTheta, refractionRatio);
+                                
+                                // Stochastic Russian Roulette: Reflect or Refract
+                                if (reflectance > rand()) {
+                                    var refDir: vec3 = normalize(reflect(dir, outwardNormal));
+                                    var refOrigin: vec3 = vAdd(p, vMul(outwardNormal, 0.001));
+                                    
+                                    vColorMul(attenuation, getRayColor(Ray(refOrigin, refDir), scn, depth - 1, shadowSamples));
+                                } else {
+                                    switch (refract(dir, outwardNormal, refractionRatio)) {
+                                        Some(refrDir) -> {
+                                            // Offset INWARD to prevent clipping against the exit boundary
+                                            var refrOrigin: vec3 = vSub(p, vMul(outwardNormal, 0.001));
+                                            vColorMul(attenuation, getRayColor(Ray(refrOrigin, normalize(refrDir)), scn, depth - 1, shadowSamples));
+                                        },
+                                        None -> {
+                                            // Fallback for Total Internal Reflection
+                                            var refDir: vec3 = normalize(reflect(dir, outwardNormal));
+                                            var refOrigin: vec3 = vAdd(p, vMul(outwardNormal, 0.001));
+                                            
+                                            vColorMul(attenuation, getRayColor(Ray(refOrigin, refDir), scn, depth - 1, shadowSamples));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    None -> {
+                        switch (r) {
+                            Ray(origin, dir) -> {
+                                var t: float = 0.5 * (getD(dir, 1) + 1.0);
+                                var white: vec3 = Vec(1.0, 1.0, 1.0);
+                                var blue: vec3 = Vec(0.5, 0.7, 1.0);
+                                vAdd(vMul(white, 1.0 - t), vMul(blue, t));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+def getAAPixelColor(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, current: int, acc: vec3, scn: scene) : vec3 = {
+    if (current >= aaSamples) {
+        // Base case: Average the accumulated colors by dividing by N
+        vMul(acc, 1.0 / intToFloat(aaSamples));
+    } else {
+        // Jitter the pixel coordinates using Monte Carlo sampling
+        var jx: float = intToFloat(x) + randRange(0.0, 1.0);
+        var jy: float = intToFloat(y) + randRange(0.0, 1.0);
+        
+        var u: float = (jx - (intToFloat(width) / 2.0)) / intToFloat(height);
+        var v: float = ((intToFloat(height) / 2.0) - jy) / intToFloat(height);
+        
+        var r: ray = Ray(Vec(0.0, 0.0, 0.0), normalize(Vec(u, v, 1.0)));
+        var sampleCol: vec3 = getRayColor(r, scn, depth, shadowSamples);
+        
+        // Recursively accumulate the next jittered sample
+        getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, current + 1, vAdd(acc, sampleCol), scn);
+    }
+}
+
+// --- Main Render Loop ---
+
+def renderRow(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
+    if (x >= width) {
+        acc; 
+    } else {
+        // Hand off rendering to the Anti-Aliasing supersampler
+        var col: vec3 = getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, 0, Vec(0.0, 0.0, 0.0), scn);        
+        
+        renderRow(x + 1, y, width, height, depth, shadowSamples, aaSamples, scn, concat(acc, colorToPPM(col)));
+    }
+}
+
+def renderScreen(y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
+    if (y >= height) {
+        acc; 
+    } 
+    else {
+        var currentPct: int = (y * 100) / height;
+        var prevPct: int = ((y - 1) * 100) / height;
+        
+        if (y != 0 && currentPct > prevPct) { 
+            outF("Render %\\% Complete!\n", [intToChars(currentPct)]); 
+        }
+        else { (); };
+
+        var rowPixels: char list = renderRow(0, y, width, height, depth, shadowSamples, aaSamples, scn, "");        
+        renderScreen(y + 1, width, height, depth, shadowSamples, aaSamples, scn, concat(acc, rowPixels));
+    }
+}
+
 def colorToPPM(c: vec3) : char list = {
     switch (c) {
         Vec(r, g, b) -> {
-            var ir: int = floatToInt(255.99 * r);
-            var ig: int = floatToInt(255.99 * g);
-            var ib: int = floatToInt(255.99 * b);
+            // Clamp floats to a maximum of 1.0 using Math.min before casting
+            var ir: int = floatToInt(255.99 * min(1.0, r));
+            var ig: int = floatToInt(255.99 * min(1.0, g));
+            var ib: int = floatToInt(255.99 * min(1.0, b));
             
-            // Nested string concatenation to build the line
             concat(intToChars(ir), 
                 concat(" ", concat(intToChars(ig), 
                     concat(" ", concat(intToChars(ib), "\n")))))
         }
-    }
-}
-
-// Iterates across the X-axis (width) using an accumulator string
-def renderRow(x: int, y: int, width: int, height: int, acc: char list) : char list = {
-    if (x >= width) {
-        acc; // End of the row
-    } else {
-        var u: float = (intToFloat(x) - (intToFloat(width) / 2.0)) / intToFloat(height);
-        var v: float = ((intToFloat(height) / 2.0) - intToFloat(y)) / intToFloat(height);
-        var r: ray = Ray(Vec(0.0, 0.0, 0.0), normalize(Vec(u, v, 1.0)));
-        var col: vec3 = getRayColor(r);        
-        renderRow(x + 1, y, width, height, concat(acc, colorToPPM(col)));
-    }
-}
-
-// Iterates down the Y-axis (height) using an accumulator string
-def renderScreen(y: int, width: int, height: int, acc: char list) : char list = {
-    if (y >= height) {
-        acc; // Screen complete
-    } else {
-        var rowPixels: char list = renderRow(0, y, width, height, "");        
-        renderScreen(y + 1, width, height, concat(acc, rowPixels));
     }
 }

@@ -62,3 +62,16 @@ def getD(v: vec3, i: int) : float = {
         (Vec(_, _, z), 2) -> z
     }
 }
+
+def refract(incident: vec3, normal: vec3, etaRatio: float) : option<vec3> = {
+    var cosTheta: float = min(1.0, dot(vMul(incident, -1.0), normal));
+    var rOutPerp: vec3 = vMul(vAdd(incident, vMul(normal, cosTheta)), etaRatio);
+    var rOutPerpMagSq: float = dot(rOutPerp, rOutPerp);
+    
+    if (rOutPerpMagSq > 1.0) {
+        None; // Total Internal Reflection
+    } else {
+        var rOutParallel: vec3 = vMul(normal, -sqrt(1.0 - rOutPerpMagSq));
+        Some(vAdd(rOutPerp, rOutParallel));
+    }
+}

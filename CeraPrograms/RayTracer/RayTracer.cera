@@ -2,19 +2,36 @@ import "Scene.cera";
 import "Renderer.cera";
 
 def entry(args: char list arr) : int = {
-    var width: int = 200;
-    var height: int = 100;
     
-    out("Starting render...\n");
+    var width: int = parseArg(args, 1, 200);
+    var height: int = parseArg(args, 2, 100);
+    var depth: int = parseArg(args, 3, 3); 
+    var shadowSamples: int = parseArg(args, 4, 8); // New: Arg 4
+    var aaSamples: int = parseArg(args, 5, 4);     // New: Arg 5
+    
+    out("Starting render with dimensions: ");
+    out(intToChars(width));
+    out("x");
+    out(intToChars(height));
+    out(" | Depth: ");
+    out(intToChars(depth));
+    out(" | Shadow Samples: ");
+    out(intToChars(shadowSamples));
+    out(" | AA Samples: ");
+    out(intToChars(aaSamples));
+    out("\n");
     
     var header: char list = concat("P3\n", 
         concat(intToChars(width), concat(" ", 
             concat(intToChars(height), "\n255\n"))));
             
-    var pixels: char list = renderScreen(0, width, height, "");
+    var scn: scene = getScene();
+    
+    // Pass the new hyper-parameters into the rendering pipeline
+    var pixels: char list = renderScreen(0, width, height, depth, shadowSamples, aaSamples, scn, "");
     var finalData: char list = concat(header, pixels);
     
-    switch (write("sky.ppm", finalData)) {
+    switch (write("Out/image.ppm", finalData)) {
         Ok(u) -> {
             out("Render successfully saved to sky.ppm!\n");
             0;
@@ -24,6 +41,22 @@ def entry(args: char list arr) : int = {
             out(err);
             out("\n");
             1;
+        }
+    }
+}
+
+def parseArg(args: char list arr, index: int, defaultVal: int) : int = {
+    var argOpt: option<char list> = get(args, index);
+    
+    switch (argOpt) {
+        None -> defaultVal, 
+        Some(str) -> {
+            var parsedOpt: option<int> = charsToInt(str);
+            
+            switch (parsedOpt) {
+                None -> defaultVal, 
+                Some(val) -> val   
+            }
         }
     }
 }

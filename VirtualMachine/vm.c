@@ -819,7 +819,6 @@ int runVM(VM *vm)
             adt->header.ref_count = 1;
             adt->adt_tag = tag_id;
 
-            retain(payload);
             adt->payload = payload;
 
             CeraValue res;
@@ -840,7 +839,6 @@ int runVM(VM *vm)
             for (int i = size - 1; i >= 0; i--)
             {
                 CeraValue elem = pop(vm);
-                retain(elem);
                 tuple->elements[i] = elem;
             }
 
@@ -863,7 +861,6 @@ int runVM(VM *vm)
             for (int i = size - 1; i >= 0; i--)
             {
                 CeraValue elem = pop(vm);
-                retain(elem);
                 arr->elements[i] = elem;
             }
 
@@ -943,8 +940,6 @@ int runVM(VM *vm)
                 list->header.type = VAL_LIST;
                 list->header.ref_count = 1;
 
-                retain(head);
-                retain(tail);
                 list->head = head;
                 list->tail = tail;
 
