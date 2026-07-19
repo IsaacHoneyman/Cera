@@ -5,7 +5,7 @@
 
 bool log_detailed = false;
 bool log_dump_to_file = false;
-bool log_silent = false;
+bool log_silent = true;
 
 static FILE *dump_file = NULL;
 

@@ -1,5 +1,5 @@
-import "../Standard/Math.cera";
-import "../Standard/IO.cera";
+import "Math.cera";
+import "IO.cera";
 
 def entry(args: char list arr) : int = {
     outC();

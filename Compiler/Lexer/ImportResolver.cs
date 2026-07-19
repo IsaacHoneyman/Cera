@@ -2,6 +2,8 @@ namespace Cera.Compiler.Lexer;
 
 using System.Diagnostics.CodeAnalysis;
 using Cera.Compiler.Logging;
+using System.IO;
+using System;
 
 public class ImportResolver(Diagnostics diag)
 {
@@ -33,16 +35,41 @@ public class ImportResolver(Diagnostics diag)
 
         while (TryConsumeImport(tokens, i))
         {
-            string combinedPath = Path.GetFullPath(Path.Combine(
-                Path.GetDirectoryName(absPath) ?? "", tokens[i + 1].Lexeme.Trim('"')));
+            string importName = tokens[i + 1].Lexeme.Trim('"');
+            string currentDir = Path.GetDirectoryName(absPath) ?? "";
+            
+            // Resolve the path checking local first, then global CERA_LIB_PATH
+            string resolvedPath = ResolveFilePath(currentDir, importName);
 
-            unifiedStream.AddRange(ResolveRecursive(combinedPath));
+            unifiedStream.AddRange(ResolveRecursive(resolvedPath));
 
             i += 3;
         }
 
         unifiedStream.AddRange(tokens[i..]);
         return unifiedStream;
+    }
+
+    private string ResolveFilePath(string currentDirectory, string importName)
+    {
+        string localPath = Path.GetFullPath(Path.Combine(currentDirectory, importName));
+        if (File.Exists(localPath))
+        {
+            return localPath;
+        }
+
+        // Try global standard library resolution
+        string? globalLibPath = Environment.GetEnvironmentVariable("CERA_LIB_PATH");
+        if (!string.IsNullOrWhiteSpace(globalLibPath))
+        {
+            string globalPath = Path.GetFullPath(Path.Combine(globalLibPath, importName));
+            if (File.Exists(globalPath))
+            {
+                return globalPath;
+            }
+        }
+
+        return localPath;
     }
 
     public bool TryConsumeImport(List<Token> tokens, int index)
@@ -69,5 +96,4 @@ public class ImportResolver(Diagnostics diag)
         diag.LogError(e.Message);
         throw e;
     }
-
 }

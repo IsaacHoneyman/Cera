@@ -1,3 +1,5 @@
+import "Math.cera";
+
 /* 
     The offical collection libary for Cera.
     Offers support for standard list operations, 
@@ -153,7 +155,27 @@ def build<g>(size: int, f: int -> g) : g list = {
     else { aux(0, size); }
 }
 
+def qs<g>(lst: g list, cmp: (g * g) -> int) : g list = {    
+    switch (lst) {
+        [] -> [],
+        [x] -> [x],
+        (h::tl) -> 
+            concat(
+                qs(filter(tl, lessThanEqual(cmp, h)), cmp),                 
+                (h :: qs(filter(tl, moreThan(cmp, h)), cmp)) 
+            )
+    }
+}
+
 // --- Arrays ---
+
+// unsafe array grab, fall back value used upon out of bounds failure
+def arrGetD<g>(array: g arr, index: int, fallback: g) : g = {
+    switch (get(array, index)) {
+        Some(val) -> val,
+        None -> fallback
+    }
+}
 
 def arrMem<g>(array: g arr, elm: g) : bool = {
     mem(arrToList(array), elm);
@@ -163,6 +185,52 @@ def arrBuild<g>(size: int, f: int -> g) : g arr = {
     listToArr(build(size, f));
 }
 
+def arrFoldLeft<g, h>(array: g arr, f: (h * g) -> h, acc: h) : h = {
+    var len = arrLength(array);
+    var aux = func(i: int, currentAcc: h) : h = {
+        if (i >= len) { currentAcc; }
+        else {
+            switch (get(array, i)) {
+                Some(val) -> aux(i + 1, f(currentAcc, val)) 
+            }
+        }
+    };
+    aux(0, acc);
+}
+
+def arrFoldRight<g, h>(array: g arr, f: (g * h) -> h, acc: h) : h = {
+    var len = arrLength(array);
+    var aux = func(i: int, currentAcc: h) : h = {
+        if (i < 0) { currentAcc; }
+        else {
+            switch (get(array, i)) {
+                Some(val) -> aux(i - 1, f(val, currentAcc))
+            }
+        }
+    };
+    aux(len - 1, acc);
+}
+
+def arrMap<g, h>(array: g arr, f: g -> h) : h arr = {
+    var len = arrLength(array);
+    arrBuild(len, func(i: int) : h = {
+        switch (get(array, i)) {
+            Some(val) -> f(val)
+        }
+    });
+}
+
+def arrFilter<g>(array: g arr, p: g -> bool) : g arr = {
+    listToArr(filter(arrToList(array), p));
+}
+
+def arrRev<g>(array: g arr) : g arr = {
+    listToArr(rev(arrToList(array)));
+}
+
+def arrExists<g>(array: g arr, p: g -> bool) : bool = {
+    exists(arrToList(array), p);
+}
 
 // --- Streams ---
 

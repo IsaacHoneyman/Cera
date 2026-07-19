@@ -15,6 +15,7 @@ public enum IntrinsicId : byte
     In = 0x11,
     Read = 0x12,
     Write = 0x13,
+    Append = 0x14,
 
     // --- Type Conversions ---
     IntToFloat = 0x20,
@@ -31,4 +32,5 @@ public enum IntrinsicId : byte
     Rand = 0x30,
     RandInt = 0x31,
     Sqrt = 0x32,
+    Time = 0x33,
 }

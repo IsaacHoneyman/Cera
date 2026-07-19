@@ -33,6 +33,26 @@ def strF(output: char list, insert: char list list) : char list = {
     cf(output, insert);
 }
 
+def substring(str: char list, start: int, len: int) : char list = {
+    take(skip(str, start), len)
+}
+
+def split(str: char list, delimiter: char) : char list list = {
+    var aux = func(rem: char list, currentWord: char list, acc: char list list) : char list list = { 
+        switch (rem) {
+            [] -> rev(rev(currentWord)::acc),
+            (h::tl) ->
+                if (h == delimiter) {
+                    aux(tl, [], (rev(currentWord) :: acc));
+                }
+                else {
+                    aux(tl, (h::currentWord), acc);
+                }
+        }
+    };
+    aux(str, [], []);
+}
+
 // --- Output ---
 
 def outN(output: char list) : unit = {
@@ -51,4 +71,38 @@ def outFN(output: char list, insert: char list list) : unit = {
 
 def outC() : unit = {
     out("\x1b[2J\x1b[H");
+}
+
+// --- File ---
+
+// --- Soft Dangerous Wrappers (Console Alert) ---
+
+def readD(path: char list) : char list = {
+    switch (read(path)) {
+        Ok(content) -> content,
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to read. %", [err]);
+            []; // Fallback empty list
+        }
+    }
+}
+
+def writeD(path: char list, content: char list) : unit = {
+    switch (write(path, content)) {
+        Ok(u) -> (),
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to write. %", [err]);
+            (); // Fallback unit 
+        }
+    }
+}
+
+def appendD(path: char list, content: char list) : unit = {
+    switch (append(path, content)) {
+        Ok(u) -> (),
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to append. %", [err]);
+            (); // Fallback unit
+        }
+    }
 }

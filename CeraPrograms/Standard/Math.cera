@@ -27,6 +27,16 @@ def maxInt(x : int, y : int) : int = {  x <= y ? y : x }
 def abs(x : float) : float = { x >= 0.0 ? x : -x }
 def absInt(x : int) : int = { x >= 0 ? x : -x }
 
+def floor(x : float) : float = {
+    var trunc: float = intToFloat(floatToInt(x));
+    (x < 0.0 && x != trunc) ? trunc - 1.0 : trunc 
+}
+
+def ceil(x: float) : float = {
+    var trunc: float = intToFloat(floatToInt(x));
+    (x > 0.0 && x != trunc) ? trunc + 1.0 : trunc 
+}
+
 def randRange(min: float, max: float) : float = {
     min + (rand() * (max - min));
 } 
@@ -39,4 +49,25 @@ def randRangeInt(min: int, max: int) : int = {
 def pow(base: float, exp: int) : float = {
     if (exp <= 0) { 1.0; } 
     else { base * pow(base, exp - 1); }
+}
+
+def lessThan<g>(cmp: (g * g) -> int, value: g) : g -> bool = {
+    func(x: g) : bool = { cmp(x, value) < 0; }
+}
+
+def lessThanEqual<g>(cmp: (g * g) -> int, value: g) : g -> bool = {
+    func(x: g) : bool = { cmp(x, value) <= 0; }
+}
+
+def moreThan<g>(cmp: (g * g) -> int, value: g) : g -> bool = {
+    func(x: g) : bool = { cmp(x, value) > 0; }
+}
+
+def moreThanEqual<g>(cmp: (g * g) -> int, value: g) : g -> bool = {
+    func(x: g) : bool = { cmp(x, value) >= 0; }
+}
+
+def factorial(n: int) : int = {
+    if (n <= 1) { 1; }
+    else { n * factorial(n - 1); }
 }

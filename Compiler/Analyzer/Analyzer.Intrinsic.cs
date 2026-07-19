@@ -28,7 +28,8 @@ public partial class Analyzer
             "charsToInt", "str", "charsToFloat",
             "arrToList", "listToArr", "lst",
             "build", "arrBuild", "size", "f",
-            "rand", "randInt", "sqrt"
+            "rand", "randInt", "sqrt", "append",
+            "time"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
@@ -115,6 +116,12 @@ public partial class Analyzer
             new GenericType(intrT["result"], [new BaseType(intrT["unit"]), new ListType(new BaseType(intrT["char"]))])),
             2);
 
+        // append(path: char list, content: char list) : result<unit, char list>
+        DefineIntrinsic("append", IntrinsicId.Append,
+            new FuncType(new TupleType([new ListType(new BaseType(intrT["char"])), new ListType(new BaseType(intrT["char"]))]),
+            new GenericType(intrT["result"], [new BaseType(intrT["unit"]), new ListType(new BaseType(intrT["char"]))])),
+            2);
+
         // intToFloat(x: int) : float
         DefineIntrinsic("intToFloat", IntrinsicId.IntToFloat,
             new FuncType(new BaseType(intrT["int"]), new BaseType(intrT["float"])),
@@ -186,5 +193,10 @@ public partial class Analyzer
         DefineIntrinsic("sqrt", IntrinsicId.Sqrt, 
             new FuncType(new BaseType(intrT["float"]), new BaseType(intrT["float"])),
             1);
+
+        // time() : int
+        DefineIntrinsic("time", IntrinsicId.Time,
+            new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["int"])), 0
+            );
     }
 }

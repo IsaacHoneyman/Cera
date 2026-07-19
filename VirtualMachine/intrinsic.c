@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <time.h>
 #include "intrinsic.h"
 #include "memory.h"
 #include "logger.h"
@@ -622,6 +623,61 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             fclose(f);
             
             // Construct the Ok(unit) payload
+            adt->adt_tag = 0x05; 
+            CeraValue ok_val;
+            ok_val.tag = VAL_UNIT;
+            ok_val.as.int_val = 0;
+            adt->payload = ok_val;
+        }
+        
+        free(file_path);
+        free(file_data);
+        release(path);   
+        release(content);
+        
+        CeraValue res;
+        res.tag = VAL_ADT;
+        res.as.obj = (Obj*)adt;
+        push(vm, res);
+        
+        return 0;
+    }
+
+    case INTR_TIME: {
+        CeraValue res;
+        res.tag = VAL_INT;
+        res.as.int_val = (int64_t)time(NULL);
+        push(vm, res);
+        return 0;
+    }
+
+    case INTR_APPEND:
+    {
+        CeraValue content = pop(vm);
+        CeraValue path = pop(vm);
+        
+        char* file_path = flatten_char_list(path);
+        char* file_data = flatten_char_list(content);
+        
+        FILE *f = fopen(file_path, "a"); // "a" mode for appending
+        
+        ObjADT* adt = (ObjADT*)malloc(sizeof(ObjADT));
+        adt->header.type = VAL_ADT;
+        adt->header.ref_count = 1;
+
+        if (f == NULL)
+        {
+            adt->adt_tag = 0x04; 
+            CeraValue err_val;
+            err_val.tag = VAL_STRING;
+            err_val.as.obj = (Obj*)newString("Failed to append to file");
+            adt->payload = err_val;
+        }
+        else
+        {
+            fputs(file_data, f);
+            fclose(f);
+            
             adt->adt_tag = 0x05; 
             CeraValue ok_val;
             ok_val.tag = VAL_UNIT;

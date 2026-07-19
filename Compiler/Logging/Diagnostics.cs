@@ -86,15 +86,17 @@ public class Diagnostics
 
     public void EndSection(TimerScope scope, string preMessage, string postMessage = "")
     {
-        long time = sw[(int)scope].ElapsedTicks;
+        long ms = sw[(int)scope].ElapsedMilliseconds;
         sw[(int)scope].Restart();
 
         if (scope == TimerScope.Task) sw[(int)TimerScope.SubTask].Restart();
 
+        string timeStr = ms < 1000 ? $"{ms}ms" : $"{Math.Round(ms / 1000.0, 2)}s";
+
         if (scope == TimerScope.Global) 
-            Log($"{preMessage} In {Math.Round((double)time / TimeSpan.TicksPerSecond, 2)}s. {postMessage}");
+            Log($"{preMessage} In {timeStr}. {postMessage}");
         else
-            DetailLog($"{preMessage} In {Math.Round((double)time / TimeSpan.TicksPerSecond, 2)}s. {postMessage}");
+            DetailLog($"{preMessage} In {timeStr}. {postMessage}");
         
         if (scope == TimerScope.Task) DetailLog("");
     }

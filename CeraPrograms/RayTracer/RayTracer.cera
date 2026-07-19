@@ -6,8 +6,8 @@ def entry(args: char list arr) : int = {
     var width: int = parseArg(args, 1, 200);
     var height: int = parseArg(args, 2, 100);
     var depth: int = parseArg(args, 3, 3); 
-    var shadowSamples: int = parseArg(args, 4, 8); // New: Arg 4
-    var aaSamples: int = parseArg(args, 5, 4);     // New: Arg 5
+    var shadowSamples: int = parseArg(args, 4, 8); 
+    var aaSamples: int = parseArg(args, 5, 4);     
     
     out("Starting render with dimensions: ");
     out(intToChars(width));

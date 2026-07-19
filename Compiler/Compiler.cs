@@ -123,7 +123,7 @@ public class Compiler
 
         Directory.CreateDirectory("Out/Dump");
         Directory.CreateDirectory("Out/ByteCode");
-        Directory.CreateDirectory("Out/VirtualMachine");
+        // Directory.CreateDirectory("Out/VirtualMachine");
 
         _ = new Compiler(filePath, diag);
     }

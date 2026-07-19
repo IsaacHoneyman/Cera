@@ -1,7 +1,7 @@
 import "Intersection.cera";
-import "../Standard/Collection.cera";
-import "../Standard/Math.cera";
-import "../Standard/IO.cera";
+import "Collection.cera";
+import "Math.cera";
+import "IO.cera";
 
 
 def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float) : float = {

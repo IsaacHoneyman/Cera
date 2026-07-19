@@ -5,6 +5,16 @@
 #include "memory.h"
 #include "logger.h"
 
+// Macro to strictly enforce I/O robustness.
+// Halts the VM if the expected number of elements cannot be read.
+#define SAFE_READ(ptr, size, count, stream) \
+    do { \
+        if (fread(ptr, size, count, stream) != (count)) { \
+            log_error("Fatal I/O error: Unexpected EOF or corrupted .cerabc file"); \
+            exit(1); \
+        } \
+    } while(0)
+
 Module* loadModule(const char* file_path) {
     FILE* file = fopen(file_path, "rb");
     if (file == NULL) {
@@ -13,6 +23,7 @@ Module* loadModule(const char* file_path) {
     }
 
     char magic[4];
+    // The magic number check already safely evaluates the return value
     if (fread(magic, sizeof(char), 4, file) != 4 || strncmp(magic, "CERA", 4) != 0) {
         log_error("Invalid or corrupted .cerabc file signature"); 
         fclose(file);
@@ -20,22 +31,22 @@ Module* loadModule(const char* file_path) {
     }
 
     uint32_t version;
-    fread(&version, sizeof(uint32_t), 1, file);
+    SAFE_READ(&version, sizeof(uint32_t), 1, file);
     log_detail("Detected CeraBC Version: %d", version); 
 
     Module* module = malloc(sizeof(Module));
     
-    fread(&module->entry_index, sizeof(int32_t), 1, file);
-    fread(&module->function_count, sizeof(uint32_t), 1, file);
+    SAFE_READ(&module->entry_index, sizeof(int32_t), 1, file);
+    SAFE_READ(&module->function_count, sizeof(uint32_t), 1, file);
 
     module->functions = malloc(sizeof(CompiledFunction) * module->function_count);
 
     for (uint32_t i = 0; i < module -> function_count; i++) {
         CompiledFunction* func = &(module->functions[i]);
 
-        fread(&func -> index, sizeof(int32_t), 1, file);
-        fread(&func -> arity, sizeof(uint8_t), 1, file);
-        fread(&func -> constant_count, sizeof(uint16_t), 1, file);
+        SAFE_READ(&func -> index, sizeof(int32_t), 1, file);
+        SAFE_READ(&func -> arity, sizeof(uint8_t), 1, file);
+        SAFE_READ(&func -> constant_count, sizeof(uint16_t), 1, file);
 
         log_detail("  -> Decoding Function [%d] (Arity: %d, Constants: %d)", 
                    func->index, func->arity, func->constant_count);
@@ -44,25 +55,25 @@ Module* loadModule(const char* file_path) {
 
         for (uint16_t c = 0; c < func->constant_count; c++) {
             uint8_t tag;
-            fread(&tag, sizeof(uint8_t), 1, file);
+            SAFE_READ(&tag, sizeof(uint8_t), 1, file);
 
             func->constants[c].tag = tag;
             switch (tag) {
                 case VAL_INT:
-                    fread(&func->constants[c].as.int_val, sizeof(int64_t), 1, file);
+                    SAFE_READ(&func->constants[c].as.int_val, sizeof(int64_t), 1, file);
                     break;
                 case VAL_FLOAT:
-                    fread(&func->constants[c].as.float_val, sizeof(double), 1, file);
+                    SAFE_READ(&func->constants[c].as.float_val, sizeof(double), 1, file);
                     break;
                 case VAL_CHAR: {
                     uint32_t char_val;
-                    fread(&char_val, sizeof(uint32_t), 1, file);
+                    SAFE_READ(&char_val, sizeof(uint32_t), 1, file);
                     func->constants[c].as.int_val = char_val; 
                     break;
                 }
                 case VAL_BOOL: {
                     uint8_t bool_val;
-                    fread(&bool_val, sizeof(uint8_t), 1, file);
+                    SAFE_READ(&bool_val, sizeof(uint8_t), 1, file);
                     func->constants[c].as.int_val = bool_val;
                     break;
                 }
@@ -71,7 +82,7 @@ Module* loadModule(const char* file_path) {
                     break;
                 case VAL_STRING: {
                     uint32_t length;
-                    fread(&length, sizeof(uint32_t), 1, file);
+                    SAFE_READ(&length, sizeof(uint32_t), 1, file);
                     
                     ObjString* str = malloc(sizeof(ObjString));
                     str->header.type = VAL_STRING;
@@ -79,7 +90,7 @@ Module* loadModule(const char* file_path) {
                     str->length = length;
                     
                     str->chars = malloc(length + 1); // +1 for null terminator
-                    fread(str->chars, sizeof(char), length, file);
+                    SAFE_READ(str->chars, sizeof(char), length, file);
                     str->chars[length] = '\0';
                     
                     func->constants[c].tag = VAL_STRING;
@@ -92,9 +103,9 @@ Module* loadModule(const char* file_path) {
             }
         }
 
-        fread(&func->code_size, sizeof(uint32_t), 1, file);
+        SAFE_READ(&func->code_size, sizeof(uint32_t), 1, file);
         func->code = malloc(sizeof(uint8_t) * func->code_size);
-        fread(func->code, sizeof(uint8_t), func->code_size, file);
+        SAFE_READ(func->code, sizeof(uint8_t), func->code_size, file);
 
         log_detail("     Loaded %d bytes of bytecode", func->code_size); 
     }

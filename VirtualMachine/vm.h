@@ -130,6 +130,7 @@ typedef enum {
     INTR_IN = 0x11,
     INTR_READ = 0x12,
     INTR_WRITE = 0x13,
+    INTR_APPEND = 0x14,
 
     // --- Type Conversions ---
     INTR_INT_TO_FLOAT = 0x20,
@@ -145,7 +146,8 @@ typedef enum {
     // --- Math ---
     INTR_RAND = 0x30,
     INTR_RAND_INT = 0x31,
-    INTR_SQRT = 0x32
+    INTR_SQRT = 0x32,
+    INTR_TIME = 0x33
 } IntrinsicId;
 
 #endif 
