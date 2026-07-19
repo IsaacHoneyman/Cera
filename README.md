@@ -2,17 +2,17 @@
 
 **By Isaac Honeyman**
 
-Cera is a strictly pure functional programming language featuring a Hindley-Milner type inference engine, built with a C# compiler frontend and a high-performance, deterministic C virtual machine backend (CeraVM)[cite: 7]. 
+Cera is a strictly pure functional programming language featuring a Hindley-Milner type inference engine, built with a C# compiler frontend and a high-performance, deterministic C virtual machine backend (CeraVM). 
 
-Designed to merge mathematical purity with modern readability, Cera replaces traditional functional syntax with an accessible C-family/OOP surface syntax[cite: 7].
+Designed to merge mathematical purity with modern readability, Cera replaces traditional functional syntax with an accessible C-family/OOP surface syntax.
 
 ## Core Features
-* **Purely Functional:** Zero mutable state and zero side effects (excluding isolated compiler intrinsics for I/O)[cite: 7].
-* **Hindley-Milner Type Inference:** Global functions require rigid type signatures, while local variables benefit from seamless, automatic type inference[cite: 7].
-* **First-Class Functions:** Full support for higher-order programming, dynamic closures, and localized lambda expressions[cite: 7].
-* **Algebraic Data Types (ADTs):** Custom recursive data structures and Sum Types seamlessly destructured via exhaustive pattern-matching `switch` expressions[cite: 7].
-* **Tail Call Optimization (TCO):** $O(1)$ spatial complexity for unbounded recursive loops, preventing stack overflow exceptions during iterative algorithms[cite: 7].
-* **Standalone Bytecode:** The C# compiler lowers `.cera` source files into a highly dense `.cerabc` Intermediate Representation, executed deterministically by the C-based CeraVM[cite: 7].
+* **Purely Functional:** Zero mutable state and zero side effects (excluding isolated compiler intrinsics for I/O).
+* **Hindley-Milner Type Inference:** Global functions require rigid type signatures, while local variables benefit from seamless, automatic type inference.
+* **First-Class Functions:** Full support for higher-order programming, dynamic closures, and localized lambda expressions.
+* **Algebraic Data Types (ADTs):** Custom recursive data structures and Sum Types seamlessly destructured via exhaustive pattern-matching `switch` expressions.
+* **Tail Call Optimization (TCO):** $O(1)$ spatial complexity for unbounded recursive loops, preventing stack overflow exceptions during iterative algorithms.
+* **Standalone Bytecode:** The C# compiler lowers `.cera` source files into a highly dense `.cerabc` Intermediate Representation, executed deterministically by the C-based CeraVM.
 
 ## Installation
 
