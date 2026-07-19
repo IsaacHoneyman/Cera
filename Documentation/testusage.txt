@@ -1,3 +1,0 @@
-dotnet run CeraPrograms/Program.cera -- -v -t -a -s -e -d
-gcc VirtualMachine/main.c VirtualMachine/loader.c VirtualMachine/memory.c VirtualMachine/logger.c -o Out/VirtualMachine/CeraVirtualMachine -Wall -Wextra -g
-./Out/VirtualMachine/CeraVirtualMachine Out/ByteCode/Program.cerabc

@@ -27,7 +27,7 @@
 }
 
 % --- Document Metadata ---
-\title{\textbf{Cera Functional Language - 1.0}}
+\title{\textbf{Cera Functional Language - 1.1}}
 \author{\textbf{Isaac Honeyman}}
 
 \begin{document}
@@ -213,9 +213,10 @@ Functions in Cera are first-class citizens. Because the language enforces zero m
     \item \textbf{Generic Functions:} Cera supports generic functions by appending type parameters in angle brackets directly after the function name (e.g., \texttt{def name<g1, g2>}). These generic types can be used throughout the function signature and body.
     \item \textbf{Scoping and Shadowing:} All named functions (declared via \texttt{def}) must reside in the global scope and possess strictly unique identifiers. Function shadowing is not permitted, and named inner functions are forbidden to maintain a flat AST. Localized closures must be handled via anonymous lambda functions.
     \item \textbf{Function Application:} Cera does not support automatic partial function application (currying). A function call must supply the exact number of arguments specified in its signature. Developers requiring partially applied functions must explicitly construct them using lambdas.
+    \item \textbf{Modifiers:} Named functions declarations can be preceded by either or both the \texttt{hidden} and \texttt{inline} keywords, which restrict the scope of the function to the current file, and optimise the bytecode emission of the function respectively. 
 \end{itemize}
 
-\begin{lstlisting}[title={Higher-Order Data Pipelines}, basicstyle=\ttfamily]
+\begin{lstlisting}[title={Higher-Order Data Pipelines \& Modifiers}, basicstyle=\ttfamily]
 def sumEvenSquares(lst: int list) : int = {
     // 1. Filter out the odd numbers
     var evens = filter(lst, func (x: int): bool = x % 2 == 0);
@@ -225,6 +226,16 @@ def sumEvenSquares(lst: int list) : int = {
     
     // 3. Fold the list to accumulate the final sum
     foldLeft(squares, func (acc: int, x: int): int = acc + x, 0);
+}
+
+hidden inline def square(x: int) : int = {
+    x * x;
+}
+
+def sumOfSquares(a: int, b: int) : int = {
+    // The compiler intercepts the calls, generating:
+    // (a * a) + (b * b)
+    square(a) + square(b);
 }
 \end{lstlisting}
 
@@ -338,7 +349,7 @@ def entry(args: char list arr): int = {
 To assist in the lexical analysis phase, the following is an exhaustive list of reserved keywords in the Cera language. These identifiers are strictly reserved by the grammar and cannot be used as variable, function, or custom type names.
 
 \begin{itemize}
-    \item \textbf{Declaration \& Binding:} \texttt{var}, \texttt{def}, \texttt{func}, \texttt{type}
+    \item \textbf{Declaration \& Binding:} \texttt{var}, \texttt{def}, \texttt{func}, \texttt{type}, \texttt{hidden}, \texttt{inline}
     \item \textbf{Control Flow:} \texttt{if}, \texttt{else}, \texttt{switch}, \texttt{import}
     \item \textbf{Primitive Types:} \texttt{int}, \texttt{float}, \texttt{bool}, \texttt{char}, \texttt{list}, \texttt{arr}, \texttt{unit}
     \item \textbf{Boolean Literals:} \texttt{true}, \texttt{false}
@@ -931,6 +942,19 @@ These flags are passed to the \texttt{run} command to alter the execution enviro
 \end{itemize}
 
 % =========================================================================
+\section{Changelog \& Version History}
+% =========================================================================
+
+% =========================================================================
+\subsection{New in 1.1}
+% =========================================================================
+
+\begin{itemize}
+    \item \textbf{Hidden keyword: } \texttt{hidden}, restricts a named functions scope to purely the file it is defined in (e.g. c's static).
+    \item \textbf{Inline keyword: } \texttt{inline}, instructs the compiler to substitute the function's body directly at the call site during the intermediate code generation phase. This optimization eliminates the runtime overhead of allocating and destroying a Call Frame on the virtual machine's operand stack, trading a larger bytecode footprint for increased algorithmic execution speed.
+\end{itemize}
+
+% =========================================================================
 \section{Cera's Future}
 % =========================================================================
 
@@ -948,11 +972,9 @@ Before considering future features for the language, we shall consider previous 
 % =========================================================================
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
-    \item \textbf{Inline Keyword:} Very similar to it's implementation among OOP languages, inline functions will simply insert their body directly in place of it's call, rather than requiring an extra frame to be placed onto the stack. While a feature that will be added, omitted for now to reduce initial complexity. e.g. \texttt{def inline double(x : float) : float =} \{  \texttt{2 * x;} \} 
     \item \textbf{Top Level Var Declarations:} This can be extremely useful feature, replacing features such as the currently rather clunky format of constants \texttt{def pi() : float = { 3.14159265358979; }}, and has been omitted from the first version of Cera purely for garbage collector and passing complexity reduction.
     \item \textbf{Switch If Statements:} An embedded way for switch statements to use ifs, similar to OCaml's when keyword, aswell as the removal of the requirement of braces for if statements.
     \item \textbf{Default Function Values:} Similar to C\#, with \texttt{param : type = value}.
-    \item \textbf{Hidden Keyword:} Basic protection modifier, reduces the scope of a type of function to purely the file it was written in.
     \item \textbf{Inner Named Functions:} As the name states, this functionality is possible with variables and recursive lambda calls, but syntactically ugly, and could be improved. 
     \item \textbf{Better Error Messages:} Certain error messages appear vague, missing end of patterns or similar syntax will point to end of file, as well as column number being hard to track. The virtual machine suffers even worse in this case, with no details of location for runtime errors. 
     \item \textbf{Natural Tuple Unpacking:} Allow pattern matching in variable decleration, to allow statements such as \texttt{var (x, y) = tup;}

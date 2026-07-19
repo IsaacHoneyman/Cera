@@ -1,4 +1,4 @@
-# Cera Functional Language - v1.0
+# Cera Functional Language - v1.1
 
 **By Isaac Honeyman**
 

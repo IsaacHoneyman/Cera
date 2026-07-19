@@ -34,6 +34,12 @@ Module* loadModule(const char* file_path) {
     SAFE_READ(&version, sizeof(uint32_t), 1, file);
     log_detail("Detected CeraBC Version: %d", version); 
 
+    // if (version != 2) {
+    //     log_error("Incompatible CeraBC version. Expected 2 (v1.1), got %d", version);
+    //     fclose(file);
+    //     return NULL;
+    // }
+
     Module* module = malloc(sizeof(Module));
     
     SAFE_READ(&module->entry_index, sizeof(int32_t), 1, file);
