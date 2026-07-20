@@ -5,7 +5,8 @@ using Cera.Compiler.Lexer;
 
 namespace Cera.Compiler.Backend;
 
-public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnostics diag)
+public partial class Emitter(
+ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Diagnostics diag)
 {
     private readonly Module module = new("CeraModule");
 
@@ -25,8 +26,6 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
 
     private byte nextConstructorTag = 0x10;
 
-
-
     private class FuncState(Diagnostics diag)
     {
         public FuncState? Enclosing { get; init; }
@@ -45,7 +44,11 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
     {
         diag.DetailLog("Creating Bytecode");
 
-        foreach (var func in root.Functions) globalFunctionIndices[func.Identifier.Lexeme] = nextFunctionIndex++;
+        foreach (var func in root.Functions)
+        {
+            string fName = res.TryGetValue(func, out string? r) ? r : func.Identifier.Lexeme;
+            globalFunctionIndices[fName] = nextFunctionIndex++;
+        }
         foreach (var typeDecl in root.Types)
         {
             foreach (var constructor in typeDecl.Constructors) 
@@ -81,7 +84,9 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
         EmitExpression(func.Body, true);
         CurrentChunk.WriteByte(OpCode.RETURN, func.Identifier.Line);
 
-        int reservedIndex = globalFunctionIndices[func.Identifier.Lexeme];
+        string fName = res.TryGetValue(func, out string? r) ? r : func.Identifier.Lexeme;
+        int reservedIndex = globalFunctionIndices[fName];
+        
         module.DefineFunction(new CompiledFunction(func.Identifier.Lexeme, func.Parameters.Count, CurrentChunk, reservedIndex));
     }
 
@@ -115,12 +120,12 @@ public partial class Emitter(ProgramNode root, Analyzer.Environment env, Diagnos
         return currentState.Upvalues.Count - 1;
     }
     
-    private int GetGlobalFunctionIndex(Token identifier)
+    private int GetGlobalFunctionIndex(string fName, Token errorToken)
     {
-        if (globalFunctionIndices.TryGetValue(identifier.Lexeme, out int index))
+        if (globalFunctionIndices.TryGetValue(fName, out int index))
             return index;
             
-        FatalError($"Global function '{identifier.Lexeme}' has no assigned index", identifier);
+        FatalError($"Global function '{fName}' has no assigned index", errorToken);
         return -1;
     }
 

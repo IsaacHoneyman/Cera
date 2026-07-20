@@ -15,7 +15,7 @@ public interface IPatternAST : INodeAST;
 public record ProgramNode(List<FuncDeclNode> Functions, List<TypeDeclNode> Types) : INodeAST;
 
 public record FuncDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, List<ParamNode> Parameters,
-ITypeAST ReturnType, ExprBlock Body) : INodeAST;
+ITypeAST ReturnType, ExprBlock Body, bool IsHidden, bool IsInline) : INodeAST;
 
 public record ParamNode(Token Identifier, ITypeAST DeclaredType) : INodeAST;
 

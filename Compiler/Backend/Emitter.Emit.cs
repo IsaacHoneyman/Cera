@@ -314,8 +314,8 @@ public partial class Emitter
 
         if (call.Callee is IdentifierExpr idExpr)
         {
-            string funcName = idExpr.Identifier.Lexeme;
-            Symbol? sym = env?.Resolve(funcName);
+            string fName = res.TryGetValue(idExpr, out string? r) ? r : idExpr.Identifier.Lexeme;
+            Symbol? sym = env?.Resolve(fName);
 
             if (sym is FuncSymbol { NativeId: not null } funcSym)
             {
@@ -637,7 +637,7 @@ public partial class Emitter
 
     private void EmitIdentifier(IdentifierExpr id)
     {
-        string name = id.Identifier.Lexeme;
+        string name = res.TryGetValue(id, out string? r) ? r : id.Identifier.Lexeme;
         int line = id.Identifier.Line;
 
         int index = Locals.LastIndexOf(name);
@@ -659,7 +659,7 @@ public partial class Emitter
         }
 
         // If it's not local or upvalue, it MUST be a global function. 
-        int funcIndex = GetGlobalFunctionIndex(id.Identifier);
+        int funcIndex = GetGlobalFunctionIndex(name, id.Identifier);
 
         if (funcIndex <= byte.MaxValue)
         {

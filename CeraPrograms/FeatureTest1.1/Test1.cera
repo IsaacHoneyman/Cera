@@ -1,0 +1,12 @@
+import "../Standard/IO.cera";
+import "Test2.cera";
+
+def entry(args: char list arr) : int = {
+    var sq = square(5);
+    outFN("Hello Cera, I'm %", [intToChars(sq)]);
+    0;
+}
+
+hidden def square(x: int) : int = { 
+    x * x;
+} 

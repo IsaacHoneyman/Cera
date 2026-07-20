@@ -10,7 +10,9 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
     private readonly Environment globalEnv = new();
     public Environment? currentEnv = Environment.None();
 
-    public Environment Analyze()
+    public readonly Dictionary<INodeAST, string> resolvedNames = [];
+
+    public (Environment, Dictionary<INodeAST, string>) Analyze()
     {
         currentEnv = globalEnv;
 
@@ -26,7 +28,7 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         // --- S2, traversal/type checking
         foreach (var f in root.Functions) AnalyzeFunction(f);
 
-        return globalEnv;
+        return (globalEnv, resolvedNames);
     }
 
     private void RegisterType(TypeDeclNode type)
@@ -64,6 +66,19 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
     {
         string fName = func.Identifier.Lexeme;
 
+        if (fName == "entry")
+        {
+            if (func.IsHidden)
+                FatalError("The program entry point cannot be marked 'hidden'", func.Identifier);
+            if (func.IsInline)
+                FatalError("The program entry point cannot be marked 'inline'", func.Identifier);
+            if (func.GenericTypeParams?.Identifiers.Count > 0) 
+                FatalError("The program entry point cannot have generic type parameters", func.Identifier); 
+        }
+
+        if (func.IsHidden) fName = $"_hidden_{func.Identifier.File ?? "unknown"}_{fName}";
+        resolvedNames[func] = fName;
+
         if (globalEnv.Resolve(fName) != null) FatalError($"Function '{fName}' is already defined", func.Identifier);
 
         List<Token> gens = func.GenericTypeParams?.Identifiers ?? [];
@@ -87,7 +102,6 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
 
         if (fName == "entry")
         {
-            if (gens.Count > 0) FatalError("The program entry point cannot have generic type parameters.", func.Identifier); 
             ITypeAST expectedEntryType = new FuncType(
                 new ArrType(new ListType(new BaseType(intrT["char"]))),
                 new BaseType(intrT["int"])

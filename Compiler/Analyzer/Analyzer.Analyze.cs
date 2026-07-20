@@ -109,18 +109,21 @@ public partial class Analyzer
     private ITypeAST AnalyzeIdentifier(IdentifierExpr id)
     {
         string name = id.Identifier.Lexeme;
-        Symbol? sym = currentEnv?.Resolve(name);
+        string mangledName = $"_hidden_{id.Identifier.File ?? "unknown"}_{name}";
 
+        Symbol? sym = currentEnv?.Resolve(mangledName) ?? currentEnv?.Resolve(name);
         if (sym == null) FatalError($"Undefined identifier '{name}'", id.Identifier);
+
+        resolvedNames[id] = currentEnv?.Resolve(mangledName) != null ? mangledName : name;
 
         return sym switch
         {
-            VarSymbol vSym => vSym.Type ?? FatalErrorReturn($"Variable '{name}' lacks a resolved type.", id.Identifier),
+            VarSymbol vSym => vSym.Type ?? FatalErrorReturn($"Variable '{name}' lacks a resolved type", id.Identifier),
             FuncSymbol fSym => Instantiate(
-                fSym.Type ?? FatalErrorReturn($"Function '{name}' lacks a resolved type signature.", id.Identifier),
+                fSym.Type ?? FatalErrorReturn($"Function '{name}' lacks a resolved type signature", id.Identifier),
                 fSym.GenericParams
             ),
-            _ => FatalErrorReturn($"Symbol '{name}' cannot be evaluated as an expression.", id.Identifier)
+            _ => FatalErrorReturn($"Symbol '{name}' cannot be evaluated as an expression", id.Identifier)
         };
     }
 

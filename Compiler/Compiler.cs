@@ -62,8 +62,9 @@ public class Compiler
 
         Analyzer.Analyzer a = new(ast, diag);
         Analyzer.Environment? e = null;
+        Dictionary<INodeAST, string> r = [];
 
-        try { e = a.Analyze(); }
+        try { (e, r) = a.Analyze(); }
         catch (AnalyzerException)
         {
             diag.Close();
@@ -75,7 +76,7 @@ public class Compiler
 
         // Emitter
 
-        Emitter em = new(ast, e, diag);
+        Emitter em = new(ast, e, r, diag);
         Module? m = null;
 
         try { m = em.Compile(); } 

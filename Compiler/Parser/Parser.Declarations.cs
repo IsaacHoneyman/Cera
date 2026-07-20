@@ -11,7 +11,8 @@ public partial class Parser
 
         while (!IsAtEnd())
         {
-            if (Check(TokenType.Def)) functions.Add(ParseFuncDecl());
+            if (Check(TokenType.Def) || Check(TokenType.Hidden) || Check(TokenType.Inline)) 
+                functions.Add(ParseFuncDecl());
             else if (Check(TokenType.Type)) types.Add(ParseTypeDecl());
             else FatalError("Expected 'def' or 'type' declaration at the top level", Peek());
         }
@@ -23,6 +24,11 @@ public partial class Parser
 
     private FuncDeclNode ParseFuncDecl()
     {
+        (bool isHidden, bool isInline) = (false, false);
+
+        if (Match(TokenType.Hidden)) isHidden = true;
+        if (Match(TokenType.Inline)) isInline = true;
+
         Consume(TokenType.Def, "Expected 'def' keyword");
         var id = Consume(TokenType.Identifier, "Expected function name");
 
@@ -42,7 +48,7 @@ public partial class Parser
         Consume(TokenType.Equal, "Expected '=' after function declaration");
         var exprBlock = ParseExpressionBlock();
 
-        return new FuncDeclNode(id, generics, parameters, returnType, exprBlock);
+        return new FuncDeclNode(id, generics, parameters, returnType, exprBlock, isHidden, isInline);
     }
 
     private GenericDeclNode ParseGenericDecl()

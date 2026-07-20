@@ -1,0 +1,3 @@
+hidden def square(x: float) : float = {
+    x * x;
+}
