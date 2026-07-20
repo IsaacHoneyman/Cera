@@ -546,7 +546,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 
         if (file == NULL)
         {
-            result_adt->adt_tag = 0x05; 
+            result_adt->adt_tag = 0x04; 
             
             ObjString *err_msg = malloc(sizeof(ObjString));
             err_msg->header.type = VAL_STRING;
@@ -574,8 +574,8 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             content_str->chars[read_bytes] = '\0';
             fclose(file);
 
-            // Success path: Construct Ok(content) -> Tag 0x04
-            result_adt->adt_tag = 0x04;
+            // Success path: Construct Ok(content) -> Tag 0x05
+            result_adt->adt_tag = 0x05;
             result_adt->payload.tag = VAL_STRING;
             result_adt->payload.as.obj = (Obj *)content_str;
         }
