@@ -33,7 +33,7 @@ def strF(output: char list, insert: char list list) : char list = {
     cf(output, insert);
 }
 
-def substring(str: char list, start: int, len: int) : char list = {
+inline def substring(str: char list, start: int, len: int) : char list = {
     take(skip(str, start), len)
 }
 
@@ -55,27 +55,25 @@ def split(str: char list, delimiter: char) : char list list = {
 
 // --- Output ---
 
-def outN(output: char list) : unit = {
+inline def outN(output: char list) : unit = {
     out(output);
     out("\n");
 }
 
-def outF(output: char list, insert: char list list) : unit = {
+inline def outF(output: char list, insert: char list list) : unit = {
     out(strF(output, insert));
 }
 
-def outFN(output: char list, insert: char list list) : unit = {
+inline def outFN(output: char list, insert: char list list) : unit = {
     outF(output, insert);
     outN("");
 }
 
-def outC() : unit = {
+inline def outC() : unit = {
     out("\x1b[2J\x1b[H");
 }
 
 // --- File ---
-
-// --- Soft Dangerous Wrappers (Console Alert) ---
 
 def readD(path: char list) : char list = {
     switch (read(path)) {

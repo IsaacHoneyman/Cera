@@ -330,13 +330,59 @@ public partial class Emitter
                 CurrentChunk.WriteByte((byte)call.Arguments.Count, line);
                 return;
             }
+
+            if (inlineFunctions.TryGetValue(fName, out FuncDeclNode? inlineFunc) && !curInlining.Contains(fName))
+            {
+                curInlining.Add(fName);
+                EmitInlineCall(inlineFunc, call.Arguments, isTail);
+                curInlining.Remove(fName);
+                return;
+            }
         }
+
+        
         EmitExpression(call.Callee);
         foreach (var arg in call.Arguments) EmitExpression(arg);
         int callLine = (call.Callee as IdentifierExpr)?.Identifier.Line ?? 0;
         if (!isTail) CurrentChunk.WriteByte(OpCode.CALL, callLine);
         else CurrentChunk.WriteByte(OpCode.TAIL_CALL, callLine);
         CurrentChunk.WriteByte((byte)call.Arguments.Count, callLine);
+    }
+
+    private void EmitInlineCall(FuncDeclNode func, List<IExprAST> arguments, bool isTail)
+    {
+        int scopeDepth = Locals.Count;
+        int line = func.Identifier.Line;
+
+        for (int i = 0; i < arguments.Count; i++)
+        {
+            CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
+            Locals.Add(func.Parameters[i].Identifier.Lexeme);
+            
+            EmitExpression(arguments[i], false);
+            
+            CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
+            CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);            
+            CurrentChunk.WriteByte(OpCode.POP, line);
+        }
+
+        EmitExpressionBlock(func.Body, isTail);
+
+        int varsToPop = Locals.Count - scopeDepth;
+        if (varsToPop > 0)
+        {
+            int returnValLine = (func.Body.ReturnExpression as IdentifierExpr)?.Identifier.Line ?? line;
+            
+            CurrentChunk.WriteByte(OpCode.STORE_LOCAL, returnValLine);
+            CurrentChunk.WriteByte((byte)scopeDepth, returnValLine);
+            
+            for (int i = 0; i < varsToPop; i++)
+            {
+                CurrentChunk.WriteByte(OpCode.POP, returnValLine);
+            }
+        }
+
+        Locals.RemoveRange(scopeDepth, varsToPop);
     }
 
     private void EmitLambda(LambdaExpr lambda)

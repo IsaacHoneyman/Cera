@@ -1,0 +1,9 @@
+/* 
+    The offical time libary for Cera.
+    Offers support for basic time related
+    operations and manipulation.
+*/
+
+inline def timeSeconds() : int = {
+    
+}

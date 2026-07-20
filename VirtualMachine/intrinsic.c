@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -642,11 +644,21 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         
         return 0;
     }
-
     case INTR_TIME: {
+        struct timespec ts;        
+        clock_gettime(CLOCK_REALTIME, &ts);
         CeraValue res;
-        res.tag = VAL_INT;
-        res.as.int_val = (int64_t)time(NULL);
+        res.tag = VAL_INT;        
+        res.as.int_val = ((int64_t)ts.tv_sec * 1000LL) + ((int64_t)ts.tv_nsec / 1000000LL);   
+        push(vm, res);
+        return 0;
+    }
+    case INTR_UPTIME: {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        CeraValue res;
+        res.tag = VAL_INT;        
+        res.as.int_val = ((int64_t)ts.tv_sec * 1000LL) + ((int64_t)ts.tv_nsec / 1000000LL);
         push(vm, res);
         return 0;
     }

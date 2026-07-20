@@ -387,7 +387,8 @@ Finally, the list of built-in functions:
     \item \textbf{Random Float: } \texttt{rand() : float} (random float from 0 to 1 (inclusive)).
     \item \textbf{Random Int:} \texttt{randInt() : int} (random 64 bit integer (inclusive)).
     \item \textbf{Square Root:} \texttt{sqrt(x: float) : float}
-    \item \textbf{Time:} \texttt{time() : int} (time in seconds from 01/01/1970 UTC)
+    \item \textbf{Time:} \texttt{time() : int} (Wall-clock time in milliseconds from 01/01/1970 UTC).
+    \item \textbf{Uptime:} \texttt{uptime() : int} (Monotonic time in milliseconds since the host system booted).
 \end{itemize}
 
 % =========================================================================
@@ -957,6 +958,7 @@ The inital release of the Cera functional programming language.
 \begin{itemize}
     \item \textbf{Hidden keyword: } \texttt{hidden}, restricts a named functions scope to purely the file it is defined in (e.g. c's static).
     \item \textbf{Inline keyword: } \texttt{inline}, instructs the compiler to substitute the function's body directly at the call site during the intermediate code generation phase. This optimization eliminates the runtime overhead of allocating and destroying a Call Frame on the virtual machine's operand stack, trading a larger bytecode footprint for increased algorithmic execution speed.
+    \item \textbf{New Intrinsics: } \texttt{uptime}, to complete timing implementations.
 \end{itemize}
 
 % =========================================================================

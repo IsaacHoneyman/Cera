@@ -4,9 +4,43 @@ import "Test2.cera";
 def entry(args: char list arr) : int = {
     var sq = square(5);
     outFN("Hello Cera, I'm %", [intToChars(sq)]);
+    var cur = uptime();
+    var now = inlineTest1(1000000);
+    outFN("With Inline, Took %ms", [intToChars(now - cur)]);
+    var cur = uptime();
+    var now = inlineTest2(1000000);
+    outFN("Without Inline, Took %ms", [intToChars(now - cur)]);
     0;
 }
 
-hidden def square(x: int) : int = { 
+hidden def inlineTest1(acc: int) : int = {
+    switch (acc) {
+        0 -> uptime(),
+        x -> {
+            add(1, 1);
+            inlineTest1(acc - 1);
+        }
+    }
+}
+
+hidden def inlineTest2(acc: int) : int = {
+    switch (acc) {
+        0 -> uptime(),
+        x -> {
+            addNoInline(1, 1);
+            inlineTest2(acc - 1);
+        }
+    }
+}
+
+hidden inline def square(x: int) : int = { 
     x * x;
 } 
+
+inline def add(x: int, y: int) : int = {
+    x + y;
+}
+
+def addNoInline(x: int, y: int) : int = {
+    x + y;
+}

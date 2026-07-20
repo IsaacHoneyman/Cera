@@ -35,14 +35,15 @@ def nth<g>(lst: g list, index: int) : option<g> = {
     }
 }
 
+hidden def revAux<g>(lst: g list, acc: g list) : g list = {
+    switch(lst) {
+        [] -> acc,
+        (h::tl) -> revAux(tl, h::acc)
+    }
+}
+
 def rev<g>(lst: g list) : g list = {
-    var r = func(lst : g list, acc : g list) : g list = { 
-        switch(lst) {
-            [] -> acc,
-            (h::tl) -> r(tl, h::acc) 
-        }
-    };
-    r(lst, [])
+    revAux(lst, [])
 }
 
 def mem<g>(lst: g list, elm: g) : bool = {
@@ -96,16 +97,17 @@ def find<g>(lst: g list, p: g -> bool) : option<g> = {
     }
 }
 
-def findIndex<g>(lst: g list, p: g -> bool) : option<int> = {
-    var fi = func(lst: g list, i: int) : option<int> = {
-        switch (lst) {
-            [] -> None,
-            (h::tl) -> 
-                if (p(h)) { Some(i); }
-                else { fi(tl, i + 1); }
-        }
-    };
-    fi(lst, 0);
+hidden def findIndexAux<g>(lst: g list, p: g -> bool, i: int) : option<int> = {
+    switch (lst) {
+        [] -> None,
+        (h::tl) -> 
+            if (p(h)) { Some(i); }
+            else { findIndexAux(tl, p, i + 1); }
+    }
+}
+
+def findIndex<g>(lst: g list, p: g -> bool) : option<int> = { 
+    findIndexAux(lst, p, 0); 
 }
 
 def foldLeft<g, h>(lst: g list, f: (h * g) -> h, acc: h) : h = {
@@ -122,37 +124,39 @@ def foldRight<g, h>(lst: g list, f: (g * h) -> h, acc: h) : h = {
     }
 }
 
-def take<g>(lst: g list, num: int) : g list = {
-    var t = func(lst: g list, i: int, acc: g list) : g list = {
-        switch(lst) {
-            [] -> acc,
-            (h::tl) ->
-                if (i >= num) { acc; }
-                else { t(tl, i + 1, (h::acc)); }
-        }
-    };
-    rev(t(lst, 0, []));
+hidden def takeAux<g>(lst: g list, num: int, i: int, acc: g list) : g list = {
+    switch(lst) {
+        [] -> acc,
+        (h::tl) ->
+            if (i >= num) { acc; }
+            else { takeAux(tl, num, i + 1, (h::acc)); }
+    }
 }
 
-def skip<g>(lst: g list, num: int) : g list = {
-    var s = func(lst: g list, i: int) : g list = {
-        switch(lst) {
-            [] -> [],
-            (h::tl) ->
-                if (i >= num) { lst; }
-                else { s(tl, i + 1); } 
-        }
-    };
-    s(lst, 0);
+def take<g>(lst: g list, num: int) : g list = { 
+    rev(takeAux(lst, num, 0, [])); 
 }
 
+hidden def skipAux<g>(lst: g list, num: int, i: int) : g list = {
+    switch(lst) {
+        [] -> [],
+        (h::tl) ->
+            if (i >= num) { lst; }
+            else { skipAux(tl, num, i + 1); } 
+    }
+}
+
+def skip<g>(lst: g list, num: int) : g list = { 
+    skipAux(lst, num, 0); 
+}
+
+hidden def buildAux<g>(index: int, size: int, f: int -> g) : g list = {
+    if (index == size) { []; }
+    else { f(index) :: buildAux(index + 1, size, f); }
+}
 def build<g>(size: int, f: int -> g) : g list = {
-    var aux = func(index: int, size: int) : g list = {
-        if (index == size) { []; }
-        else { f(index) :: aux(index + 1, size, f); }
-    };
     if (size <= 0) { []; }
-    else { aux(0, size); }
+    else { buildAux(0, size, f); }
 }
 
 def qs<g>(lst: g list, cmp: (g * g) -> int) : g list = {    
@@ -177,38 +181,30 @@ def arrGetD<g>(array: g arr, index: int, fallback: g) : g = {
     }
 }
 
-def arrMem<g>(array: g arr, elm: g) : bool = {
-    mem(arrToList(array), elm);
-}
-
-def arrBuild<g>(size: int, f: int -> g) : g arr = {
-    listToArr(build(size, f));
+hidden def arrFoldLeftAux<g, h>(array: g arr, f: (h * g) -> h, i: int, currentAcc: h, len: int) : h = {
+    if (i >= len) { currentAcc; }
+    else {
+        switch (get(array, i)) {
+            Some(val) -> arrFoldLeftAux(array, f, i + 1, f(currentAcc, val), len) 
+        }
+    }
 }
 
 def arrFoldLeft<g, h>(array: g arr, f: (h * g) -> h, acc: h) : h = {
-    var len = arrLength(array);
-    var aux = func(i: int, currentAcc: h) : h = {
-        if (i >= len) { currentAcc; }
-        else {
-            switch (get(array, i)) {
-                Some(val) -> aux(i + 1, f(currentAcc, val)) 
-            }
+    arrFoldLeftAux(array, f, 0, acc, arrLength(array));
+}
+
+hidden def arrFoldRightAux<g, h>(array: g arr, f: (g * h) -> h, i: int, currentAcc: h) : h = {
+    if (i < 0) { currentAcc; }
+    else {
+        switch (get(array, i)) {
+            Some(val) -> arrFoldRightAux(array, f, i - 1, f(val, currentAcc))
         }
-    };
-    aux(0, acc);
+    }
 }
 
 def arrFoldRight<g, h>(array: g arr, f: (g * h) -> h, acc: h) : h = {
-    var len = arrLength(array);
-    var aux = func(i: int, currentAcc: h) : h = {
-        if (i < 0) { currentAcc; }
-        else {
-            switch (get(array, i)) {
-                Some(val) -> aux(i - 1, f(val, currentAcc))
-            }
-        }
-    };
-    aux(len - 1, acc);
+    arrFoldRightAux(array, f, arrLength(array) - 1, acc);
 }
 
 def arrMap<g, h>(array: g arr, f: g -> h) : h arr = {
@@ -220,15 +216,23 @@ def arrMap<g, h>(array: g arr, f: g -> h) : h arr = {
     });
 }
 
-def arrFilter<g>(array: g arr, p: g -> bool) : g arr = {
+inline def arrMem<g>(array: g arr, elm: g) : bool = {
+    mem(arrToList(array), elm);
+}
+
+inline def arrBuild<g>(size: int, f: int -> g) : g arr = {
+    listToArr(build(size, f));
+}
+
+inline def arrFilter<g>(array: g arr, p: g -> bool) : g arr = {
     listToArr(filter(arrToList(array), p));
 }
 
-def arrRev<g>(array: g arr) : g arr = {
+inline def arrRev<g>(array: g arr) : g arr = {
     listToArr(rev(arrToList(array)));
 }
 
-def arrExists<g>(array: g arr, p: g -> bool) : bool = {
+inline def arrExists<g>(array: g arr, p: g -> bool) : bool = {
     exists(arrToList(array), p);
 }
 

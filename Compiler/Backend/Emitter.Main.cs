@@ -13,6 +13,9 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
     private readonly Dictionary<string, int> globalFunctionIndices = [];
     private int nextFunctionIndex = 0;
 
+    private readonly Dictionary<string, FuncDeclNode> inlineFunctions = [];
+    private readonly HashSet<string> curInlining = [];
+
     private readonly Dictionary<string, byte> constructorTags = new()
     {
         // 0x00 - 0x0F reserved for core language structures
@@ -48,6 +51,8 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
         {
             string fName = res.TryGetValue(func, out string? r) ? r : func.Identifier.Lexeme;
             globalFunctionIndices[fName] = nextFunctionIndex++;
+
+            if (func.IsInline) inlineFunctions[fName] = func;
         }
         foreach (var typeDecl in root.Types)
         {
