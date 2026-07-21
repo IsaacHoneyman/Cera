@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# =========================================================================
+# Release Variables
+# =========================================================================
+VERSION="v1.0-1"
+WIN_DIR="cera-${VERSION}-win-x64"
+LINUX_DIR="cera-${VERSION}-linux-x64"
+
+# Source code paths
+COMPILER_SRC=".."
+VM_SRC="../VirtualMachine"
+LIB_SRC="../CeraPrograms/Standard"
+
+echo "Initiating build sequence for Cera ${VERSION}..."
+
+# =========================================================================
+# 1. Directory Structure Initialization
+# =========================================================================
+echo "Creating release directories..."
+rm -rf $WIN_DIR $LINUX_DIR
+mkdir -p $WIN_DIR/bin $WIN_DIR/lib
+mkdir -p $LINUX_DIR/bin $LINUX_DIR/lib
+
+# =========================================================================
+# 2. C# Frontend Compiler Compilation (cerac)
+# =========================================================================
+echo "Compiling C# frontend compiler via dotnet..."
+
+# Windows Compilation
+dotnet publish $COMPILER_SRC -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ./$WIN_DIR/bin
+mv ./$WIN_DIR/bin/Cera.exe ./$WIN_DIR/bin/cerac.exe 2>/dev/null || true
+rm -f ./$WIN_DIR/bin/*.pdb
+
+# Linux Compilation
+dotnet publish $COMPILER_SRC -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ./$LINUX_DIR/bin
+mv ./$LINUX_DIR/bin/Cera ./$LINUX_DIR/bin/cerac 2>/dev/null || true
+rm -f ./$LINUX_DIR/bin/*.pdb
+
+# =========================================================================
+# 3. C Backend Virtual Machine Compilation (ceravm)
+# =========================================================================
+echo "Compiling C virtual machine..."
+
+# Windows VM (Cross-compiled via MinGW)
+x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -lm -o ./$WIN_DIR/bin/ceravm.exe
+
+# Linux VM (Native compilation)
+gcc $VM_SRC/*.c -O3 -lm -o ./$LINUX_DIR/bin/ceravm
+
+# =========================================================================
+# 4. Standard Library Assembly
+# =========================================================================
+echo "Copying standard libraries..."
+for DIR in $WIN_DIR $LINUX_DIR; do
+    cp $LIB_SRC/Collection.cera ./$DIR/lib/ 2>/dev/null || true
+    cp $LIB_SRC/IO.cera ./$DIR/lib/ 2>/dev/null || true
+    cp $LIB_SRC/Math.cera ./$DIR/lib/ 2>/dev/null || true
+done
+
+# =========================================================================
+# 5. Shell Scripts Assembly
+# =========================================================================
+echo "Copying execution and installation scripts..."
+
+# Windows Scripts
+cp ./cera.bat ./$WIN_DIR/bin/ 2>/dev/null || true
+cp ./install.bat ./$WIN_DIR/install.bat 2>/dev/null || true
+
+# Linux Scripts
+cp ./cera ./$LINUX_DIR/bin/ 2>/dev/null || true
+cp ./install.sh ./$LINUX_DIR/install.sh 2>/dev/null || true
+
+# Ensure Unix scripts and binaries have execution privileges
+chmod +x ./$LINUX_DIR/bin/cera ./$LINUX_DIR/install.sh ./$LINUX_DIR/bin/cerac ./$LINUX_DIR/bin/ceravm 2>/dev/null || true
+
+# =========================================================================
+# 6. Packaging & Compression
+# =========================================================================
+echo "Packaging releases..."
+
+# Zip for Windows
+zip -r "${WIN_DIR}.zip" $WIN_DIR
+
+# Tarball for Linux
+tar -czvf "${LINUX_DIR}.tar.gz" $LINUX_DIR
+
+echo "Build sequence complete. Archives generated for ${VERSION}."
