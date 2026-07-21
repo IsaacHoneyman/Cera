@@ -653,6 +653,31 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         push(vm, res);
         return 0;
     }
+    case INTR_TIME_LOCAL: {
+        struct timespec ts;        
+        clock_gettime(CLOCK_REALTIME, &ts);        
+        struct tm local_tm;
+        localtime_r(&ts.tv_sec, &local_tm);        
+        char z_buf[8];
+        strftime(z_buf, sizeof(z_buf), "%z", &local_tm);        
+        long offset = 0;
+        if (strlen(z_buf) >= 5) {
+            int hours = (z_buf[1] - '0') * 10 + (z_buf[2] - '0');
+            int mins = (z_buf[3] - '0') * 10 + (z_buf[4] - '0');
+            offset = (hours * 3600) + (mins * 60);
+            
+            if (z_buf[0] == '-') {
+                offset = -offset;
+            }
+        }
+                int64_t local_sec = (int64_t)ts.tv_sec + offset;
+        
+        CeraValue res;
+        res.tag = VAL_INT;        
+        res.as.int_val = (local_sec * 1000LL) + ((int64_t)ts.tv_nsec / 1000000LL);   
+        push(vm, res);
+        return 0;
+    }
     case INTR_UPTIME: {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);

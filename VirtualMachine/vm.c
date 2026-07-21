@@ -321,16 +321,18 @@ int runVM(VM *vm)
 
     for (;;)
     {
-#ifdef DEBUG_TRACE_EXECUTION
+
+        uint8_t instruction = READ_BYTE();
+
+        #ifdef DEBUG_TRACE_EXECUTION
         if (log_detailed)
         {
             dump_stack(vm->stack, vm->stack_top);
             int offset = (int)(frame->ip - active_function->code);
-            log_detail("Executing OpCode at offset %04d", offset);
+            log_detail("Executing OpCode %02x at offset %04d", instruction, offset);
         }
-#endif
+        #endif  
 
-        uint8_t instruction = READ_BYTE();
         switch (instruction)
         {
         case OP_NOP:

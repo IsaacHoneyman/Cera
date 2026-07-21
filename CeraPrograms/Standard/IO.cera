@@ -1,4 +1,5 @@
 import "Collection.cera";
+import "Time.cera";
 
 /* 
     The offical IO libary for Cera.
@@ -71,6 +72,13 @@ inline def outFN(output: char list, insert: char list list) : unit = {
 
 inline def outC() : unit = {
     out("\x1b[2J\x1b[H");
+}
+
+inline def outTN(t: timeOnly) : unit = {
+    switch (t) {
+        TimeOnly(h, m, s, ms) ->
+            outFN("%:%:%.%", [intToChars(h), intToChars(m), intToChars(s), intToChars(ms)])
+    }
 }
 
 // --- File ---

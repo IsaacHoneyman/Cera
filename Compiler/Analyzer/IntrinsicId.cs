@@ -33,5 +33,6 @@ public enum IntrinsicId : byte
     RandInt = 0x31,
     Sqrt = 0x32,
     Time = 0x33,
-    Uptime = 0x34,
+    LocalTime = 0x34,
+    Uptime = 0x35,
 }

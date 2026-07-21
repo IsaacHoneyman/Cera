@@ -2,6 +2,9 @@ import "../Standard/IO.cera";
 import "Test2.cera";
 
 def entry(args: char list arr) : int = {
+    outTN(makeTime(time()));
+    outTN(makeTime(timeLocal()));
+
     var sq = square(5);
     outFN("Hello Cera, I'm %", [intToChars(sq)]);
     var cur = uptime();

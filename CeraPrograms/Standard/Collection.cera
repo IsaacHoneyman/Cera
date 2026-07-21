@@ -100,9 +100,11 @@ def find<g>(lst: g list, p: g -> bool) : option<g> = {
 hidden def findIndexAux<g>(lst: g list, p: g -> bool, i: int) : option<int> = {
     switch (lst) {
         [] -> None,
-        (h::tl) -> 
+        (h::tl) -> {
             if (p(h)) { Some(i); }
             else { findIndexAux(tl, p, i + 1); }
+        },
+        _ -> {outN("wtf"); None; }
     }
 }
 
@@ -185,7 +187,7 @@ hidden def arrFoldLeftAux<g, h>(array: g arr, f: (h * g) -> h, i: int, currentAc
     if (i >= len) { currentAcc; }
     else {
         switch (get(array, i)) {
-            Some(val) -> arrFoldLeftAux(array, f, i + 1, f(currentAcc, val), len) 
+            Some(val) -> arrFoldLeftAux(array, f, i + 1, f(currentAcc, val), len)
         }
     }
 }

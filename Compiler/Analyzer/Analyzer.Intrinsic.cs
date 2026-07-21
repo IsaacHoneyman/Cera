@@ -29,7 +29,7 @@ public partial class Analyzer
             "arrToList", "listToArr", "lst",
             "build", "arrBuild", "size", "f",
             "rand", "randInt", "sqrt", "append",
-            "time", "uptime"
+            "time", "timeLocal", "uptime"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
@@ -196,6 +196,11 @@ public partial class Analyzer
 
         // time() : int
         DefineIntrinsic("time", IntrinsicId.Time,
+            new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["int"])), 
+            0);
+
+        // timeLocal() : int
+        DefineIntrinsic("timeLocal", IntrinsicId.LocalTime,
             new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["int"])), 
             0);
 

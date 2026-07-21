@@ -148,7 +148,8 @@ typedef enum {
     INTR_RAND_INT = 0x31,
     INTR_SQRT = 0x32,
     INTR_TIME = 0x33,
-    INTR_UPTIME = 0x34,
+    INTR_TIME_LOCAL = 0x34,
+    INTR_UPTIME = 0x35,
 } IntrinsicId;
 
 #endif 

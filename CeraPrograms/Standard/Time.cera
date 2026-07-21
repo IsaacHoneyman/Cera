@@ -4,6 +4,54 @@
     operations and manipulation.
 */
 
-inline def timeSeconds() : int = {
-    
+// --- Basic Utility ---
+
+inline def timeSeconds() : int = { msInSeconds(time()) }
+inline def localTimeSeconds() : int = { msInSeconds(timeLocal())}
+inline def uptimeSeconds() : int = { msInSeconds(uptime()) }
+
+// --- Constants ---
+
+inline def hoursInMs(hours : int) : int = { hours * 3600000 } 
+inline def minutesInMs(minutes : int) : int = { minutes * 60000 }
+inline def secondsInMs(seconds: int) : int = { seconds * 1000 } 
+
+inline def msInHours(ms: int) : int = { ms / 3600000 }
+inline def msInMinutes(ms: int) : int = { ms / 60000 }
+inline def msInSeconds(ms: int) : int = { ms / 1000 }
+
+hidden inline def daysInMonth(year: int, month: int) : int arr = {
+    arr[31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 }
+
+// --- Date Time ---
+
+type timeOnly = TimeOnly: (int * int * int * int); // hour, minute, second, millisecond
+type dateOnly = DateOnly: (int * int * int); // year, month, day 
+type dateTime = DateTime: (dateOnly * timeOnly);
+// type dateTime = DateTime: (Date * Time); // date, time
+
+hidden inline def isLeapYear(year : int) : bool = {
+    ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
+}
+
+def makeTime(ms: int) : timeOnly = {
+    var hours = msInHours(ms);
+    var minutes = msInMinutes(ms - hoursInMs(hours));
+    var seconds = msInSeconds(ms - hoursInMs(hours) - minutesInMs(minutes));
+    TimeOnly(hours % 24, minutes, seconds,
+        ms - hoursInMs(hours) - minutesInMs(minutes) - secondsInMs(seconds))
+}
+
+// def makeTime(ms: int) : timeOnly = {
+//     var totalSeconds = ms / 1000;
+//     var totalMinutes = totalSeconds / 60;
+//     var totalHours = totalMinutes / 60;
+
+//     var milliseconds = ms % 1000;
+//     var seconds = totalSeconds % 60;
+//     var minutes = totalMinutes % 60;
+//     var hours = totalHours % 24;
+
+//     TimeOnly(hours, minutes, seconds, milliseconds)
+// }

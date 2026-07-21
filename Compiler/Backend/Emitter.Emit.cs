@@ -39,7 +39,7 @@ public partial class Emitter
         {
             CurrentChunk.WriteByte(OpCode.POP, line);
         }
-        
+
         // Append an unconditional jump to the next switch case
         failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, line));
     }
@@ -50,11 +50,11 @@ public partial class Emitter
         {
             case LiteralPattern lit:
                 if (lit.Value.Tag == TokenType.WildCard) break;
-                
+
                 EmitLoadLocal(targetVar, line);
                 EmitLiteral(new LiteralExpr(lit.Value));
                 CurrentChunk.WriteByte(OpCode.EQ, line);
-                
+
                 // Jump over the cleanup block if the test succeeds
                 int jumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
@@ -70,7 +70,7 @@ public partial class Emitter
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                 CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), line);
-                
+
                 int conJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                 CurrentChunk.PatchJump(conJumpIfTrue);
@@ -125,7 +125,7 @@ public partial class Emitter
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                 CurrentChunk.WriteByte(constructorTags["Cons"], line);
-                
+
                 int consJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                 CurrentChunk.PatchJump(consJumpIfTrue);
@@ -147,7 +147,7 @@ public partial class Emitter
                 {
                     EmitLoadLocal(targetVar, line);
                     CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
-                    
+
                     int emptyJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                     EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                     CurrentChunk.PatchJump(emptyJumpIfTrue);
@@ -160,7 +160,7 @@ public partial class Emitter
                         EmitLoadLocal(currentListVar, line);
                         CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
                         CurrentChunk.WriteByte(constructorTags["Cons"], line);
-                        
+
                         int listJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                         EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                         CurrentChunk.PatchJump(listJumpIfTrue);
@@ -181,7 +181,7 @@ public partial class Emitter
 
                     EmitLoadLocal(currentListVar, line);
                     CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
-                    
+
                     int finalEmptyJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                     EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                     CurrentChunk.PatchJump(finalEmptyJumpIfTrue);
@@ -206,7 +206,7 @@ public partial class Emitter
                 }
 
                 CurrentChunk.WriteByte(OpCode.MATCH_ARRAY_LENGTH, line);
-                
+
                 int arrJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                 CurrentChunk.PatchJump(arrJumpIfTrue);
@@ -254,13 +254,19 @@ public partial class Emitter
         }
         else if (con.Payloads.Count > 1)
         {
-            foreach (var p in con.Payloads) EmitExpression(p);
+            int trackedPayloads = 0;
+            foreach (var p in con.Payloads) 
+            {
+                EmitExpression(p);
+                Locals.Add("<temp_con_payload>");
+                trackedPayloads++;
+            }
             CurrentChunk.WriteByte(OpCode.ALLOC_TUPLE, con.ConstructorName.Line);
             CurrentChunk.WriteByte((byte)con.Payloads.Count, con.ConstructorName.Line);
+            Locals.RemoveRange(Locals.Count - trackedPayloads, trackedPayloads);
         }
         else
         {
-            // dummy for the VM
             CurrentChunk.WriteByte(OpCode.PUSH_UNIT, con.ConstructorName.Line); 
         }
 
@@ -270,10 +276,19 @@ public partial class Emitter
 
     private void EmitListLiteral(ListLitExpr list)
     {
-        foreach (var expr in list.Elements) EmitExpression(expr);
+        int trackedElements = 0;
+        foreach (var expr in list.Elements) 
+        {
+            EmitExpression(expr);
+            Locals.Add("<temp_list_el>");
+            trackedElements++;
+        }
+        
         CurrentChunk.WriteByte(OpCode.LIST_EMPTY, list.Operator.Line);
         for (int i = 0; i < list.Elements.Count; i++)
             CurrentChunk.WriteByte(OpCode.LIST_CONS, list.Operator.Line);
+            
+        Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
     private void EmitArrayLiteral(ArrLitExpr arr)
@@ -282,7 +297,13 @@ public partial class Emitter
         if (count > ushort.MaxValue)
             FatalError($"Array literal exceeds maximum size of {ushort.MaxValue} elements.", GetLeadToken(arr));
 
-        foreach (var expr in arr.Elements) EmitExpression(expr);
+        int trackedElements = 0;
+        foreach (var expr in arr.Elements) 
+        {
+            EmitExpression(expr);
+            Locals.Add("<temp_arr_el>");
+            trackedElements++;
+        }
 
         if (count <= byte.MaxValue)
         {
@@ -295,16 +316,26 @@ public partial class Emitter
             CurrentChunk.WriteByte((byte)(count & 0xFF), arr.Operator.Line);
             CurrentChunk.WriteByte((byte)((count >> 8) & 0xFF), arr.Operator.Line);
         }
+        
+        Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
     private void EmitTupleLiteral(TupleLitExpr tuple)
     {
-        foreach (var expr in tuple.Elements) EmitExpression(expr);
+        int trackedElements = 0;
+        foreach (var expr in tuple.Elements) 
+        {
+            EmitExpression(expr);
+            Locals.Add("<temp_tuple_el>");
+            trackedElements++;
+        }
 
         CurrentChunk.WriteByte(OpCode.ALLOC_TUPLE, tuple.Operator.Line);
         if (tuple.Elements.Count > byte.MaxValue)
             FatalError($"Too many fields in tuple {tuple.Elements.Count}, max 255", GetLeadToken(tuple));
         CurrentChunk.WriteByte((byte)tuple.Elements.Count, tuple.Operator.Line);
+        
+        Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
     private void EmitCall(CallExpr call, bool isTail)
@@ -340,13 +371,22 @@ public partial class Emitter
             }
         }
 
-        
+
         EmitExpression(call.Callee);
-        foreach (var arg in call.Arguments) EmitExpression(arg);
+        Locals.Add("<temp_callee>");
+        int trackedArgs = 0;
+        foreach (var arg in call.Arguments)
+        {
+            EmitExpression(arg);
+            Locals.Add("<temp_arg>");
+            trackedArgs++;
+        }
         int callLine = (call.Callee as IdentifierExpr)?.Identifier.Line ?? 0;
         if (!isTail) CurrentChunk.WriteByte(OpCode.CALL, callLine);
         else CurrentChunk.WriteByte(OpCode.TAIL_CALL, callLine);
         CurrentChunk.WriteByte((byte)call.Arguments.Count, callLine);
+
+        Locals.RemoveRange(Locals.Count - (trackedArgs + 1), trackedArgs + 1);
     }
 
     private void EmitInlineCall(FuncDeclNode func, List<IExprAST> arguments, bool isTail)
@@ -357,12 +397,15 @@ public partial class Emitter
         for (int i = 0; i < arguments.Count; i++)
         {
             CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
-            Locals.Add(func.Parameters[i].Identifier.Lexeme);
-            
+
+            Locals.Add("<inline_arg_temp>");
+
             EmitExpression(arguments[i], false);
-            
+
+            Locals[^1] = func.Parameters[i].Identifier.Lexeme;
+
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
-            CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);            
+            CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
             CurrentChunk.WriteByte(OpCode.POP, line);
         }
 
@@ -372,10 +415,10 @@ public partial class Emitter
         if (varsToPop > 0)
         {
             int returnValLine = (func.Body.ReturnExpression as IdentifierExpr)?.Identifier.Line ?? line;
-            
+
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, returnValLine);
             CurrentChunk.WriteByte((byte)scopeDepth, returnValLine);
-            
+
             for (int i = 0; i < varsToPop; i++)
             {
                 CurrentChunk.WriteByte(OpCode.POP, returnValLine);
@@ -499,12 +542,12 @@ public partial class Emitter
                 CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
                 Locals.Add(varDecl.Identifier.Lexeme);
                 EmitExpression(varDecl.Initializer, false);
-                
+
                 CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
                 CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
-                
+
                 // FIX: Pop the ghost variable left behind by the VM's PEEK!
-                CurrentChunk.WriteByte(OpCode.POP, line); 
+                CurrentChunk.WriteByte(OpCode.POP, line);
             }
             else if (stmt is ExprStmt exprStmt)
             {
@@ -515,17 +558,14 @@ public partial class Emitter
 
         EmitExpression(block.ReturnExpression, isTail);
 
-        // FIX: Dynamically collapse the leaked local variables out from UNDER the result
         int varsToPop = Locals.Count - scopeDepth;
         if (varsToPop > 0)
         {
             int line = (block.ReturnExpression as IdentifierExpr)?.Identifier.Line ?? 0;
-            
-            // Overwrite the lowest scoped local with the final result
+
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
             CurrentChunk.WriteByte((byte)scopeDepth, line);
-            
-            // Pop the ghost result and all the dead locals beneath it
+
             for (int i = 0; i < varsToPop; i++)
             {
                 CurrentChunk.WriteByte(OpCode.POP, line);
@@ -559,9 +599,9 @@ public partial class Emitter
             // Overwrite the root target with the result of the case
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, sw.Operator.Line);
             CurrentChunk.WriteByte((byte)rootTargetIndex, sw.Operator.Line);
-            
+
             // FIX: Pop the ghost result left behind by the VM's PEEK!
-            CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line); 
+            CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
 
             // Safely clean up the destructured pattern variables
             int variablesPushed = Locals.Count - scopeDepthBeforeCase;
@@ -619,7 +659,9 @@ public partial class Emitter
         }
 
         EmitExpression(binary.Left);
+        Locals.Add("<temp_bin_left>");
         EmitExpression(binary.Right);
+        Locals.RemoveAt(Locals.Count - 1);
 
         int line = binary.Operator.Line;
         switch (binary.Operator.Tag)
@@ -677,7 +719,11 @@ public partial class Emitter
     private void EmitConsExpression(BinaryExpr binary)
     {
         EmitExpression(binary.Left);
+        Locals.Add("<temp_cons_left>"); 
+        
         EmitExpression(binary.Right);
+        Locals.RemoveAt(Locals.Count - 1); 
+        
         CurrentChunk.WriteByte(OpCode.LIST_CONS, binary.Operator.Line);
     }
 
