@@ -12,16 +12,37 @@ inline def uptimeSeconds() : int = { msInSeconds(uptime()) }
 
 // --- Constants ---
 
+inline def daysInMs(days : int) : int = { days * 86400000 }
 inline def hoursInMs(hours : int) : int = { hours * 3600000 } 
 inline def minutesInMs(minutes : int) : int = { minutes * 60000 }
 inline def secondsInMs(seconds: int) : int = { seconds * 1000 } 
 
+inline def msInDays(ms: int) : int = { ms / 86400000 }
 inline def msInHours(ms: int) : int = { ms / 3600000 }
 inline def msInMinutes(ms: int) : int = { ms / 60000 }
 inline def msInSeconds(ms: int) : int = { ms / 1000 }
 
-hidden inline def daysInMonth(year: int, month: int) : int arr = {
-    arr[31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+hidden inline def daysInMonth(year: int) : int list = {
+    [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+}
+
+hidden inline def isLeapYear(year : int) : bool = {
+    ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
+}
+
+hidden def getYear(year: int, day: int) : (int * int) = {
+    var daysInYear = isLeapYear(year) ? 366 : 365;
+    if (day >= daysInYear) { getYear(year + 1, day - daysInYear ) }
+    else { (year, day) }
+}
+
+hidden def getMonth(daysList: int list, currentMonth: int, day: int) : (int * int) = {
+    switch(daysList) {
+        [] -> (currentMonth, day + 1),
+        (days::tail) -> 
+            if (day >= days) { getMonth(tail, currentMonth + 1, day - days); }
+            else { (currentMonth, day + 1); } 
+    }
 }
 
 // --- Date Time ---
@@ -31,11 +52,7 @@ type dateOnly = DateOnly: (int * int * int); // year, month, day
 type dateTime = DateTime: (dateOnly * timeOnly);
 // type dateTime = DateTime: (Date * Time); // date, time
 
-hidden inline def isLeapYear(year : int) : bool = {
-    ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
-}
-
-def makeTime(ms: int) : timeOnly = {
+def buildTime(ms: int) : timeOnly = {
     var hours = msInHours(ms);
     var minutes = msInMinutes(ms - hoursInMs(hours));
     var seconds = msInSeconds(ms - hoursInMs(hours) - minutesInMs(minutes));
@@ -43,15 +60,19 @@ def makeTime(ms: int) : timeOnly = {
         ms - hoursInMs(hours) - minutesInMs(minutes) - secondsInMs(seconds))
 }
 
-// def makeTime(ms: int) : timeOnly = {
-//     var totalSeconds = ms / 1000;
-//     var totalMinutes = totalSeconds / 60;
-//     var totalHours = totalMinutes / 60;
+def buildDate(ms: int) : dateOnly = {
+    var totalDays = msInDays(ms);
+    
+    switch (getYear(1970, totalDays)) {
+        (year, remainingDays) -> {            
+            var monthList = (daysInMonth(year));            
+            switch (getMonth(monthList, 1, remainingDays)) {
+                (month, day) -> DateOnly(year, month, day)
+            }
+        }
+    }
+}
 
-//     var milliseconds = ms % 1000;
-//     var seconds = totalSeconds % 60;
-//     var minutes = totalMinutes % 60;
-//     var hours = totalHours % 24;
-
-//     TimeOnly(hours, minutes, seconds, milliseconds)
-// }
+def buildDateTime(ms: int) : dateTime = {
+    DateTime(buildDate(ms), buildTime(ms));
+}

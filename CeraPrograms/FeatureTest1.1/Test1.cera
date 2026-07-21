@@ -2,8 +2,12 @@ import "../Standard/IO.cera";
 import "Test2.cera";
 
 def entry(args: char list arr) : int = {
-    outTN(makeTime(time()));
-    outTN(makeTime(timeLocal()));
+    if (arrMem(args, "-s")) { outN("omg hi"); };
+
+    out("UTC Time: ");
+    outDTN(buildDateTime(time()));
+    out("Local Time: ");
+    outDTN(buildDateTime(timeLocal()));
 
     var sq = square(5);
     outFN("Hello Cera, I'm %", [intToChars(sq)]);

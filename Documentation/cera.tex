@@ -960,6 +960,7 @@ The inital release of the Cera functional programming language.
 \begin{itemize}
     \item \textbf{Hidden keyword: } \texttt{hidden}, restricts a named functions scope to purely the file it is defined in (e.g. c's static).
     \item \textbf{Inline keyword: } \texttt{inline}, instructs the compiler to substitute the function's body directly at the call site during the intermediate code generation phase. This optimization eliminates the runtime overhead of allocating and destroying a Call Frame on the virtual machine's operand stack, trading a larger bytecode footprint for increased algorithmic execution speed.
+    \item \textbf{Implicit If Else blocks: } if statements that return unit, will now implicitly include \texttt{else \{ (); \}}, simplifying I/O boilerplate. 
     \item \textbf{New Intrinsics \& Std Library: } \texttt{uptime}, \texttt{timeLocal}, to complete timing implementations. Standard library improved to use new hidden and inline keywords, as well as new time libary.
     \item \textbf{Debug Improvements: } General debugging improvements, including Opcode's being shown in dump files.
     \item \textbf{VM \& Compiler Bug Fixes: } Bug fixes, including read intrinsic using flipped constructors, local counting errors.
@@ -989,6 +990,5 @@ Now we may take an optimistic look into the future of the language:
     \item \textbf{Inner Named Functions:} As the name states, this functionality is possible with variables and recursive lambda calls, but syntactically ugly, and could be improved. 
     \item \textbf{Better Error Messages:} Certain error messages appear vague, missing end of patterns or similar syntax will point to end of file, as well as column number being hard to track. The virtual machine suffers even worse in this case, with no details of location for runtime errors. 
     \item \textbf{Natural Tuple Unpacking:} Allow pattern matching in variable decleration, to allow statements such as \texttt{var (x, y) = tup;}
-    \item \textbf{Smarter If Statements:} Right now, as a result of Cera functionality, all If statements require an else clause, however this is, in expression blocks, not needed, for example \texttt{if (log) \{ out("This is a log"); \} else \{ (); \}}, is clear boilerplate code. 
 \end{itemize}
 \end{document}

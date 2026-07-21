@@ -56,30 +56,40 @@ def split(str: char list, delimiter: char) : char list list = {
 
 // --- Output ---
 
-inline def outN(output: char list) : unit = {
-    out(output);
-    out("\n");
-}
+inline def outN(output: char list) : unit = { out(output); out("\n"); }
 
-inline def outF(output: char list, insert: char list list) : unit = {
-    out(strF(output, insert));
-}
+inline def outF(output: char list, insert: char list list) : unit = { out(strF(output, insert)); }
 
-inline def outFN(output: char list, insert: char list list) : unit = {
-    outF(output, insert);
-    outN("");
-}
+inline def outFN(output: char list, insert: char list list) : unit = { outF(output, insert); outN(""); }
 
 inline def outC() : unit = {
     out("\x1b[2J\x1b[H");
 }
 
-inline def outTN(t: timeOnly) : unit = {
+inline def outT(t: timeOnly) : unit = {
     switch (t) {
-        TimeOnly(h, m, s, ms) ->
-            outFN("%:%:%.%", [intToChars(h), intToChars(m), intToChars(s), intToChars(ms)])
+        TimeOnly(h, m, s, ms) -> outF("%:%:%.%", [intToChars(h), intToChars(m), intToChars(s), intToChars(ms)])
     }
 }
+
+inline def outTN(t: timeOnly) : unit = { outT(t); outN(""); }
+
+inline def outD(d: dateOnly) : unit = {
+    switch (d) {
+        DateOnly(y, m, d) -> outF("%-%-%", [intToChars(d), intToChars(m), intToChars(y)])
+    }
+}
+
+inline def outDN(d: dateOnly) : unit = { outD(d); outN(""); }
+
+inline def outDT(dt: dateTime) : unit = {
+    switch (dt) {
+        DateTime(d, t) -> { outD(d); out(" "); outT(t); }
+    }
+}
+
+inline def outDTN(dt: dateTime) : unit = { outDT(dt); outN(""); }
+
 
 // --- File ---
 
