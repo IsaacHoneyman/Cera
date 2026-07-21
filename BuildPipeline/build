@@ -28,12 +28,12 @@ mkdir -p $LINUX_DIR/bin $LINUX_DIR/lib
 echo "Compiling C# frontend compiler via dotnet..."
 
 # Windows Compilation
-dotnet publish $COMPILER_SRC -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./$WIN_DIR/bin
+dotnet publish $COMPILER_SRC -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ./$WIN_DIR/bin
 mv ./$WIN_DIR/bin/Cera.exe ./$WIN_DIR/bin/cerac.exe 2>/dev/null || true
 rm -f ./$WIN_DIR/bin/*.pdb
 
 # Linux Compilation
-dotnet publish $COMPILER_SRC -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ./$LINUX_DIR/bin
+dotnet publish $COMPILER_SRC -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ./$LINUX_DIR/bin
 mv ./$LINUX_DIR/bin/Cera ./$LINUX_DIR/bin/cerac 2>/dev/null || true
 rm -f ./$LINUX_DIR/bin/*.pdb
 
