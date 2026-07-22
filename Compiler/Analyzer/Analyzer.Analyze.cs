@@ -66,22 +66,39 @@ public partial class Analyzer
         {
             if (stmt is VarDeclStmt varDecl)
             {
-                // Allow recursion for lambda types
-                if (varDecl.Initializer is LambdaExpr lambda)
+                if (varDecl.Pattern is IdPattern idPat)
                 {
-                    ITypeAST freshType = GenerateTypeVariable();
-                    currentEnv.Define(varDecl.Identifier.Lexeme, new VarSymbol(varDecl.Identifier, freshType));
-                }
+                    // --- Branch 1: Simple Identifier (Preserves Lambda Recursion) ---
+                    if (varDecl.Initializer is LambdaExpr lambda)
+                    {
+                        ITypeAST freshType = GenerateTypeVariable();
+                        currentEnv.Define(idPat.Identifier.Lexeme, new VarSymbol(idPat.Identifier, freshType));
+                    }
 
-                var initType = AnalyzeExpression(varDecl.Initializer);
-                if (varDecl.DeclaredType != null)
+                    var initType = AnalyzeExpression(varDecl.Initializer);
+                    if (varDecl.DeclaredType != null)
+                    {
+                        ValidateTypeExists(varDecl.DeclaredType, GetCurrentGenericScope());
+                        Unify(varDecl.DeclaredType, initType, varDecl.Operator);
+                        initType = varDecl.DeclaredType;
+                    }
+
+                    currentEnv.Define(idPat.Identifier.Lexeme, new VarSymbol(idPat.Identifier, initType));
+                }
+                else
                 {
-                    ValidateTypeExists(varDecl.DeclaredType, GetCurrentGenericScope());
-                    Unify(varDecl.DeclaredType, initType, varDecl.Identifier);
-                    initType = varDecl.DeclaredType;
-                }
+                    // --- Branch 2: Structural Destructuring (Tuple/Constructor Unpacking) ---
+                    var initType = AnalyzeExpression(varDecl.Initializer);
+                    if (varDecl.DeclaredType != null)
+                    {
+                        ValidateTypeExists(varDecl.DeclaredType, GetCurrentGenericScope());
+                        Unify(varDecl.DeclaredType, initType, varDecl.Operator);
+                        initType = varDecl.DeclaredType;
+                    }
 
-                currentEnv.Define(varDecl.Identifier.Lexeme, new VarSymbol(varDecl.Identifier, initType));
+                    ITypeAST patternType = AnalyzePattern(varDecl.Pattern);
+                    Unify(patternType, initType, varDecl.Operator);
+                }
             }
             else if (stmt is ExprStmt exprStmt) AnalyzeExpression(exprStmt.Expression);
         }
@@ -360,8 +377,12 @@ public partial class Analyzer
     private ITypeAST AnalyzeConstructorPattern(ConPattern con)
     {
         string cName = con.ConstructorName.Lexeme;
-        if (globalEnv.Resolve(cName) is not ConstructorSymbol cSym)
-            return FatalErrorReturn($"Undefined constructor '{cName}' in pattern", con.ConstructorName);
+        string mangledName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
+        
+        Symbol? sym = globalEnv.Resolve(mangledName) ?? globalEnv.Resolve(cName);
+        
+        if (sym is not ConstructorSymbol cSym)
+            return FatalErrorReturn($"Undefined constructor '{cName}'", con.ConstructorName);
 
         List<Token> adtGenerics = [];
         if (cSym.ParentType is GenericType gt && globalEnv.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
@@ -392,7 +413,9 @@ public partial class Analyzer
     private ITypeAST AnalyzeConstructor(ConExpr con)
     {
         string cName = con.ConstructorName.Lexeme;
-        if (globalEnv.Resolve(cName) is not ConstructorSymbol cSym)
+        string mangledName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
+        Symbol? sym = globalEnv.Resolve(mangledName) ?? globalEnv.Resolve(cName);
+        if (sym is not ConstructorSymbol cSym)
             return FatalErrorReturn($"Undefined constructor '{cName}'", con.ConstructorName);
 
         List<Token> gens = [];

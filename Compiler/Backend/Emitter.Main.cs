@@ -16,6 +16,8 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
     private readonly Dictionary<string, FuncDeclNode> inlineFunctions = [];
     private readonly HashSet<string> curInlining = [];
 
+    private readonly Dictionary<string, IExprAST> globalVariables = [];
+
     private readonly Dictionary<string, byte> constructorTags = new()
     {
         // 0x00 - 0x0F reserved for core language structures
@@ -54,6 +56,12 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
 
             if (func.IsInline) inlineFunctions[fName] = func;
         }
+
+        foreach (var topVar in root.TopVars)
+        {
+            globalVariables[topVar.Identifier.Lexeme] = topVar.Initializer;
+        }
+        
         foreach (var typeDecl in root.Types)
         {
             foreach (var constructor in typeDecl.Constructors) 

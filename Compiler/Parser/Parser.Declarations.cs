@@ -8,27 +8,57 @@ public partial class Parser
     {
         List<FuncDeclNode> functions = [];
         List<TypeDeclNode> types = [];
+        List<TopVarDeclNode> topVars = [];
 
         while (!IsAtEnd())
         {
-            if (Check(TokenType.Def) || Check(TokenType.Hidden) || Check(TokenType.Inline)) 
-                functions.Add(ParseFuncDecl());
-            else if (Check(TokenType.Type)) types.Add(ParseTypeDecl());
-            else FatalError("Expected 'def' or 'type' declaration at the top level", Peek());
+            // Extract modifiers first
+            bool isHidden = Match(TokenType.Hidden);
+            bool isInline = Match(TokenType.Inline);
+
+            if (Check(TokenType.Def)) 
+                functions.Add(ParseFuncDecl(isHidden, isInline));
+            else if (Check(TokenType.Var)) 
+            {
+                if (isInline) FatalError("Variables cannot be marked 'inline'", Peek());
+                topVars.Add(ParseTopVarDecl(isHidden));
+            }
+            else if (Check(TokenType.Type)) 
+            {
+                if (isInline) FatalError("Types cannot cannot be marked 'inline'", Peek());
+                types.Add(ParseTypeDecl(isHidden));
+            }
+            else 
+                FatalError("Expected 'def', 'type', or 'var' declaration at the top level", Peek());
         }
 
-        return new ProgramNode(functions, types);
+        return new ProgramNode(functions, types, topVars);
     }
 
     // --- Decl ---
 
-    private FuncDeclNode ParseFuncDecl()
+    private TopVarDeclNode ParseTopVarDecl(bool isHidden)
     {
-        (bool isHidden, bool isInline) = (false, false);
+        Consume(TokenType.Var, "Expected 'var' keyword");
+        var id = Consume(TokenType.Identifier, "Expected identifier for global variable");
+        ITypeAST? declaredType = null;
+        if (Match(TokenType.Colon)) declaredType = ParseType();
 
-        if (Match(TokenType.Hidden)) isHidden = true;
-        if (Match(TokenType.Inline)) isInline = true;
+        Consume(TokenType.Equal, "Expected '=' in top-level variable declaration");
+        var init = ParseExpression();
 
+        if (init is not LiteralExpr && init is not ListLitExpr && 
+            init is not ArrLitExpr && init is not TupleLitExpr)
+        {
+            FatalError("Top-level variable declarations must be initialized strictly with a literal value", Peek());
+        }
+
+        Consume(TokenType.Semicolon, "Expected ';' after top-level variable declaration");
+        return new TopVarDeclNode(id, declaredType, init, isHidden);
+    }
+
+    private FuncDeclNode ParseFuncDecl(bool isHidden, bool isInline)
+    {
         Consume(TokenType.Def, "Expected 'def' keyword");
         var id = Consume(TokenType.Identifier, "Expected function name");
 
@@ -73,7 +103,7 @@ public partial class Parser
         return new ParamNode(id, type);
     }
 
-    private TypeDeclNode ParseTypeDecl()
+    private TypeDeclNode ParseTypeDecl(bool isHidden)
     {
         Consume(TokenType.Type, "Expected 'type' keyword");
         var id = Consume(TokenType.Identifier, "Expected type identifier");
@@ -85,7 +115,7 @@ public partial class Parser
         while (Match(TokenType.Pipe));
 
         Consume(TokenType.Semicolon, "Expected ';' after type declaration");
-        return new TypeDeclNode(id, generics, constructors);
+        return new TypeDeclNode(id, generics, constructors, isHidden);
     }
 
     private ConDeclNode ParseConDecl()
@@ -101,16 +131,17 @@ public partial class Parser
     private VarDeclStmt ParseVarDecl()
     {
         Consume(TokenType.Var, "Expected 'var' keyword");
-        var id = Consume(TokenType.Identifier, "Expected variable identifier");
+        
+        var pattern = ParsePattern();
 
         ITypeAST? declaredType = null;
         if (Match(TokenType.Colon)) declaredType = ParseType();
 
-        Consume(TokenType.Equal, "Expected '=' in variable declaration");
+        var op = Consume(TokenType.Equal, "Expected '=' in variable declaration");
         var init = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration");
 
-        return new VarDeclStmt(id, declaredType, init);
+        return new VarDeclStmt(pattern, op, declaredType, init);
     }
 
     // --- Expressions ---

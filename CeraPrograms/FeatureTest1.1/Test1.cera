@@ -1,6 +1,8 @@
 import "../Standard/IO.cera";
 import "Test2.cera";
 
+var testGlobalVar = 2;
+
 def entry(args: char list arr) : int = {
     if (arrMem(args, "-s")) { outN("omg hi"); };
 
@@ -8,6 +10,36 @@ def entry(args: char list arr) : int = {
     outDTN(buildDateTime(time()));
     out("Local Time: ");
     outDTN(buildDateTime(timeLocal()));
+
+    outN(intToChars(testGlobalVar));
+    outN(intToChars(notHidden));
+
+    var x: testType1 = Test1(4);
+    var Test1(v) = x;
+    outN(intToChars(v));
+
+    outN("");
+    outN("--- Structural Unpacking Tests ---");
+    
+    var DateOnly(y, m, d) = buildDate(timeLocal());
+    outFN("ADT Unpack -> Y: %, M: %, D: %", [intToChars(y), intToChars(m), intToChars(d)]);
+    var (tx, ty, tz) = (10, 20, 30);
+    outFN("Tuple Unpack -> x: %, y: %, z: %", [intToChars(tx), intToChars(ty), intToChars(tz)]);
+    var (hd::tl) = [1, 2, 3];
+    var [lx, ly] = [4, 5];
+    outFN("List Unpack -> Head: %, Exact: %, %", [intToChars(hd), intToChars(lx), intToChars(ly)]);
+    var arr[ax, ay] = arr[77, 88];
+    outFN("Array Unpack -> 1st: %, 2nd: %", [intToChars(ax), intToChars(ay)]);
+    var Some((nx, ny)) = Some((99, 100));
+    outFN("Nested Unpack -> nx: %, ny: %", [intToChars(nx), intToChars(ny)]);
+    var DateTime(DateOnly(dy, dm, dd), TimeOnly(th, tmin, ts, tms)) = buildDateTime(timeLocal());
+    outFN("Deep Unpack -> Date: %-%-%, Time: %:%:%.%", [
+        intToChars(dy), intToChars(dm), intToChars(dd),
+        intToChars(th), intToChars(tmin), intToChars(ts), intToChars(tms)
+    ]);
+    
+    outN("----------------------------------");
+    outN("");
 
     var sq = square(5);
     outFN("Hello Cera, I'm %", [intToChars(sq)]);

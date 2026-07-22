@@ -6,8 +6,8 @@
 
 // --- Constants ---
 
-inline def pi() : float = { 3.14159265358979 }
-inline def e() : float = { 2.71828182845905 }
+var pi : float = 3.14159265358979;
+var e : float = 2.71828182845905;
 
 // --- Functions ---
 

@@ -12,15 +12,20 @@ inline def uptimeSeconds() : int = { msInSeconds(uptime()) }
 
 // --- Constants ---
 
-inline def daysInMs(days : int) : int = { days * 86400000 }
-inline def hoursInMs(hours : int) : int = { hours * 3600000 } 
-inline def minutesInMs(minutes : int) : int = { minutes * 60000 }
-inline def secondsInMs(seconds: int) : int = { seconds * 1000 } 
+hidden var msPerDay: int = 86400000;
+hidden var msPerHour: int = 3600000;
+hidden var msPerMinute: int = 60000;
+hidden var msPerSecond: int = 1000;
 
-inline def msInDays(ms: int) : int = { ms / 86400000 }
-inline def msInHours(ms: int) : int = { ms / 3600000 }
-inline def msInMinutes(ms: int) : int = { ms / 60000 }
-inline def msInSeconds(ms: int) : int = { ms / 1000 }
+inline def daysInMs(days : int) : int = { days * msPerDay }
+inline def hoursInMs(hours : int) : int = { hours * msPerHour } 
+inline def minutesInMs(minutes : int) : int = { minutes * msPerMinute }
+inline def secondsInMs(seconds: int) : int = { seconds * msPerSecond } 
+
+inline def msInDays(ms: int) : int = { ms / msPerDay }
+inline def msInHours(ms: int) : int = { ms / msPerHour }
+inline def msInMinutes(ms: int) : int = { ms / msPerMinute }
+inline def msInSeconds(ms: int) : int = { ms / msPerSecond }
 
 hidden inline def daysInMonth(year: int) : int list = {
     [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -61,18 +66,14 @@ def buildTime(ms: int) : timeOnly = {
 }
 
 def buildDate(ms: int) : dateOnly = {
-    var totalDays = msInDays(ms);
+    var totalDays = msInDays(ms);    
+    var (year, remainingDays) = getYear(1970, totalDays);
+    var monthList = daysInMonth(year);    
+    var (month, day) = getMonth(monthList, 1, remainingDays);
     
-    switch (getYear(1970, totalDays)) {
-        (year, remainingDays) -> {            
-            var monthList = (daysInMonth(year));            
-            switch (getMonth(monthList, 1, remainingDays)) {
-                (month, day) -> DateOnly(year, month, day)
-            }
-        }
-    }
+    DateOnly(year, month, day);
 }
 
-def buildDateTime(ms: int) : dateTime = {
+inline def buildDateTime(ms: int) : dateTime = {
     DateTime(buildDate(ms), buildTime(ms));
 }

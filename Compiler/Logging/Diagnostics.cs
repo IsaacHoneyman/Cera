@@ -231,7 +231,7 @@ public class Diagnostics
                            string.Join("", b.Statements.Select(s => DumpNode(s, indent + 1))) +
                            $"{childPad}Return:\n{DumpNode(b.ReturnExpression, indent + 2)}",
 
-            VarDeclStmt v => $"{pad}Var Bind: {v.Identifier.Lexeme}{(v.DeclaredType != null ? $" : {TypeString(v.DeclaredType)}" : "")}\n" +
+            VarDeclStmt v => $"{pad}Var Bind: {(v.Pattern is IdPattern idp ? idp.Identifier.Lexeme : "Pattern")}{(v.DeclaredType != null ? $" : {TypeString(v.DeclaredType)}" : "")}\n" +
                              $"{childPad}Value:\n{DumpNode(v.Initializer, indent + 2)}",
 
             ExprStmt s => $"{pad}Expr Statement:\n{DumpNode(s.Expression, indent + 1)}",

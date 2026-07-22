@@ -125,6 +125,7 @@ Variables in Cera are immutable bindings, explicitly or implicitly typed upon cr
     \item \textbf{Bindings:} Variables are declared using the \texttt{var} keyword. If a type annotation is omitted, the compiler utilizes local type inference to determine the type from the evaluated expression.
     \item \textbf{Shadowing:} Cera supports variable shadowing within the same scope. Re-declaring a variable with an existing identifier creates a completely new memory binding that obscures the original identifier for the remainder of the scope, preserving immutability.
     \item \textbf{Strings:} The language does not have a distinct string primitive; syntactic sugar can be used, and strings are evaluated syntactically as a \texttt{char list}.
+    \item \textbf{Global Constants:} Variables declared at the top level of a file belong to the global environment. To enforce deterministic memory initialization and maintain absolute functional purity prior to the \texttt{entry} execution, these top-level declarations are strictly constrained to literal values. They may be preceded by the \texttt{hidden} keyword to restrict their scope entirely to the defining file.
 \end{itemize}
 
 \begin{lstlisting}[title={Data Transformation via Shadowing}, basicstyle=\ttfamily]
@@ -139,6 +140,23 @@ def normalizeVector(x: float, y: float, z: float) :
     
     // 3. 'mag' is shadowed; we securely divide by the new 'mag'
     (x / mag, y / mag, z / mag);
+}
+\end{lstlisting}
+
+\begin{lstlisting}[title={Destructuring via Variable Declarations}, basicstyle=\ttfamily]
+var consts = (3.14, 2.72)
+
+def calculateExtents(points: (float * float) list) : unit = {
+    // 1. Unpacking a constructor payload
+    var Ok(data) = processPoints(points);
+    
+    // 2. Unpacking a tuple directly into local variables
+    var (pi, e) = consts;
+    var (minX, minY) = getMinBounds(data);
+    var (maxX, maxY) = getMaxBounds(data);
+    
+    outF("X: % to %", [floatToChars(minX), floatToChars(maxX)]);
+    ();
 }
 \end{lstlisting}
 
@@ -249,6 +267,7 @@ Cera supports the creation of custom Algebraic Data Types (ADTs). To align with 
     \item \textbf{Sum Types (Variants):} Defined using the \texttt{type} keyword. Constructors are separated by the \texttt{|} (OR) operator. If a constructor carries a data payload, the \texttt{:} operator is used to specify the underlying type.
     \item \textbf{Recursive Types:} Types can reference themselves within their own definitions, allowing for recursive data structures like trees and streams.
     \item \textbf{Generic Types:} Type parameters are declared using angle brackets (e.g., \texttt{<g>}) and passed consistently to recursive calls.
+    \item \textbf{Encapsulation:} Type declarations may be preceded by the \texttt{hidden} keyword. This strictly isolates the type identifier and all of its concrete data constructors to the defining file, preventing external modules from pattern-matching against internal data structures.
 \end{itemize}
 
 \begin{lstlisting}[title={Recursive Immutable Data Structures}, basicstyle=\ttfamily]
@@ -488,9 +507,10 @@ The formal CFG for Cera is defined in Backus-Naur Form (BNF). To satisfy structu
 
 Are top level fundamental definitions:
 \begin{align*}
-\langle \text{Program} \rangle &\Coloneqq ( \langle \text{FuncDecl} \rangle \mid \langle \text{TypeDecl} \rangle )^* \\
+\langle \text{Program} \rangle &\Coloneqq ( \langle \text{FuncDecl} \rangle \mid \langle \text{TypeDecl} \rangle \mid \langle \text{TopVarDecl} \rangle )^* \\
+\langle \text{TopVarDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \mathbf{var} \; \textbf{id} \; [ \textbf{:} \; \langle \text{Type} \rangle ] \; \mathbf{=} \; \langle \text{Literal} \rangle \textbf{;} \\
 \langle \text{FuncDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; [\mathbf{inline}] \; \mathbf{def} \; \textbf{id} \; [ \langle \text{GenericDecl} \rangle ] \; \textbf{(} [ \langle \text{Param} \rangle \: ( \textbf{,} \: \langle \text{Param} \rangle )^* ] \textbf{)} \; \textbf{:} \; \langle \text{Type} \rangle \; \mathbf{=} \; \langle \text{ExprBlock} \rangle \\
-\langle \text{TypeDecl} \rangle &\Coloneqq \textbf{type} \; \textbf{id} \; [ \langle \text{GenericDecl} \rangle ] \; \textbf{=} \; \langle \text{ConDecl} \rangle \: ( \mathbf{|} \: \langle \text{ConDecl} \rangle )^* \textbf{;} \\
+\langle \text{TypeDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \textbf{type} \; \textbf{id} \; [ \langle \text{GenericDecl} \rangle ] \; \textbf{=} \; \langle \text{ConDecl} \rangle \: ( \mathbf{|} \: \langle \text{ConDecl} \rangle )^* \textbf{;} \\
 \langle \text{GenericDecl} \rangle &\Coloneqq \mathbf{<} \textbf{id} \; (\textbf{,} \; \textbf{id})^* \mathbf{>} \\
 \langle \text{Type} \rangle &\Coloneqq \langle \text{SuffixType} \rangle \; [ \mathbf{-}\mathbf{>} \; \langle \text{Type} \rangle ] \\
 \langle \text{SuffixType} \rangle &\Coloneqq \langle \text{AtomType} \rangle \; [ \textbf{list} \mid \textbf{arr} ]^* \\
@@ -616,6 +636,7 @@ Scope in Cera is managed via a hierarchical, purely functional \texttt{Environme
     \item \textbf{The Scope Chain:} The environment acts as a singly-linked list of hash maps. Each block creates a new environment pointing to its enclosing parent.
     \item \textbf{Symbol Table \& Complexity:} Identifiers are mapped to immutable \texttt{Symbol} records (e.g., \texttt{VarSymbol}, \texttt{FuncSymbol}, \texttt{TypeSymbol}, \texttt{ConstructorSymbol}). Variable lookups operate at $O(1)$ time complexity within the local scope. If a symbol is not found, the traversal up the environment chain operates at $O(K)$ time, where $K$ is the depth of the nested scope.
     \item \textbf{Immutability Guarantee:} Shadowing creates a completely new \texttt{VarSymbol} in the localized $O(1)$ hash map rather than mutating the parent environment. This guarantees the language's strict immutability constraint is enforced directly at the compiler architecture level.
+    \item \textbf{Interface Visibility Enforcement:} To guarantee a sound type system across module boundaries, the analyzer enforces an Interface Visibility Check during global registration. If a function is public (not marked \texttt{hidden}), the compiler strictly forbids its parameters or return type from referencing a \texttt{hidden} type. This mathematically prevents the creation of invalid type leaks where an external caller receives an opaque structure it cannot pattern-match or annotate.
 \end{itemize}
 
 \subsection{Hindley-Milner Type Inference (Algorithm W)}
@@ -954,15 +975,17 @@ These flags are passed to the \texttt{run} command to alter the execution enviro
 The inital release of the Cera functional programming language.
 
 % =========================================================================
-\subsection{- 1.1}
+\subsection*{ - 1.1}
 % =========================================================================
 
 \begin{itemize}
-    \item \textbf{Hidden keyword: } \texttt{hidden}, restricts a named functions scope to purely the file it is defined in (e.g. c's static).
+    \item \textbf{Hidden keyword: } \texttt{hidden}, restricts scope to defined file (e.g. c's static). Works with named functions, top level var declarations, and types. can also use to modify import, such that secondary importers will not have access to the hidden imported file.
     \item \textbf{Inline keyword: } \texttt{inline}, instructs the compiler to substitute the function's body directly at the call site during the intermediate code generation phase. This optimization eliminates the runtime overhead of allocating and destroying a Call Frame on the virtual machine's operand stack, trading a larger bytecode footprint for increased algorithmic execution speed.
+    \item \textbf{Top-Level Declarations:} The \texttt{var} keyword now supports global scope declarations. These are strictly constrained to literal values, and safely eliminate the boilerplate of zero-arity constant functions.
     \item \textbf{Implicit If Else blocks: } if statements that return unit, will now implicitly include \texttt{else \{ (); \}}, simplifying I/O boilerplate. 
+    \item \textbf{Natural Pattern Unpacking: } The \texttt{var} keyword now supports full structural pattern matching on the left-hand side. This allows developers to natively destructure tuples, lists, and Algebraic Data Types directly into the local environment (e.g., \texttt{var (x, y) = tup;}).
     \item \textbf{New Intrinsics \& Std Library: } \texttt{uptime}, \texttt{timeLocal}, to complete timing implementations. Standard library improved to use new hidden and inline keywords, as well as new time libary.
-    \item \textbf{Debug Improvements: } General debugging improvements, including Opcode's being shown in dump files.
+    \item \textbf{Debug Improvements: } General debugging improvements, including Opcode's being shown in dump files, greater cera bash tooling and automated build process.
     \item \textbf{VM \& Compiler Bug Fixes: } Bug fixes, including read intrinsic using flipped constructors, local counting errors.
 \end{itemize}
 
@@ -977,6 +1000,8 @@ The inital release of the Cera functional programming language.
 Before considering future features for the language, we shall consider previous planned additions, that where decided against for various reasons:
 \begin{itemize}
     \item \textbf{Lazy Keyword, Force Pattern:} When the language was first being developed, the idea of a \texttt{lazy} keyword was planned, allowing for delayed evaluation thunks similar to unit thunks, but caching the results upon evaluation. This aforementioned similarity, was the primary reason for it's exclusion (see design principles), as well as adding a vast, complicated system, that can be replicated without the use of unique keywords and syntax.
+    \item \textbf{Is Keyword, As Keyword:} Similar to C\# implementation, would allow type of a generic to be checked at runtime, and converted. However this is an anti-functional pattern, can be replicated with ADTs, and would require the bytecode to not use type erasure. As such this feature does not fit within the language's principles, and will not be added.
+    \item \textbf{Inner Named Functions:} With the implementation of the 1.1 hidden modifier, and the existing ability to create inner lambda functions, there is no longer a need for this feature, and would result in overall worse code quality.
 \end{itemize}
 
 % =========================================================================
@@ -984,11 +1009,8 @@ Before considering future features for the language, we shall consider previous 
 % =========================================================================
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
-    \item \textbf{Top Level Var Declarations:} This can be extremely useful feature, replacing features such as the currently rather clunky format of constants \texttt{def pi() : float = { 3.14159265358979; }}, and has been omitted from the first version of Cera purely for garbage collector and passing complexity reduction.
     \item \textbf{Switch If Statements:} An embedded way for switch statements to use ifs, similar to OCaml's when keyword, aswell as the removal of the requirement of braces for if statements.
     \item \textbf{Default Function Values:} Similar to C\#, with \texttt{param : type = value}.
-    \item \textbf{Inner Named Functions:} As the name states, this functionality is possible with variables and recursive lambda calls, but syntactically ugly, and could be improved. 
     \item \textbf{Better Error Messages:} Certain error messages appear vague, missing end of patterns or similar syntax will point to end of file, as well as column number being hard to track. The virtual machine suffers even worse in this case, with no details of location for runtime errors. 
-    \item \textbf{Natural Tuple Unpacking:} Allow pattern matching in variable decleration, to allow statements such as \texttt{var (x, y) = tup;}
 \end{itemize}
 \end{document}

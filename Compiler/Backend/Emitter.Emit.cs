@@ -538,16 +538,47 @@ public partial class Emitter
         {
             if (stmt is VarDeclStmt varDecl)
             {
-                int line = varDecl.Identifier.Line;
-                CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
-                Locals.Add(varDecl.Identifier.Lexeme);
-                EmitExpression(varDecl.Initializer, false);
+                int line = varDecl.Operator.Line;
 
-                CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
-                CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
+                if (varDecl.Pattern is IdPattern idPat)
+                {
+                    // --- Branch 1: Traditional Stack Push (Preserves Lambda Recursion) ---
+                    CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
+                    Locals.Add(idPat.Identifier.Lexeme);
+                    EmitExpression(varDecl.Initializer, false);
 
-                // FIX: Pop the ghost variable left behind by the VM's PEEK!
-                CurrentChunk.WriteByte(OpCode.POP, line);
+                    CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
+                    CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
+                    CurrentChunk.WriteByte(OpCode.POP, line);
+                }
+                else
+                {
+                    // --- Branch 2: Structural Stack Unpacking ---
+                    CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
+                    string targetVar = $"<var_target_{Guid.NewGuid().ToString()[..8]}>";
+                    Locals.Add(targetVar);
+
+                    EmitExpression(varDecl.Initializer, false);
+
+                    CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
+                    CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
+                    CurrentChunk.WriteByte(OpCode.POP, line);
+
+                    int scopeDepthBefore = Locals.Count;
+                    List<int> failureJumps = [];
+
+                    CompilePatternCase(varDecl.Pattern, targetVar, failureJumps, scopeDepthBefore, line);
+
+                    int successJump = CurrentChunk.EmitJump(OpCode.JUMP, line);
+
+                    foreach (var jump in failureJumps)
+                    {
+                        CurrentChunk.PatchJump(jump);
+                    }
+                    CurrentChunk.WriteByte(OpCode.MATCH_FAIL, line);
+
+                    CurrentChunk.PatchJump(successJump);
+                }
             }
             else if (stmt is ExprStmt exprStmt)
             {
@@ -747,6 +778,12 @@ public partial class Emitter
             if (upvalueIndex > byte.MaxValue) FatalError("Too many captured variables. Limit is 255.", id.Identifier);
             CurrentChunk.WriteByte(OpCode.LOAD_UPVALUE, line);
             CurrentChunk.WriteByte((byte)upvalueIndex, line);
+            return;
+        }
+
+        if (globalVariables.TryGetValue(name, out IExprAST? globalInit))
+        {
+            EmitExpression(globalInit);
             return;
         }
 

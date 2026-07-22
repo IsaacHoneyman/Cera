@@ -48,13 +48,13 @@ public partial class Analyzer
     {
         // type option<g> = None | Some : g 
         RegisterType(new TypeDeclNode(intrT["option"], new GenericDeclNode([intrT["g"]]),
-            [new ConDeclNode(intrT["None"], null), new ConDeclNode(intrT["Some"], new BaseType(intrT["g"]))]
-        ));
+            [new ConDeclNode(intrT["None"], null), new ConDeclNode(intrT["Some"], new BaseType(intrT["g"]))], 
+            false));
 
         // type result<v, e> = Ok : v | Error : e
         RegisterType(new TypeDeclNode(intrT["result"], new GenericDeclNode([intrT["v"], intrT["e"]]),
-            [new ConDeclNode(intrT["Ok"], new BaseType(intrT["v"])), new ConDeclNode(intrT["Error"], new BaseType(intrT["e"]))]
-        ));
+            [new ConDeclNode(intrT["Ok"], new BaseType(intrT["v"])), new ConDeclNode(intrT["Error"], new BaseType(intrT["e"]))],
+            false));
 
         foreach (string prim in new[] { "int", "float", "char", "bool", "unit" })
         {

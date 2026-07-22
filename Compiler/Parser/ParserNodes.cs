@@ -12,7 +12,9 @@ public interface IPatternAST : INodeAST;
 
 // --- Top Level ---
 
-public record ProgramNode(List<FuncDeclNode> Functions, List<TypeDeclNode> Types) : INodeAST;
+public record ProgramNode(List<FuncDeclNode> Functions, List<TypeDeclNode> Types, List<TopVarDeclNode> TopVars) : INodeAST;
+
+public record TopVarDeclNode(Token Identifier, ITypeAST? DeclaredType, IExprAST Initializer, bool IsHidden) : INodeAST;
 
 public record FuncDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, List<ParamNode> Parameters,
 ITypeAST ReturnType, ExprBlock Body, bool IsHidden, bool IsInline) : INodeAST;
@@ -20,7 +22,7 @@ ITypeAST ReturnType, ExprBlock Body, bool IsHidden, bool IsInline) : INodeAST;
 public record ParamNode(Token Identifier, ITypeAST DeclaredType) : INodeAST;
 
 public record TypeDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, 
-List<ConDeclNode> Constructors) : INodeAST;
+List<ConDeclNode> Constructors, bool IsHidden) : INodeAST;
 
 public record GenericDeclNode(List<Token> Identifiers) : INodeAST;
 
@@ -30,7 +32,7 @@ public record PatternMatchNode(IPatternAST Pattern, IExprAST ResultExpression) :
 
 // --- Statements ---
 
-public record VarDeclStmt(Token Identifier, ITypeAST? DeclaredType, IExprAST Initializer) : IStmtAST;
+public record VarDeclStmt(IPatternAST Pattern, Token Operator, ITypeAST? DeclaredType, IExprAST Initializer) : IStmtAST;
 
 public record ExprStmt(IExprAST Expression) : IStmtAST;
 

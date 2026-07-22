@@ -22,6 +22,7 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         InitializeIntrinsics();
         foreach (var t in root.Types) RegisterType(t);
         foreach (var f in root.Functions) RegisterFunction(f);
+        foreach (var v in root.TopVars) RegisterTopVar(v);
 
         diag.EndSection(Diagnostics.TimerScope.SubTask, "Registered base types and functions");
 
@@ -31,9 +32,38 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         return (globalEnv, resolvedNames);
     }
 
+    private void RegisterTopVar(TopVarDeclNode varDecl)
+    {
+        string vName = varDecl.Identifier.Lexeme;
+
+        if (varDecl.IsHidden) 
+            vName = $"_hidden_{varDecl.Identifier.File ?? "unknown"}_{vName}";
+            
+        resolvedNames[varDecl] = vName; 
+
+        if (globalEnv.Resolve(vName) != null) 
+            FatalError($"Global variable '{vName}' is already defined", varDecl.Identifier);
+
+        ITypeAST initType = AnalyzeExpression(varDecl.Initializer);
+
+        if (varDecl.DeclaredType != null)
+        {
+            ValidateTypeExists(varDecl.DeclaredType, []);
+            Unify(varDecl.DeclaredType, initType, varDecl.Identifier);
+            initType = varDecl.DeclaredType;
+        }
+
+        globalEnv.Define(vName, new VarSymbol(varDecl.Identifier, initType));
+    }
+
     private void RegisterType(TypeDeclNode type)
     {
         string tName = type.Identifier.Lexeme;
+        
+        if (type.IsHidden) 
+            tName = $"_hidden_{type.Identifier.File ?? "unknown"}_{tName}";
+            
+        resolvedNames[type] = tName;
 
         if (globalEnv.Resolve(tName) != null) FatalError($"Type '{tName}' is already defined", type.Identifier);
 
@@ -52,6 +82,9 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         foreach (var con in type.Constructors)
         {
             string cName = con.ConstructorName.Lexeme;
+            
+            if (type.IsHidden)
+                cName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
 
             if (globalEnv.Resolve(cName) != null)
             {
@@ -87,6 +120,15 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         foreach (var gt in gens)
             if (!seenGen.Add(gt.Lexeme)) FatalError($"Duplicate generic parameter '{gt.Lexeme}' in function '{fName}'", gt);
 
+        if (!func.IsHidden)
+        {
+            ValidatePublicVisibility(func.ReturnType, func.Identifier);
+            foreach (var param in func.Parameters)
+            {
+                ValidatePublicVisibility(param.DeclaredType, param.Identifier);
+            }
+        }
+
         ValidateTypeExists(func.ReturnType, seenGen);
 
         List<ITypeAST> paramTypes = [];
@@ -110,6 +152,53 @@ public partial class Analyzer(ProgramNode root, Diagnostics diag)
         }
 
         globalEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens));
+    }
+
+    private void ValidatePublicVisibility(ITypeAST typeNode, Token errorToken)
+    {
+        switch (typeNode)
+        {
+            case BaseType b:
+                string rawName = b.TypeName.Lexeme;
+                string mangledName = $"_hidden_{b.TypeName.File ?? "unknown"}_{rawName}";
+
+                if (globalEnv.Resolve(mangledName) is TypeSymbol)
+                {
+                    FatalError($"Cannot expose hidden type '{rawName}' in a non-hidden function signature.", errorToken);
+                }
+                break;
+
+            case ListType l:
+                ValidatePublicVisibility(l.InnerType, errorToken);
+                break;
+
+            case ArrType a:
+                ValidatePublicVisibility(a.InnerType, errorToken);
+                break;
+
+            case FuncType f:
+                ValidatePublicVisibility(f.ParameterType, errorToken);
+                ValidatePublicVisibility(f.ReturnType, errorToken);
+                break;
+
+            case TupleType t:
+                foreach (var inner in t.Types)
+                    ValidatePublicVisibility(inner, errorToken);
+                break;
+
+            case GenericType gt:
+                string gBaseName = gt.BaseName.Lexeme;
+                string gMangledName = $"_hidden_{gt.BaseName.File ?? "unknown"}_{gBaseName}";
+
+                if (globalEnv.Resolve(gMangledName) is TypeSymbol)
+                {
+                    FatalError($"Cannot expose hidden generic type '{gBaseName}' in a non-hidden function signature.", errorToken);
+                }
+
+                foreach (var arg in gt.TypeArguments)
+                    ValidatePublicVisibility(arg, errorToken);
+                break;
+        }
     }
 
     [DoesNotReturn]

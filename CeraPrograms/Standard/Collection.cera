@@ -186,9 +186,8 @@ def arrGetD<g>(array: g arr, index: int, fallback: g) : g = {
 hidden def arrFoldLeftAux<g, h>(array: g arr, f: (h * g) -> h, i: int, currentAcc: h, len: int) : h = {
     if (i >= len) { currentAcc; }
     else {
-        switch (get(array, i)) {
-            Some(val) -> arrFoldLeftAux(array, f, i + 1, f(currentAcc, val), len)
-        }
+        var Some(val) = get(array, i);
+        arrFoldLeftAux(array, f, i + 1, f(currentAcc, val), len);
     }
 }
 
@@ -199,9 +198,8 @@ def arrFoldLeft<g, h>(array: g arr, f: (h * g) -> h, acc: h) : h = {
 hidden def arrFoldRightAux<g, h>(array: g arr, f: (g * h) -> h, i: int, currentAcc: h) : h = {
     if (i < 0) { currentAcc; }
     else {
-        switch (get(array, i)) {
-            Some(val) -> arrFoldRightAux(array, f, i - 1, f(val, currentAcc))
-        }
+        var Some(val) = get(array, i);
+        arrFoldRightAux(array, f, i - 1, f(val, currentAcc));
     }
 }
 
@@ -212,9 +210,8 @@ def arrFoldRight<g, h>(array: g arr, f: (g * h) -> h, acc: h) : h = {
 def arrMap<g, h>(array: g arr, f: g -> h) : h arr = {
     var len = arrLength(array);
     arrBuild(len, func(i: int) : h = {
-        switch (get(array, i)) {
-            Some(val) -> f(val)
-        }
+        var Some(val) = get(array, i);
+        f(val);
     });
 }
 

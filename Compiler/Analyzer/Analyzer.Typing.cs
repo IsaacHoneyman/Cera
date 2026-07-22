@@ -156,7 +156,11 @@ public partial class Analyzer
         {
             case BaseType b:
                 string name = b.TypeName.Lexeme;
-                if (!validGenerics.Contains(name) && globalEnv.Resolve(name) is not TypeSymbol)
+                string mangledName = $"_hidden_{b.TypeName.File ?? "unknown"}_{name}";
+                
+                if (!validGenerics.Contains(name) && 
+                    globalEnv.Resolve(mangledName) is not TypeSymbol && 
+                    globalEnv.Resolve(name) is not TypeSymbol)
                 {
                     FatalError($"Semantic Error: Undefined type '{name}'", b.TypeName);
                 }

@@ -56,6 +56,18 @@ def split(str: char list, delimiter: char) : char list list = {
 
 // --- Output ---
 
+hidden def padLeft(val: int, targetLen: int, padChar: char) : char list = {
+    var str = intToChars(val);
+    var diff = targetLen - length(str);
+    
+    if (diff <= 0) { 
+        str; 
+    } else {
+        var padding = build(diff, func(i: int) : char = padChar);
+        concat(padding, str);
+    }
+}
+
 inline def outN(output: char list) : unit = { out(output); out("\n"); }
 
 inline def outF(output: char list, insert: char list list) : unit = { out(strF(output, insert)); }
@@ -67,25 +79,24 @@ inline def outC() : unit = {
 }
 
 inline def outT(t: timeOnly) : unit = {
-    switch (t) {
-        TimeOnly(h, m, s, ms) -> outF("%:%:%.%", [intToChars(h), intToChars(m), intToChars(s), intToChars(ms)])
-    }
+    var TimeOnly(h, m, s, ms) = t;
+    outF("%:%:%.%", [padLeft(h, 2, '0'), padLeft(m, 2, '0'), padLeft(s, 2, '0'), intToChars(ms)]);
 }
 
 inline def outTN(t: timeOnly) : unit = { outT(t); outN(""); }
 
 inline def outD(d: dateOnly) : unit = {
-    switch (d) {
-        DateOnly(y, m, d) -> outF("%-%-%", [intToChars(d), intToChars(m), intToChars(y)])
-    }
+    var DateOnly(y, m, d) = d;
+    outF("%-%-%", [padLeft(d, 2, '0'), padLeft(m, 2, '0'), intToChars(y)]);
 }
 
 inline def outDN(d: dateOnly) : unit = { outD(d); outN(""); }
 
 inline def outDT(dt: dateTime) : unit = {
-    switch (dt) {
-        DateTime(d, t) -> { outD(d); out(" "); outT(t); }
-    }
+    var DateTime(d, t) = dt;
+    outD(d); 
+    out(" "); 
+    outT(t); 
 }
 
 inline def outDTN(dt: dateTime) : unit = { outDT(dt); outN(""); }
