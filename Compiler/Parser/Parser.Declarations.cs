@@ -4,24 +4,76 @@ namespace Cera.Compiler.Parser;
 
 public partial class Parser
 {
-    private ProgramNode ParseProgram()
+    private FileAST ParseProgram(string filePath)
     {
+        List<ImportNode> imports = [];
         List<FuncDeclNode> functions = [];
         List<TypeDeclNode> types = [];
+        List<TopVarDeclNode> topVars = [];
 
         while (!IsAtEnd())
         {
-            if (Check(TokenType.Def)) functions.Add(ParseFuncDecl());
-            else if (Check(TokenType.Type)) types.Add(ParseTypeDecl());
-            else FatalError("Expected 'def' or 'type' declaration at the top level", Peek());
+            // Extract modifiers first
+            bool isHidden = Match(TokenType.Hidden);
+            bool isInline = Match(TokenType.Inline);
+
+            if (Check(TokenType.Import))
+            {
+                if (isInline) FatalError("Imports cannot be marked 'inline'", Peek());
+                imports.Add(ParseImportDecl(isHidden));
+            }
+            else if (Check(TokenType.Def)) 
+                functions.Add(ParseFuncDecl(isHidden, isInline));
+            else if (Check(TokenType.Var)) 
+            {
+                if (isInline) FatalError("Variables cannot be marked 'inline'", Peek());
+                topVars.Add(ParseTopVarDecl(isHidden));
+            }
+            else if (Check(TokenType.Type)) 
+            {
+                if (isInline) FatalError("Types cannot be marked 'inline'", Peek());
+                types.Add(ParseTypeDecl(isHidden));
+            }
+            else 
+                FatalError("Expected 'import', 'def', 'type', or 'var' declaration at the top level", Peek());
         }
 
-        return new ProgramNode(functions, types);
+        return new FileAST(filePath, imports, functions, types, topVars);
     }
 
     // --- Decl ---
 
-    private FuncDeclNode ParseFuncDecl()
+    private ImportNode ParseImportDecl(bool isHidden)
+    {
+        Consume(TokenType.Import, "Expected 'import' keyword");
+        
+        var pathLiteral = Consume(TokenType.StringLiteral, "Expected file path string after 'import'");
+        Consume(TokenType.Semicolon, "Expected ';' after import statement");
+
+        return new ImportNode(pathLiteral, isHidden);
+    }
+
+    private TopVarDeclNode ParseTopVarDecl(bool isHidden)
+    {
+        Consume(TokenType.Var, "Expected 'var' keyword");
+        var id = Consume(TokenType.Identifier, "Expected identifier for global variable");
+        ITypeAST? declaredType = null;
+        if (Match(TokenType.Colon)) declaredType = ParseType();
+
+        Consume(TokenType.Equal, "Expected '=' in top-level variable declaration");
+        var init = ParseExpression();
+
+        if (init is not LiteralExpr && init is not ListLitExpr && 
+            init is not ArrLitExpr && init is not TupleLitExpr)
+        {
+            FatalError("Top-level variable declarations must be initialized strictly with a literal value", Peek());
+        }
+
+        Consume(TokenType.Semicolon, "Expected ';' after top-level variable declaration");
+        return new TopVarDeclNode(id, declaredType, init, isHidden);
+    }
+
+    private FuncDeclNode ParseFuncDecl(bool isHidden, bool isInline)
     {
         Consume(TokenType.Def, "Expected 'def' keyword");
         var id = Consume(TokenType.Identifier, "Expected function name");
@@ -42,7 +94,7 @@ public partial class Parser
         Consume(TokenType.Equal, "Expected '=' after function declaration");
         var exprBlock = ParseExpressionBlock();
 
-        return new FuncDeclNode(id, generics, parameters, returnType, exprBlock);
+        return new FuncDeclNode(id, generics, parameters, returnType, exprBlock, isHidden, isInline);
     }
 
     private GenericDeclNode ParseGenericDecl()
@@ -67,7 +119,7 @@ public partial class Parser
         return new ParamNode(id, type);
     }
 
-    private TypeDeclNode ParseTypeDecl()
+    private TypeDeclNode ParseTypeDecl(bool isHidden)
     {
         Consume(TokenType.Type, "Expected 'type' keyword");
         var id = Consume(TokenType.Identifier, "Expected type identifier");
@@ -79,7 +131,7 @@ public partial class Parser
         while (Match(TokenType.Pipe));
 
         Consume(TokenType.Semicolon, "Expected ';' after type declaration");
-        return new TypeDeclNode(id, generics, constructors);
+        return new TypeDeclNode(id, generics, constructors, isHidden);
     }
 
     private ConDeclNode ParseConDecl()
@@ -95,16 +147,17 @@ public partial class Parser
     private VarDeclStmt ParseVarDecl()
     {
         Consume(TokenType.Var, "Expected 'var' keyword");
-        var id = Consume(TokenType.Identifier, "Expected variable identifier");
+        
+        var pattern = ParsePattern();
 
         ITypeAST? declaredType = null;
         if (Match(TokenType.Colon)) declaredType = ParseType();
 
-        Consume(TokenType.Equal, "Expected '=' in variable declaration");
+        var op = Consume(TokenType.Equal, "Expected '=' in variable declaration");
         var init = ParseExpression();
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration");
 
-        return new VarDeclStmt(id, declaredType, init);
+        return new VarDeclStmt(pattern, op, declaredType, init);
     }
 
     // --- Expressions ---
@@ -288,10 +341,18 @@ public partial class Parser
         do
         {
             var pattern = ParsePattern();
+            IExprAST? guard = null;
+            if (Match(TokenType.If))
+            {
+                Consume(TokenType.LPar, "Expected '(' after 'if' guard");
+                guard = ParseExpression();
+                Consume(TokenType.RPar, "Expected ')' after 'if' guard");
+            }
+
             Consume(TokenType.Arrow, "Expected '->' after pattern in switch case");
 
-            if (Check(TokenType.LBrace)) cases.Add(new PatternMatchNode(pattern, ParseExpressionBlock()));
-            else cases.Add(new PatternMatchNode(pattern, ParseExpression()));
+            if (Check(TokenType.LBrace)) cases.Add(new PatternMatchNode(pattern, guard, ParseExpressionBlock()));
+            else cases.Add(new PatternMatchNode(pattern, guard, ParseExpression()));
         }
         while (Match(TokenType.Comma));
 

@@ -4,7 +4,7 @@
 INSTALL_DIR="$HOME/.local/share/cera"
 BIN_DIR="$HOME/.local/bin"
 
-echo "Installing Cera Compiler v1.0-1 for Linux..."
+echo "Installing Cera Compiler v1.1-0 for Linux..."
 
 # 1. Create the installation directories if they don't exist
 mkdir -p "$INSTALL_DIR"

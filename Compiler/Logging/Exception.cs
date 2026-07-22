@@ -35,8 +35,8 @@ public class CompilerException(string message) : CeraException("Compiler", messa
 public class LexerException(string message, int line, int column, string file) : 
     CeraException("Lexer", message, line, column, file);
 
-public class ImportResolverException(string message, Token token) : 
-    CeraException("Import Resolver", message, token);
+public class ContextException(string message, Token token) : 
+    CeraException("Context", message, token);
 
 public class ParserException(string message, Token token) : 
     CeraException("Parser", message, token);

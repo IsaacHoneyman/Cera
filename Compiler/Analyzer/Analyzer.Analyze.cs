@@ -66,22 +66,39 @@ public partial class Analyzer
         {
             if (stmt is VarDeclStmt varDecl)
             {
-                // Allow recursion for lambda types
-                if (varDecl.Initializer is LambdaExpr lambda)
+                if (varDecl.Pattern is IdPattern idPat)
                 {
-                    ITypeAST freshType = GenerateTypeVariable();
-                    currentEnv.Define(varDecl.Identifier.Lexeme, new VarSymbol(varDecl.Identifier, freshType));
-                }
+                    // --- Branch 1: Simple Identifier (Preserves Lambda Recursion) ---
+                    if (varDecl.Initializer is LambdaExpr lambda)
+                    {
+                        ITypeAST freshType = GenerateTypeVariable();
+                        currentEnv.Define(idPat.Identifier.Lexeme, new VarSymbol(idPat.Identifier, freshType));
+                    }
 
-                var initType = AnalyzeExpression(varDecl.Initializer);
-                if (varDecl.DeclaredType != null)
+                    var initType = AnalyzeExpression(varDecl.Initializer);
+                    if (varDecl.DeclaredType != null)
+                    {
+                        ValidateTypeExists(varDecl.DeclaredType, GetCurrentGenericScope());
+                        Unify(varDecl.DeclaredType, initType, varDecl.Operator);
+                        initType = varDecl.DeclaredType;
+                    }
+
+                    currentEnv.Define(idPat.Identifier.Lexeme, new VarSymbol(idPat.Identifier, initType));
+                }
+                else
                 {
-                    ValidateTypeExists(varDecl.DeclaredType, GetCurrentGenericScope());
-                    Unify(varDecl.DeclaredType, initType, varDecl.Identifier);
-                    initType = varDecl.DeclaredType;
-                }
+                    // --- Branch 2: Structural Destructuring (Tuple/Constructor Unpacking) ---
+                    var initType = AnalyzeExpression(varDecl.Initializer);
+                    if (varDecl.DeclaredType != null)
+                    {
+                        ValidateTypeExists(varDecl.DeclaredType, GetCurrentGenericScope());
+                        Unify(varDecl.DeclaredType, initType, varDecl.Operator);
+                        initType = varDecl.DeclaredType;
+                    }
 
-                currentEnv.Define(varDecl.Identifier.Lexeme, new VarSymbol(varDecl.Identifier, initType));
+                    ITypeAST patternType = AnalyzePattern(varDecl.Pattern);
+                    Unify(patternType, initType, varDecl.Operator);
+                }
             }
             else if (stmt is ExprStmt exprStmt) AnalyzeExpression(exprStmt.Expression);
         }
@@ -109,18 +126,21 @@ public partial class Analyzer
     private ITypeAST AnalyzeIdentifier(IdentifierExpr id)
     {
         string name = id.Identifier.Lexeme;
-        Symbol? sym = currentEnv?.Resolve(name);
+        string mangledName = $"_hidden_{id.Identifier.File ?? "unknown"}_{name}";
 
+        Symbol? sym = currentEnv?.Resolve(mangledName) ?? currentEnv?.Resolve(name);
         if (sym == null) FatalError($"Undefined identifier '{name}'", id.Identifier);
+
+        resolvedNames[id] = currentEnv?.Resolve(mangledName) != null ? mangledName : name;
 
         return sym switch
         {
-            VarSymbol vSym => vSym.Type ?? FatalErrorReturn($"Variable '{name}' lacks a resolved type.", id.Identifier),
+            VarSymbol vSym => vSym.Type ?? FatalErrorReturn($"Variable '{name}' lacks a resolved type", id.Identifier),
             FuncSymbol fSym => Instantiate(
-                fSym.Type ?? FatalErrorReturn($"Function '{name}' lacks a resolved type signature.", id.Identifier),
+                fSym.Type ?? FatalErrorReturn($"Function '{name}' lacks a resolved type signature", id.Identifier),
                 fSym.GenericParams
             ),
-            _ => FatalErrorReturn($"Symbol '{name}' cannot be evaluated as an expression.", id.Identifier)
+            _ => FatalErrorReturn($"Symbol '{name}' cannot be evaluated as an expression", id.Identifier)
         };
     }
 
@@ -273,6 +293,13 @@ public partial class Analyzer
             currentEnv = new Environment(currentEnv);
             ITypeAST patternType = AnalyzePattern(matchCase.Pattern);
             Unify(targetType, patternType, switchExpr.Operator);
+
+            if (matchCase.Guard != null)
+            {
+                ITypeAST guardType = AnalyzeExpression(matchCase.Guard);
+                Unify(new BaseType(intrT["bool"]), guardType, switchExpr.Operator);
+            }
+
             ITypeAST branchType = AnalyzeExpression(matchCase.ResultExpression);
             Unify(resultType, branchType, switchExpr.Operator);
             currentEnv = currentEnv.Parent;
@@ -357,11 +384,15 @@ public partial class Analyzer
     private ITypeAST AnalyzeConstructorPattern(ConPattern con)
     {
         string cName = con.ConstructorName.Lexeme;
-        if (globalEnv.Resolve(cName) is not ConstructorSymbol cSym)
-            return FatalErrorReturn($"Undefined constructor '{cName}' in pattern", con.ConstructorName);
+        string mangledName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
+        
+        Symbol? sym = currentEnv!.Resolve(mangledName) ?? currentEnv!.Resolve(cName);
+        
+        if (sym is not ConstructorSymbol cSym)
+            return FatalErrorReturn($"Undefined constructor '{cName}'", con.ConstructorName);
 
         List<Token> adtGenerics = [];
-        if (cSym.ParentType is GenericType gt && globalEnv.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
+        if (cSym.ParentType is GenericType gt && currentEnv!.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
             adtGenerics = tSym.GenericParams;
 
         Dictionary<string, ITypeAST> subs = [];
@@ -389,11 +420,13 @@ public partial class Analyzer
     private ITypeAST AnalyzeConstructor(ConExpr con)
     {
         string cName = con.ConstructorName.Lexeme;
-        if (globalEnv.Resolve(cName) is not ConstructorSymbol cSym)
+        string mangledName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
+        Symbol? sym = currentEnv!.Resolve(mangledName) ?? currentEnv!.Resolve(cName);
+        if (sym is not ConstructorSymbol cSym)
             return FatalErrorReturn($"Undefined constructor '{cName}'", con.ConstructorName);
 
         List<Token> gens = [];
-        if (cSym.ParentType is GenericType gt && globalEnv.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
+        if (cSym.ParentType is GenericType gt && currentEnv!.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
             gens = tSym.GenericParams;
 
         Dictionary<string, ITypeAST> subs = [];

@@ -8,13 +8,13 @@ public partial class Parser(List<Token> tokens, Diagnostics diag)
 {
     private int position = 0;
 
-    public ProgramNode Parse()
+    public FileAST ParseFile(string filePath)
     {
         InitializePrattParser();
 
-        diag.DetailLog($"Parsing {tokens.Count} tokens");
+        diag.DetailLog($"Parsing {tokens.Count} tokens from {filePath}");
         
-        return ParseProgram();
+        return ParseProgram(filePath);
     }
 
     private Token Peek()

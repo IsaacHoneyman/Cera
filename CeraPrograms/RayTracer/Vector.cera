@@ -1,3 +1,5 @@
+hidden import "Math.cera";
+
 type vec3 = Vec: (float * float * float); // x, y, z
 
 def vAdd(a: vec3, b: vec3) : vec3 = {

@@ -1,5 +1,4 @@
 ﻿using Cera.Compiler.Logging;
-using Cera.Compiler.Lexer;
 using Cera.Compiler.Parser;
 using Cera.Compiler.Backend;
 
@@ -22,67 +21,51 @@ public class Compiler
     {
         diag.Open();
 
-        // Lexer
-
-        ImportResolver ir = new(diag);
-        List<Token> tokens = [];
-
-        try { tokens = ir.ResolveAllImports(filePath); }
-        catch (LexerException)
+        CompilerContext context = new(diag);
+        FileAST? entryAST = null;
+        try
         {
-            diag.Close(); 
-            Environment.Exit(1); 
+            entryAST = context.ResolveAndParse(filePath);
         }
-        catch (ImportResolverException)
+        catch (CeraException)
         {
             diag.Close();
-            Environment.Exit(2);
+            Environment.Exit(1);
         }
 
+        diag.EndSection(Diagnostics.TimerScope.Task,
+            "Lexing & Parsing completed", $"Total files processed: {context.ParsedFiles.Count}");
 
-        diag.TryTokenDump(tokens);
-        diag.EndSection(Diagnostics.TimerScope.Task, "Lexing completed", $"total tokens lexed: {tokens.Count}");
-
-        // Parser
-
-        Parser.Parser p = new(tokens, diag);
-        ProgramNode? ast = null;
-
-        try { ast = p.Parse(); }
-        catch (ParserException)
+        // --- NEW: Dump ASTs dynamically across the DAG ---
+        foreach (var fileAST in context.ParsedFiles.Values)
         {
-            diag.Close();
-            Environment.Exit(3);
+            diag.TryASTDump(fileAST);
         }
 
-        diag.TryASTDump(ast);
-        diag.EndSection(Diagnostics.TimerScope.Task, "Parsing completed");
+        Analyzer.Analyzer a = new(context.ParsedFiles, diag);
+        Dictionary<string, Analyzer.Environment> e = [];
+        Dictionary<INodeAST, string> r = [];
 
-        // Analyzer
-
-        Analyzer.Analyzer a = new(ast, diag);
-        Analyzer.Environment? e = null;
-
-        try { e = a.Analyze(); }
+        try { (e, r) = a.Analyze(); }
         catch (AnalyzerException)
         {
             diag.Close();
-            Environment.Exit(4);
+            Environment.Exit(1);
         }
 
+        // --- FIX: Uncomment and pass the localEnvs dictionary ---
         diag.TryAnalyzerDump(e);
+        
         diag.EndSection(Diagnostics.TimerScope.Task, "Analysis completed");
 
-        // Emitter
-
-        Emitter em = new(ast, e, diag);
+        Emitter em = new(context.ParsedFiles, e, r, diag);
         Module? m = null;
 
-        try { m = em.Compile(); } 
+        try { m = em.Compile(); }
         catch (EmitterException)
         {
             diag.Close();
-            Environment.Exit(5);
+            Environment.Exit(1);
         }
 
         BinaryExporter.Export(m, $"Out/ByteCode/{Path.GetFileNameWithoutExtension(filePath)}.cerabc");
@@ -103,7 +86,7 @@ public class Compiler
         diagArgs[4] = args.Contains("--analyzer") || args.Contains("-s");
         diagArgs[5] = args.Contains("--emitter") || args.Contains("-e");
 
-        diagArgs[0] = args.Contains("--dump") || args.Contains("-d") 
+        diagArgs[0] = args.Contains("--dump") || args.Contains("-d")
             || diagArgs[2] || diagArgs[3] || diagArgs[4] || diagArgs[5];
 
         return diagArgs;
@@ -123,7 +106,6 @@ public class Compiler
 
         Directory.CreateDirectory("Out/Dump");
         Directory.CreateDirectory("Out/ByteCode");
-        // Directory.CreateDirectory("Out/VirtualMachine");
 
         _ = new Compiler(filePath, diag);
     }

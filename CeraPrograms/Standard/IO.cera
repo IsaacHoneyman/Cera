@@ -1,4 +1,5 @@
-import "Collection.cera";
+hidden import "Collection.cera";
+hidden import "Time.cera";
 
 /* 
     The offical IO libary for Cera.
@@ -33,7 +34,7 @@ def strF(output: char list, insert: char list list) : char list = {
     cf(output, insert);
 }
 
-def substring(str: char list, start: int, len: int) : char list = {
+inline def substring(str: char list, start: int, len: int) : char list = {
     take(skip(str, start), len)
 }
 
@@ -41,13 +42,8 @@ def split(str: char list, delimiter: char) : char list list = {
     var aux = func(rem: char list, currentWord: char list, acc: char list list) : char list list = { 
         switch (rem) {
             [] -> rev(rev(currentWord)::acc),
-            (h::tl) ->
-                if (h == delimiter) {
-                    aux(tl, [], (rev(currentWord) :: acc));
-                }
-                else {
-                    aux(tl, (h::currentWord), acc);
-                }
+            (h::tl) if (h == delimiter) -> aux(tl, [], (rev(currentWord) :: acc)),
+            (h::tl) -> aux(tl, (h::currentWord), acc)
         }
     };
     aux(str, [], []);
@@ -55,27 +51,53 @@ def split(str: char list, delimiter: char) : char list list = {
 
 // --- Output ---
 
-def outN(output: char list) : unit = {
-    out(output);
-    out("\n");
+hidden def padLeft(val: int, targetLen: int, padChar: char) : char list = {
+    var str = intToChars(val);
+    var diff = targetLen - length(str);
+    
+    if (diff <= 0) { 
+        str; 
+    } else {
+        var padding = build(diff, func(i: int) : char = padChar);
+        concat(padding, str);
+    }
 }
 
-def outF(output: char list, insert: char list list) : unit = {
-    out(strF(output, insert));
-}
+inline def outN(output: char list) : unit = { out(output); out("\n"); }
 
-def outFN(output: char list, insert: char list list) : unit = {
-    outF(output, insert);
-    outN("");
-}
+inline def outF(output: char list, insert: char list list) : unit = { out(strF(output, insert)); }
 
-def outC() : unit = {
+inline def outFN(output: char list, insert: char list list) : unit = { outF(output, insert); outN(""); }
+
+inline def outC() : unit = {
     out("\x1b[2J\x1b[H");
 }
 
-// --- File ---
+inline def outT(t: timeOnly) : unit = {
+    var TimeOnly(h, m, s, ms) = t;
+    outF("%:%:%.%", [padLeft(h, 2, '0'), padLeft(m, 2, '0'), padLeft(s, 2, '0'), intToChars(ms)]);
+}
 
-// --- Soft Dangerous Wrappers (Console Alert) ---
+inline def outTN(t: timeOnly) : unit = { outT(t); outN(""); }
+
+inline def outD(d: dateOnly) : unit = {
+    var DateOnly(y, m, d) = d;
+    outF("%-%-%", [padLeft(d, 2, '0'), padLeft(m, 2, '0'), intToChars(y)]);
+}
+
+inline def outDN(d: dateOnly) : unit = { outD(d); outN(""); }
+
+inline def outDT(dt: dateTime) : unit = {
+    var DateTime(d, t) = dt;
+    outD(d); 
+    out(" "); 
+    outT(t); 
+}
+
+inline def outDTN(dt: dateTime) : unit = { outDT(dt); outN(""); }
+
+
+// --- File ---
 
 def readD(path: char list) : char list = {
     switch (read(path)) {
@@ -103,6 +125,28 @@ def appendD(path: char list, content: char list) : unit = {
         Error(err) -> {
             outFN("FATAL I/O: Failed to append. %", [err]);
             (); // Fallback unit
+        }
+    }
+}
+
+// --- Binary File ---
+
+def readBinD(path: char list) : int arr = {
+    switch (readBin(path)) {
+        Ok(content) -> content,
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to read binary. %", [err]); 
+            arr []; // Fallback empty contiguous array
+        }
+    }
+}
+
+def writeBinD(path: char list, data: int arr) : unit = {
+    switch (writeBin(path, data)) {
+        Ok(u) -> (),
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to write binary. %", [err]); 
+            (); // Fallback unit thunk
         }
     }
 }

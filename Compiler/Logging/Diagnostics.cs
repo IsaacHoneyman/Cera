@@ -122,6 +122,15 @@ public class Diagnostics
     {
         return node switch
         {
+            // --- NEW: Top Level Declarations ---
+            ImportNode imp => imp.PathLiteral,
+            TopVarDeclNode topVar => topVar.Identifier,
+            FuncDeclNode func => func.Identifier,
+            TypeDeclNode typeDecl => typeDecl.Identifier,
+            ConDeclNode conDecl => conDecl.ConstructorName,
+            ParamNode param => param.Identifier,
+
+            // --- Existing Cases ---
             LiteralExpr lit => lit.Value,
             IdentifierExpr id => id.Identifier,
             BinaryExpr bin => bin.Operator,
@@ -132,17 +141,9 @@ public class Diagnostics
             ArrLitExpr arr => arr.Operator,
             TupleLitExpr tup => tup.Operator,
             ConExpr con => con.ConstructorName,
-            
-            // Dig down into the callee to find the function's name token
             CallExpr call => GetLeadToken(call.Callee), 
-            
-            // Grab the first parameter's token, if it has one
             LambdaExpr lam => lam.Parameters.FirstOrDefault()?.Identifier, 
-            
-            // Look at the return expression of the block
             ExprBlock block => GetLeadToken(block.ReturnExpression),
-            
-            // Patterns
             LiteralPattern lp => lp.Value,
             IdPattern ip => ip.Identifier,
             ConPattern cp => cp.ConstructorName,
@@ -184,7 +185,7 @@ public class Diagnostics
         return true;
     }
 
-    // --- AST Nonsense ---
+    // ... (Keep existing TypeString and GetLeadToken methods) ...
 
     public bool TryASTDump(INodeAST root)
     {
@@ -207,17 +208,24 @@ public class Diagnostics
         return node switch
         {
             // --- Top Level ---
-            ProgramNode p => $"{pad}Program [Functions: {p.Functions.Count}, Types: {p.Types.Count}]\n" +
-                             string.Join("", p.Types.Select(t => DumpNode(t, indent + 1))) +
-                             string.Join("", p.Functions.Select(f => DumpNode(f, indent + 1))),
+            FileAST f => $"{pad}File: {Path.GetFileName(f.FilePath)}\n" +
+                         $"{childPad}Imports:\n" + (f.Imports.Count > 0 ? string.Join("", f.Imports.Select(i => DumpNode(i, indent + 2))) : $"{childPad}  (None)\n") +
+                         $"{childPad}Top Variables:\n" + (f.TopVariables.Count > 0 ? string.Join("", f.TopVariables.Select(v => DumpNode(v, indent + 2))) : $"{childPad}  (None)\n") +
+                         $"{childPad}Types:\n" + (f.Types.Count > 0 ? string.Join("", f.Types.Select(t => DumpNode(t, indent + 2))) : $"{childPad}  (None)\n") +
+                         $"{childPad}Functions:\n" + (f.Functions.Count > 0 ? string.Join("", f.Functions.Select(fn => DumpNode(fn, indent + 2))) : $"{childPad}  (None)\n"),
 
-            FuncDeclNode f => $"{pad}Function: {f.Identifier.Lexeme} -> {TypeString(f.ReturnType)}\n" +
+            ImportNode i => $"{pad}Import: {i.PathLiteral.Lexeme} {(i.IsHidden ? "[hidden]" : "")}\n",
+
+            TopVarDeclNode v => $"{pad}TopVar {(v.IsHidden ? "[hidden]" : "")}: {v.Identifier.Lexeme}{(v.DeclaredType != null ? $" : {TypeString(v.DeclaredType)}" : "")}\n" +
+                                $"{childPad}Value:\n{DumpNode(v.Initializer, indent + 2)}",
+
+            FuncDeclNode f => $"{pad}Function {(f.IsHidden ? "[hidden]" : "")} {(f.IsInline ? "[inline]" : "")}: {f.Identifier.Lexeme} -> {TypeString(f.ReturnType)}\n" +
                               (f.GenericTypeParams != null ? $"{childPad}Generics: <{string.Join(", ", f.GenericTypeParams.Identifiers.Select(id => id.Lexeme))}>\n" : "") +
                               $"{childPad}Parameters:\n" +
                               (f.Parameters.Count > 0 ? string.Join("", f.Parameters.Select(p => DumpNode(p, indent + 2))) : $"{childPad}  (None)\n") +
                               $"{childPad}Body:\n{DumpNode(f.Body, indent + 2)}",
 
-            TypeDeclNode d => $"{pad}Type (ADT): {d.Identifier.Lexeme}\n" +
+            TypeDeclNode d => $"{pad}Type (ADT) {(d.IsHidden ? "[hidden]" : "")}: {d.Identifier.Lexeme}\n" +
                               (d.GenericTypeParams != null ? $"{childPad}Generics: <{string.Join(", ", d.GenericTypeParams.Identifiers.Select(id => id.Lexeme))}>\n" : "") +
                               $"{childPad}Constructors:\n" +
                               string.Join("", d.Constructors.Select(c => DumpNode(c, indent + 2))),
@@ -231,7 +239,7 @@ public class Diagnostics
                            string.Join("", b.Statements.Select(s => DumpNode(s, indent + 1))) +
                            $"{childPad}Return:\n{DumpNode(b.ReturnExpression, indent + 2)}",
 
-            VarDeclStmt v => $"{pad}Var Bind: {v.Identifier.Lexeme}{(v.DeclaredType != null ? $" : {TypeString(v.DeclaredType)}" : "")}\n" +
+            VarDeclStmt v => $"{pad}Var Bind: {(v.Pattern is IdPattern idp ? idp.Identifier.Lexeme : "Pattern")}{(v.DeclaredType != null ? $" : {TypeString(v.DeclaredType)}" : "")}\n" +
                              $"{childPad}Value:\n{DumpNode(v.Initializer, indent + 2)}",
 
             ExprStmt s => $"{pad}Expr Statement:\n{DumpNode(s.Expression, indent + 1)}",
@@ -267,6 +275,7 @@ public class Diagnostics
 
             PatternMatchNode p => $"{pad}Case:\n" +
                                   $"{childPad}Pattern:\n{DumpNode(p.Pattern, indent + 2)}" +
+                                  (p.Guard != null ? $"{childPad}Guard:\n{DumpNode(p.Guard, indent + 2)}" : "") + 
                                   $"{childPad}Result:\n{DumpNode(p.ResultExpression, indent + 2)}",
 
             LambdaExpr l => $"{pad}Lambda: -> {TypeString(l.ReturnType)}\n" +
@@ -321,22 +330,34 @@ public class Diagnostics
 
     /// --- Analyser Nonsense ---
 
-    public bool TryAnalyzerDump(Analyzer.Environment global)
+    public bool TryAnalyzerDump(Dictionary<string, Analyzer.Environment> envs)
     {
         if (!analyzerDump) return false;
 
         Log("", true);
-        Log("=== Semantic Analyzer: Global Environment Dump ===", true);
+        Log("=== Semantic Analyzer: DAG Environment Dump ===", true);
 
-        // Sort symbols alphabetically by identifier for a cleaner debug read
-        var sortedSymbols = global.GetLocalSymbols().OrderBy(s => s.DeclToken.Lexeme);
-
-        foreach (var symbol in sortedSymbols)
+        foreach (var (file, localEnv) in envs)
         {
-            Log(DumpSymbol(symbol, 1), true);
+            Log($"\n--- Module: {Path.GetFileName(file)} ---", true);
+            
+            // 1. Export Scope (Parent Env)
+            if (localEnv.Parent != null)
+            {
+                Log("  [Export Scope]", true);
+                var exports = localEnv.Parent.GetLocalSymbols().OrderBy(s => s.DeclToken.Lexeme);
+                if (!exports.Any()) Log("    (None)", true);
+                foreach (var symbol in exports) Log(DumpSymbol(symbol, 2), true);
+            }
+
+            // 2. Local Scope (Hidden elements mapped here)
+            Log("  [Local Scope (Hidden)]", true);
+            var locals = localEnv.GetLocalSymbols().OrderBy(s => s.DeclToken.Lexeme);
+            if (!locals.Any()) Log("    (None)", true);
+            foreach (var symbol in locals) Log(DumpSymbol(symbol, 2), true);
         }
 
-        Log("==================================================", true);
+        Log("===============================================", true);
         Log("", true);
 
         return true;
@@ -371,8 +392,6 @@ public class Diagnostics
             _ => $"{pad}Unknown Symbol: {symbol.DeclToken.Lexeme}\n"
         };
     }
-
-    // --- Emitter Nonsense ---
 
     // --- Emitter Nonsense ---
 

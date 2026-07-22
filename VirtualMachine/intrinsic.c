@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,7 +98,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         
         if (arg.tag != VAL_STRING && arg.tag != VAL_LIST)
         {
-            log_error("out() currently only supports Strings and char lists.");
+            log_error("out() currently only supports Strings and char lists");
             return 1;
         }
         
@@ -297,7 +299,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         CeraValue arg = pop(vm);
         if (arg.tag != VAL_FLOAT)
         {
-            log_error("floatToChars() requires a float.");
+            log_error("floatToChars() requires a float");
             return 1;
         }
 
@@ -489,7 +491,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             return 0;
         }
 
-        log_error("Type mismatch or unhandled tags encountered during evaluation of concat().");
+        log_error("Type mismatch or unhandled tags encountered during evaluation of concat()");
         return 1;
     }
 
@@ -522,7 +524,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         
         if (arg.tag != VAL_FLOAT)
         {
-            log_error("sqrt() requires a float operand.");
+            log_error("sqrt() requires a float operand");
             return 1;
         }
 
@@ -642,11 +644,46 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         
         return 0;
     }
-
     case INTR_TIME: {
+        struct timespec ts;        
+        clock_gettime(CLOCK_REALTIME, &ts);
         CeraValue res;
-        res.tag = VAL_INT;
-        res.as.int_val = (int64_t)time(NULL);
+        res.tag = VAL_INT;        
+        res.as.int_val = ((int64_t)ts.tv_sec * 1000LL) + ((int64_t)ts.tv_nsec / 1000000LL);   
+        push(vm, res);
+        return 0;
+    }
+    case INTR_TIME_LOCAL: {
+        struct timespec ts;        
+        clock_gettime(CLOCK_REALTIME, &ts);        
+        struct tm local_tm;
+        localtime_r(&ts.tv_sec, &local_tm);        
+        char z_buf[8];
+        strftime(z_buf, sizeof(z_buf), "%z", &local_tm);        
+        long offset = 0;
+        if (strlen(z_buf) >= 5) {
+            int hours = (z_buf[1] - '0') * 10 + (z_buf[2] - '0');
+            int mins = (z_buf[3] - '0') * 10 + (z_buf[4] - '0');
+            offset = (hours * 3600) + (mins * 60);
+            
+            if (z_buf[0] == '-') {
+                offset = -offset;
+            }
+        }
+                int64_t local_sec = (int64_t)ts.tv_sec + offset;
+        
+        CeraValue res;
+        res.tag = VAL_INT;        
+        res.as.int_val = (local_sec * 1000LL) + ((int64_t)ts.tv_nsec / 1000000LL);   
+        push(vm, res);
+        return 0;
+    }
+    case INTR_UPTIME: {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        CeraValue res;
+        res.tag = VAL_INT;        
+        res.as.int_val = ((int64_t)ts.tv_sec * 1000LL) + ((int64_t)ts.tv_nsec / 1000000LL);
         push(vm, res);
         return 0;
     }
@@ -695,6 +732,143 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         res.as.obj = (Obj*)adt;
         push(vm, res);
         
+        return 0;
+    }
+
+    // --- Binary I/O Operations ---
+    case INTR_READ_BIN:
+    {
+        CeraValue path_val = pop(vm);
+        char *path = flatten_char_list(path_val);
+
+        FILE *file = fopen(path, "rb");
+        ObjADT *result_adt = malloc(sizeof(ObjADT));
+        result_adt->header.type = VAL_ADT;
+        result_adt->header.ref_count = 1;
+
+        if (file == NULL)
+        {
+            result_adt->adt_tag = 0x04; // Error
+            result_adt->payload.tag = VAL_STRING;
+            result_adt->payload.as.obj = (Obj *)newString("Failed to open binary file");
+        }
+        else
+        {
+            fseek(file, 0, SEEK_END);
+            long size = ftell(file);
+            fseek(file, 0, SEEK_SET);
+
+            ObjArray *arr = newArray(size);
+            uint8_t *buffer = malloc(size);
+            
+            // Capture the actual amount of bytes read
+            size_t bytes_read = fread(buffer, 1, size, file);
+            fclose(file);
+
+            // Defensive programming check
+            if (bytes_read != (size_t)size) 
+            {
+                free(buffer);
+                result_adt->adt_tag = 0x04; // Error
+                result_adt->payload.tag = VAL_STRING;
+                result_adt->payload.as.obj = (Obj *)newString("I/O Fault: File read interrupted or corrupted");
+            } 
+            else 
+            {
+                for (long i = 0; i < size; i++)
+                {
+                    CeraValue byte_val;
+                    byte_val.tag = VAL_INT;
+                    byte_val.as.int_val = buffer[i]; // Store as standard Cera 64-bit int
+                    arr->elements[i] = byte_val;
+                }
+                free(buffer);
+
+                result_adt->adt_tag = 0x05; // Ok
+                result_adt->payload.tag = VAL_ARRAY;
+                result_adt->payload.as.obj = (Obj *)arr;
+            }
+        }
+
+        free(path);
+        release(path_val);
+
+        CeraValue final_result;
+        final_result.tag = VAL_ADT;
+        final_result.as.obj = (Obj *)result_adt;
+        push(vm, final_result);
+        return 0;
+    }
+
+    case INTR_WRITE_BIN:
+    {
+        CeraValue data_val = pop(vm);
+        CeraValue path_val = pop(vm);
+        
+        char* file_path = flatten_char_list(path_val);
+        ObjArray* arr = (ObjArray*)data_val.as.obj;
+        
+        FILE *f = fopen(file_path, "wb");
+        ObjADT* adt = (ObjADT*)malloc(sizeof(ObjADT));
+        adt->header.type = VAL_ADT;
+        adt->header.ref_count = 1;
+
+        if (f == NULL)
+        {
+            adt->adt_tag = 0x04; // Error
+            adt->payload.tag = VAL_STRING;
+            adt->payload.as.obj = (Obj*)newString("Failed to write binary file");
+        }
+        else
+        {
+            uint8_t *buffer = malloc(arr->length);
+            for (int i = 0; i < arr->length; i++)
+            {
+                // Safely downcast the 64-bit integer to an 8-bit byte
+                buffer[i] = (uint8_t)arr->elements[i].as.int_val;
+            }
+            
+            fwrite(buffer, 1, arr->length, f);
+            fclose(f);
+            free(buffer);
+            
+            adt->adt_tag = 0x05; // Ok
+            adt->payload.tag = VAL_UNIT;
+            adt->payload.as.int_val = 0;
+        }
+        
+        free(file_path);
+        release(path_val);   
+        release(data_val);
+        
+        CeraValue res;
+        res.tag = VAL_ADT;
+        res.as.obj = (Obj*)adt;
+        push(vm, res);
+        return 0;
+    }
+    case INTR_LN:
+    {
+        CeraValue arg = pop(vm);
+        if (arg.tag != VAL_FLOAT) { log_error("ln requires float"); return 1; }
+        CeraValue res; 
+        res.tag = VAL_FLOAT;
+        res.as.float_val = log(arg.as.float_val); // C's log() is natural log
+        push(vm, res);
+        return 0;
+    }
+    case INTR_FLOAT_POW:
+    {
+        CeraValue exp_val = pop(vm);
+        CeraValue base_val = pop(vm);
+        if (base_val.tag != VAL_FLOAT || exp_val.tag != VAL_FLOAT) { 
+            log_error("floatPow requires float operands"); 
+            return 1; 
+        }
+        CeraValue res;
+        res.tag = VAL_FLOAT;
+        res.as.float_val = pow(base_val.as.float_val, exp_val.as.float_val);
+        push(vm, res);
         return 0;
     }
 

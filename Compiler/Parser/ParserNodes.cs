@@ -12,25 +12,29 @@ public interface IPatternAST : INodeAST;
 
 // --- Top Level ---
 
-public record ProgramNode(List<FuncDeclNode> Functions, List<TypeDeclNode> Types) : INodeAST;
+public record TopVarDeclNode(Token Identifier, ITypeAST? DeclaredType, IExprAST Initializer, bool IsHidden) : INodeAST;
 
 public record FuncDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, List<ParamNode> Parameters,
-ITypeAST ReturnType, ExprBlock Body) : INodeAST;
+ITypeAST ReturnType, ExprBlock Body, bool IsHidden, bool IsInline) : INodeAST;
 
 public record ParamNode(Token Identifier, ITypeAST DeclaredType) : INodeAST;
 
 public record TypeDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, 
-List<ConDeclNode> Constructors) : INodeAST;
+List<ConDeclNode> Constructors, bool IsHidden) : INodeAST;
 
 public record GenericDeclNode(List<Token> Identifiers) : INodeAST;
 
 public record ConDeclNode(Token ConstructorName, ITypeAST? PayloadType) : INodeAST;
 
-public record PatternMatchNode(IPatternAST Pattern, IExprAST ResultExpression) : INodeAST;
+public record PatternMatchNode(IPatternAST Pattern, IExprAST? Guard, IExprAST ResultExpression) : INodeAST;
+
+public record ImportNode(Token PathLiteral, bool IsHidden) : INodeAST;
+
+public record FileAST(string FilePath, List<ImportNode> Imports, List<FuncDeclNode> Functions, List<TypeDeclNode> Types, List<TopVarDeclNode> TopVariables) : INodeAST;
 
 // --- Statements ---
 
-public record VarDeclStmt(Token Identifier, ITypeAST? DeclaredType, IExprAST Initializer) : IStmtAST;
+public record VarDeclStmt(IPatternAST Pattern, Token Operator, ITypeAST? DeclaredType, IExprAST Initializer) : IStmtAST;
 
 public record ExprStmt(IExprAST Expression) : IStmtAST;
 

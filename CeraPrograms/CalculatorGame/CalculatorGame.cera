@@ -1,5 +1,6 @@
 import "Math.cera";
 import "IO.cera";
+import "Collection.cera";
 
 def entry(args: char list arr) : int = {
     outC();
