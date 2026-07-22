@@ -636,7 +636,6 @@ Scope in Cera is managed via a hierarchical, purely functional \texttt{Environme
     \item \textbf{The Scope Chain:} The environment acts as a singly-linked list of hash maps. Each block creates a new environment pointing to its enclosing parent.
     \item \textbf{Symbol Table \& Complexity:} Identifiers are mapped to immutable \texttt{Symbol} records (e.g., \texttt{VarSymbol}, \texttt{FuncSymbol}, \texttt{TypeSymbol}, \texttt{ConstructorSymbol}). Variable lookups operate at $O(1)$ time complexity within the local scope. If a symbol is not found, the traversal up the environment chain operates at $O(K)$ time, where $K$ is the depth of the nested scope.
     \item \textbf{Immutability Guarantee:} Shadowing creates a completely new \texttt{VarSymbol} in the localized $O(1)$ hash map rather than mutating the parent environment. This guarantees the language's strict immutability constraint is enforced directly at the compiler architecture level.
-    \item \textbf{Interface Visibility Enforcement:} To guarantee a sound type system across module boundaries, the analyzer enforces an Interface Visibility Check during global registration. If a function is public (not marked \texttt{hidden}), the compiler strictly forbids its parameters or return type from referencing a \texttt{hidden} type. This mathematically prevents the creation of invalid type leaks where an external caller receives an opaque structure it cannot pattern-match or annotate.
 \end{itemize}
 
 \subsection{Hindley-Milner Type Inference (Algorithm W)}

@@ -38,7 +38,7 @@
 \contentsline {subsection}{\numberline {7.2}Operational Limitations and Capacity}{18}{subsection.7.2}%
 \contentsline {subsection}{\numberline {7.3}Tail Call Optimization (TCO)}{19}{subsection.7.3}%
 \contentsline {subsection}{\numberline {7.4}Pattern Matching Compilation}{19}{subsection.7.4}%
-\contentsline {subsection}{\numberline {7.5}Executable Object Format (\texttt {.cerabc})}{20}{subsection.7.5}%
+\contentsline {subsection}{\numberline {7.5}Executable Object Format (\texttt {.cerabc})}{19}{subsection.7.5}%
 \contentsline {subsection}{\numberline {7.6}Instruction Set Architecture (ISA)}{20}{subsection.7.6}%
 \contentsline {section}{\numberline {8}The Cera Virtual Machine (CeraVM)}{23}{section.8}%
 \contentsline {subsection}{\numberline {8.1}Architectural Overview}{23}{subsection.8.1}%
@@ -46,7 +46,7 @@
 \contentsline {subsection}{\numberline {8.3}The Call Stack and Lexical Scoping}{23}{subsection.8.3}%
 \contentsline {subsection}{\numberline {8.4}Closures and Upvalues}{24}{subsection.8.4}%
 \contentsline {subsection}{\numberline {8.5}Algebraic Data Types and Pattern Matching}{24}{subsection.8.5}%
-\contentsline {subsection}{\numberline {8.6}The Intrinsic Pipeline}{25}{subsection.8.6}%
+\contentsline {subsection}{\numberline {8.6}The Intrinsic Pipeline}{24}{subsection.8.6}%
 \contentsline {section}{\numberline {9}Command Line Interface and Usage}{25}{section.9}%
 \contentsline {subsection}{\numberline {9.1}The Execution Pipeline}{25}{subsection.9.1}%
 \contentsline {subsection}{\numberline {9.2}Compiler and Virtual Machine Flags}{25}{subsection.9.2}%
