@@ -12,8 +12,6 @@ public interface IPatternAST : INodeAST;
 
 // --- Top Level ---
 
-public record ProgramNode(List<FuncDeclNode> Functions, List<TypeDeclNode> Types, List<TopVarDeclNode> TopVars) : INodeAST;
-
 public record TopVarDeclNode(Token Identifier, ITypeAST? DeclaredType, IExprAST Initializer, bool IsHidden) : INodeAST;
 
 public record FuncDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, List<ParamNode> Parameters,
@@ -28,7 +26,7 @@ public record GenericDeclNode(List<Token> Identifiers) : INodeAST;
 
 public record ConDeclNode(Token ConstructorName, ITypeAST? PayloadType) : INodeAST;
 
-public record PatternMatchNode(IPatternAST Pattern, IExprAST ResultExpression) : INodeAST;
+public record PatternMatchNode(IPatternAST Pattern, IExprAST? Guard, IExprAST ResultExpression) : INodeAST;
 
 public record ImportNode(Token PathLiteral, bool IsHidden) : INodeAST;
 

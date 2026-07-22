@@ -341,10 +341,18 @@ public partial class Parser
         do
         {
             var pattern = ParsePattern();
+            IExprAST? guard = null;
+            if (Match(TokenType.If))
+            {
+                Consume(TokenType.LPar, "Expected '(' after 'if' guard");
+                guard = ParseExpression();
+                Consume(TokenType.RPar, "Expected ')' after 'if' guard");
+            }
+
             Consume(TokenType.Arrow, "Expected '->' after pattern in switch case");
 
-            if (Check(TokenType.LBrace)) cases.Add(new PatternMatchNode(pattern, ParseExpressionBlock()));
-            else cases.Add(new PatternMatchNode(pattern, ParseExpression()));
+            if (Check(TokenType.LBrace)) cases.Add(new PatternMatchNode(pattern, guard, ParseExpressionBlock()));
+            else cases.Add(new PatternMatchNode(pattern, guard, ParseExpression()));
         }
         while (Match(TokenType.Comma));
 

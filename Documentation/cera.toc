@@ -16,9 +16,9 @@
 \contentsline {subsection}{\numberline {2.11}Summary}{10}{subsection.2.11}%
 \contentsline {section}{\numberline {3}Lexical Analysis (Tokenisation)}{11}{section.3}%
 \contentsline {subsection}{\numberline {3.1}The Token Structure}{11}{subsection.3.1}%
-\contentsline {subsection}{\numberline {3.2}Lexical Categories and Regular Expressions}{11}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.2}Lexical Categories and Regular Expressions}{12}{subsection.3.2}%
 \contentsline {subsection}{\numberline {3.3}Whitespace and Comment Handling}{12}{subsection.3.3}%
-\contentsline {subsection}{\numberline {3.4}Import Handling \& Module Encapsulation}{12}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.4}Import Handling \& Module Encapsulation}{13}{subsection.3.4}%
 \contentsline {section}{\numberline {4}Syntax Analysis (Parsing)}{13}{section.4}%
 \contentsline {subsection}{\numberline {4.1}Notation Guide}{13}{subsection.4.1}%
 \contentsline {subsection}{\numberline {4.2}Context-Free Grammar (CFG)}{13}{subsection.4.2}%

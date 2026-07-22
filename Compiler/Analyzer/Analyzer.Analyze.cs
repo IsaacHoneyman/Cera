@@ -293,6 +293,13 @@ public partial class Analyzer
             currentEnv = new Environment(currentEnv);
             ITypeAST patternType = AnalyzePattern(matchCase.Pattern);
             Unify(targetType, patternType, switchExpr.Operator);
+
+            if (matchCase.Guard != null)
+            {
+                ITypeAST guardType = AnalyzeExpression(matchCase.Guard);
+                Unify(new BaseType(intrT["bool"]), guardType, switchExpr.Operator);
+            }
+
             ITypeAST branchType = AnalyzeExpression(matchCase.ResultExpression);
             Unify(resultType, branchType, switchExpr.Operator);
             currentEnv = currentEnv.Parent;

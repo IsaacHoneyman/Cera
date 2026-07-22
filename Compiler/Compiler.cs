@@ -36,6 +36,12 @@ public class Compiler
         diag.EndSection(Diagnostics.TimerScope.Task,
             "Lexing & Parsing completed", $"Total files processed: {context.ParsedFiles.Count}");
 
+        // --- NEW: Dump ASTs dynamically across the DAG ---
+        foreach (var fileAST in context.ParsedFiles.Values)
+        {
+            diag.TryASTDump(fileAST);
+        }
+
         Analyzer.Analyzer a = new(context.ParsedFiles, diag);
         Dictionary<string, Analyzer.Environment> e = [];
         Dictionary<INodeAST, string> r = [];
@@ -47,7 +53,9 @@ public class Compiler
             Environment.Exit(1);
         }
 
-        //diag.TryAnalyzerDump(e);
+        // --- FIX: Uncomment and pass the localEnvs dictionary ---
+        diag.TryAnalyzerDump(e);
+        
         diag.EndSection(Diagnostics.TimerScope.Task, "Analysis completed");
 
         Emitter em = new(context.ParsedFiles, e, r, diag);
@@ -98,7 +106,6 @@ public class Compiler
 
         Directory.CreateDirectory("Out/Dump");
         Directory.CreateDirectory("Out/ByteCode");
-        // Directory.CreateDirectory("Out/VirtualMachine");
 
         _ = new Compiler(filePath, diag);
     }

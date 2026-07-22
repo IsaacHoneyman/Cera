@@ -1,0 +1,49 @@
+hidden import "Collection.cera";
+hidden import "IO.cera";
+
+// Abstraction of constant configuration data
+hidden var chunkWidth: int = 16;
+hidden var chunkHeight: int = 16;
+hidden var saveFile: char list = "Out/Terrain.bin";
+
+// Calculates tile type based on distance from the center (8, 8)
+hidden def getTile(index: int): int = {
+    var x: int = index % chunkWidth;
+    var y: int = index / chunkWidth;
+    
+    var fx: float = intToFloat(x - 8);
+    var fy: float = intToFloat(y - 8);
+    
+    // Core Euclidean distance calculation utilizing CeraVM intrinsics
+    var dist: float = sqrt(pow(fx, 2.0) + pow(fy, 2.0));
+    
+    if (dist < 3.0) { 3; }      // Mountain
+    else if (dist < 5.5) { 2; } // Grass
+    else if (dist < 7.5) { 1; } // Sand
+    else { 0; }                 // Water
+}
+
+// Program execution entry point 
+def entry(args: char list arr): int = {
+    // Leveraging the IO library for string interpolation
+    outFN("Generating %x% terrain...", [intToChars(chunkWidth), intToChars(chunkHeight)]);
+    
+    var totalTiles: int = chunkWidth * chunkHeight;
+    
+    // Abstracting iterative population via the Collection library's array builder
+    var mapData: int arr = arrBuild(totalTiles, getTile);
+    
+    // Persistent storage serialization 
+    var res: result<unit, char list> = writeBin(saveFile, mapData);
+    
+    switch (res) {
+        Ok(u) -> {
+            outFN("Terrain successfully saved to %", [saveFile]);
+            0;
+        },
+        Error(err) -> {
+            outFN("FATAL: %", [err]);
+            1;
+        }
+    }
+}

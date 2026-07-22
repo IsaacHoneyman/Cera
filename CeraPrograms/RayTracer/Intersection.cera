@@ -1,3 +1,6 @@
+hidden import "Scene.cera";
+hidden import "Vector.cera";
+
 def hitBound(r: ray, center: vec3, radius: float) : bool = {
     switch (r) {
         Ray(origin, dir) -> {

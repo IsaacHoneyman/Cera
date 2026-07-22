@@ -1,6 +1,6 @@
-import "Vector.cera";
-import "Collection.cera";
-import "Math.cera";
+hidden import "Vector.cera";
+hidden import "Collection.cera";
+hidden import "Math.cera";
 
 type mat = 
     Phong: (vec3 * vec3 * vec3 * float) |

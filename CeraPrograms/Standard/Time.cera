@@ -44,9 +44,8 @@ hidden def getYear(year: int, day: int) : (int * int) = {
 hidden def getMonth(daysList: int list, currentMonth: int, day: int) : (int * int) = {
     switch(daysList) {
         [] -> (currentMonth, day + 1),
-        (days::tail) -> 
-            if (day >= days) { getMonth(tail, currentMonth + 1, day - days); }
-            else { (currentMonth, day + 1); } 
+        (days::tail) if (day >= days) -> getMonth(tail, currentMonth + 1, day - days),
+        _ -> (currentMonth, day + 1)
     }
 }
 

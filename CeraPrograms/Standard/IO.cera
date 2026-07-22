@@ -42,13 +42,8 @@ def split(str: char list, delimiter: char) : char list list = {
     var aux = func(rem: char list, currentWord: char list, acc: char list list) : char list list = { 
         switch (rem) {
             [] -> rev(rev(currentWord)::acc),
-            (h::tl) ->
-                if (h == delimiter) {
-                    aux(tl, [], (rev(currentWord) :: acc));
-                }
-                else {
-                    aux(tl, (h::currentWord), acc);
-                }
+            (h::tl) if (h == delimiter) -> aux(tl, [], (rev(currentWord) :: acc)),
+            (h::tl) -> aux(tl, (h::currentWord), acc)
         }
     };
     aux(str, [], []);
@@ -130,6 +125,28 @@ def appendD(path: char list, content: char list) : unit = {
         Error(err) -> {
             outFN("FATAL I/O: Failed to append. %", [err]);
             (); // Fallback unit
+        }
+    }
+}
+
+// --- Binary File ---
+
+def readBinD(path: char list) : int arr = {
+    switch (readBin(path)) {
+        Ok(content) -> content,
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to read binary. %", [err]); 
+            arr []; // Fallback empty contiguous array
+        }
+    }
+}
+
+def writeBinD(path: char list, data: int arr) : unit = {
+    switch (writeBin(path, data)) {
+        Ok(u) -> (),
+        Error(err) -> {
+            outFN("FATAL I/O: Failed to write binary. %", [err]); 
+            (); // Fallback unit thunk
         }
     }
 }

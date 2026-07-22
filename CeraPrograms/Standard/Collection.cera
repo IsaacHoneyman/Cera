@@ -29,9 +29,8 @@ def length<g>(lst: g list) : int = {
 def nth<g>(lst: g list, index: int) : option<g> = { 
     switch(lst) {
         [] -> None,
-        (h::tl) -> 
-            if (index == 0) { Some(h) }
-            else { nth(tl, index - 1) }
+        (h::_) if (index == 0) -> Some(h),
+        (_::tl) -> nth(tl, index - 1)
     }
 }
 
@@ -49,9 +48,8 @@ def rev<g>(lst: g list) : g list = {
 def mem<g>(lst: g list, elm: g) : bool = {
     switch (lst) {
         [] -> false,
-        (h::tl) -> 
-            if (h == elm) { true } 
-            else { mem(tl, elm) }
+        (h::_) if (h == elm) -> true,
+        (_::tl) -> mem(tl, elm)
     }
 }
 
@@ -65,9 +63,8 @@ def map<g, h>(lst: g list, f: g -> h) : h list = {
 def filter<g>(lst: g list, p: g -> bool) : g list = {
     switch(lst) {
         [] -> [],
-        (h::tl) -> 
-            if (p(h)) { (h :: filter(tl, p)) }
-            else { filter(tl, p) }
+        (h::tl) if (p(h)) -> (h :: filter(tl, p)),
+        (_::tl) -> filter(tl, p)
     }
 }
 
@@ -91,9 +88,8 @@ def forAll<g>(lst: g list, p: g -> bool) : bool = {
 def find<g>(lst: g list, p: g -> bool) : option<g> = {
     switch(lst) {
         [] -> None,
-        (h::tl) ->
-            if (p(h)) { Some(h) }
-            else { find(tl, p) }
+        (h::_) if (p(h)) -> Some(h),
+        (_::tl) -> find(tl, p)
     }
 }
 
@@ -128,9 +124,8 @@ def foldRight<g, h>(lst: g list, f: (g * h) -> h, acc: h) : h = {
 hidden def takeAux<g>(lst: g list, num: int, i: int, acc: g list) : g list = {
     switch(lst) {
         [] -> acc,
-        (h::tl) ->
-            if (i >= num) { acc; }
-            else { takeAux(tl, num, i + 1, (h::acc)); }
+        _ if (i >= num) -> acc,
+        (h::tl) -> takeAux(tl, num, i + 1, (h::acc))
     }
 }
 
@@ -141,9 +136,8 @@ def take<g>(lst: g list, num: int) : g list = {
 hidden def skipAux<g>(lst: g list, num: int, i: int) : g list = {
     switch(lst) {
         [] -> [],
-        (h::tl) ->
-            if (i >= num) { lst; }
-            else { skipAux(tl, num, i + 1); } 
+        _ if (i >= num) -> lst,
+        (_::tl) -> skipAux(tl, num, i + 1) 
     }
 }
 
@@ -151,13 +145,17 @@ def skip<g>(lst: g list, num: int) : g list = {
     skipAux(lst, num, 0); 
 }
 
-hidden def buildAux<g>(index: int, size: int, f: int -> g) : g list = {
-    if (index == size) { []; }
-    else { f(index) :: buildAux(index + 1, size, f); }
+hidden def buildAux<g>(index: int, acc: g list, f: int -> g) : g list = {
+    if (index < 0) {
+        acc;
+    } else {
+        buildAux(index - 1, f(index) :: acc, f);
+    }
 }
+
 def build<g>(size: int, f: int -> g) : g list = {
     if (size <= 0) { []; }
-    else { buildAux(0, size, f); }
+    else { buildAux(size - 1, [], f); }
 }
 
 def qs<g>(lst: g list, cmp: (g * g) -> int) : g list = {    

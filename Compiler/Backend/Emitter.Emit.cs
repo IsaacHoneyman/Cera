@@ -622,19 +622,24 @@ public partial class Emitter
 
             CompilePatternCase(matchCase.Pattern, rootTarget, failureJumps, scopeDepthBeforeCase, sw.Operator.Line);
 
+            if (matchCase.Guard != null)
+            {
+                EmitExpression(matchCase.Guard, false);
+                int guardJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, sw.Operator.Line);
+                EmitFailureCleanup(scopeDepthBeforeCase, failureJumps, sw.Operator.Line);
+                CurrentChunk.PatchJump(guardJumpIfTrue);
+            }
+
             EmitExpression(matchCase.ResultExpression, isTail);
 
             int rootTargetIndex = Locals.IndexOf(rootTarget);
             if (rootTargetIndex > byte.MaxValue) FatalError("Too many local variables in scope. Limit is 255.", sw.Operator);
 
-            // Overwrite the root target with the result of the case
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, sw.Operator.Line);
             CurrentChunk.WriteByte((byte)rootTargetIndex, sw.Operator.Line);
 
-            // FIX: Pop the ghost result left behind by the VM's PEEK!
             CurrentChunk.WriteByte(OpCode.POP, sw.Operator.Line);
 
-            // Safely clean up the destructured pattern variables
             int variablesPushed = Locals.Count - scopeDepthBeforeCase;
             for (int i = 0; i < variablesPushed; i++)
             {

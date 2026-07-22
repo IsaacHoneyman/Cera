@@ -3,7 +3,7 @@
 # =========================================================================
 # Release Variables
 # =========================================================================
-VERSION="v1.0-1"
+VERSION="v1.1-0"
 WIN_DIR="cera-${VERSION}-win-x64"
 LINUX_DIR="cera-${VERSION}-linux-x64"
 
@@ -43,7 +43,8 @@ rm -f ./$LINUX_DIR/bin/*.pdb
 echo "Compiling C virtual machine..."
 
 # Windows VM (Cross-compiled via MinGW)
-x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -lm -o ./$WIN_DIR/bin/ceravm.exe
+# ADDED: -lpthread to fix the clock_gettime linker error
+x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -lm -lpthread -o ./$WIN_DIR/bin/ceravm.exe
 
 # Linux VM (Native compilation)
 gcc $VM_SRC/*.c -O3 -lm -o ./$LINUX_DIR/bin/ceravm
@@ -56,6 +57,8 @@ for DIR in $WIN_DIR $LINUX_DIR; do
     cp $LIB_SRC/Collection.cera ./$DIR/lib/ 2>/dev/null || true
     cp $LIB_SRC/IO.cera ./$DIR/lib/ 2>/dev/null || true
     cp $LIB_SRC/Math.cera ./$DIR/lib/ 2>/dev/null || true
+    # ADDED: Time.cera included in the release package
+    cp $LIB_SRC/Time.cera ./$DIR/lib/ 2>/dev/null || true
 done
 
 # =========================================================================

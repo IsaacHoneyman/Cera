@@ -23,18 +23,19 @@ public partial class Analyzer
             "get", "target", "index", "arrLength", "array",
             "concat", "left", "right", "arrConcat",
             "out", "output", "in", "read", "path", "write", "content",
+            "readBin", "writeBin", "data",
             "intToFloat", "x", "floatToInt", "charToInt", "c", "intToChar",
             "intToChars", "floatToChars", "boolToChars",
             "charsToInt", "str", "charsToFloat",
             "arrToList", "listToArr", "lst",
             "build", "arrBuild", "size", "f",
             "rand", "randInt", "sqrt", "append",
-            "time", "timeLocal", "uptime"
+            "time", "timeLocal", "uptime",
+            "ln", "pow", "base", "exp"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
-        }
-        ;
+        };
 
         intrT["int"] = Token.BuiltIn(TokenType.IntLiteral, "int");
         intrT["float"] = Token.BuiltIn(TokenType.FloatLiteral, "float");
@@ -208,5 +209,27 @@ public partial class Analyzer
         DefineIntrinsic("uptime", IntrinsicId.Uptime,
             new FuncType(new BaseType(intrT["unit"]), new BaseType(intrT["int"])), 
             0);
+
+        // readBin(path: char list) : result<int arr, char list>
+        DefineIntrinsic("readBin", IntrinsicId.ReadBin,
+            new FuncType(new ListType(new BaseType(intrT["char"])),
+            new GenericType(intrT["result"], [new ArrType(new BaseType(intrT["int"])), new ListType(new BaseType(intrT["char"]))])),
+            1);
+
+        // writeBin(path: char list, data: int arr) : result<unit, char list>
+        DefineIntrinsic("writeBin", IntrinsicId.WriteBin,
+            new FuncType(new TupleType([new ListType(new BaseType(intrT["char"])), new ArrType(new BaseType(intrT["int"]))]),
+            new GenericType(intrT["result"], [new BaseType(intrT["unit"]), new ListType(new BaseType(intrT["char"]))])),
+            2);
+
+        // ln(x: float) : float
+        DefineIntrinsic("ln", IntrinsicId.Ln,
+            new FuncType(new BaseType(intrT["float"]), new BaseType(intrT["float"])),
+            1);
+
+        // pow(base: float, exp: float) : float
+        DefineIntrinsic("pow", IntrinsicId.FloatPow,
+            new FuncType(new TupleType([new BaseType(intrT["float"]), new BaseType(intrT["float"])]), new BaseType(intrT["float"])),
+            2);
     }
 }

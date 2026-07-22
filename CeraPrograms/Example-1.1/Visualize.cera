@@ -1,0 +1,62 @@
+hidden import "Collection.cera";
+hidden import "IO.cera";
+
+hidden var chunkWidth: int = 16;
+hidden var chunkHeight: int = 16;
+hidden var saveFile: char list = "Out/Terrain.bin";
+
+// Maps raw binary integers to human-readable visual tiles
+hidden def getTileChar(val: int): char list = {
+    switch (val) {
+        0 -> "~ ", // Water
+        1 -> ". ", // Sand
+        2 -> "# ", // Grass
+        3 -> "^ ", // Mountain
+        _ -> "? "  // Unknown corrupted data
+    }
+}
+
+// Recursively iterates over the X-axis (Columns)
+hidden def printRow(data: int arr, rowStart: int, col: int): unit = {
+    if (col < chunkWidth) {
+        // Defensive data fetching using the Collection library's fallback array grab
+        var val: int = arrGetD(data, rowStart + col, 0);
+        
+        out(getTileChar(val));
+        
+        printRow(data, rowStart, col + 1); // Implicit Tail Call Optimization
+    } else {
+        outN(""); // Appends a newline to terminate the row
+    }
+}
+
+// Recursively iterates over the Y-axis (Rows)
+hidden def printMap(data: int arr, row: int): unit = {
+    if (row < chunkHeight) {
+        printRow(data, row * chunkWidth, 0);
+        printMap(data, row + 1); // Implicit Tail Call Optimization
+    } else {
+        ();
+    }
+}
+
+def entry(args: char list arr): int = {
+    var res: result<int arr, char list> = readBin(saveFile);
+    
+    switch (res) {
+        // Test-then-bind architecture guarantees structural matrix integrity before unpacking
+        Ok(data) if (arrLength(data) == (chunkWidth * chunkHeight)) -> {
+            outN("--- LOADED TERRAIN MAP ---");
+            printMap(data, 0);
+            0;
+        },
+        Ok(_) -> {
+            outN("Error: Corrupted map dimensions on disk.");
+            1;
+        },
+        Error(err) -> {
+            outFN("FATAL I/O: %", [err]);
+            1;
+        }
+    }
+}

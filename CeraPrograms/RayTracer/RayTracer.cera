@@ -1,5 +1,5 @@
-import "Scene.cera";
-import "Renderer.cera";
+hidden import "Scene.cera";
+hidden import "Renderer.cera";
 
 def entry(args: char list arr) : int = {
     

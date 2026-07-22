@@ -62,12 +62,44 @@ inline def moreThanEqual<g>(cmp: (g * g) -> int, value: g) : g -> bool = {
     func(x: g) : bool = { cmp(x, value) >= 0; }
 }
 
-def pow(base: float, exp: int) : float = {
+inline def log(base: float, x: float) : float = {
+    ln(x) / ln(base);
+}
+
+inline def log10(x: float) : float = { log(10.0, x); }
+inline def log2(x: float) : float = { log(2.0, x); }
+
+def powInt(base: float, exp: int) : float = {
     if (exp <= 0) { 1.0; } 
-    else { base * pow(base, exp - 1); }
+    else { base * powInt(base, exp - 1); }
 }
 
 def factorial(n: int) : int = {
     if (n <= 1) { 1; }
     else { n * factorial(n - 1); }
 }
+
+// --- Trig ---
+
+hidden def floatFact(n: int) : float = {
+    if (n <= 1) { 1.0; }
+    else { intToFloat(n) * floatFact(n - 1); }
+}
+
+hidden def sinTaylor(x: float, termIndex: int, sign: float, iterations: int) : float = {
+    if (iterations == 0) { 0.0; }
+    else {
+        var term = sign * (pow(x, intToFloat(termIndex)) / floatFact(termIndex));        
+        term + sinTaylor(x, termIndex + 2, -sign, iterations - 1);
+    }
+}
+
+hidden inline def normalizeRadians(x: float) : float = {
+    var twoPi = pi * 2.0;
+    var wrapped = x - (twoPi * floor(x / twoPi));
+    wrapped > pi ? wrapped - twoPi : wrapped;
+}
+
+inline def sin(x: float) : float = { sinTaylor(normalizeRadians(x), 1, 1.0, 10); }
+inline def cos(x: float) : float = { sin(x + (pi / 2.0)); }
+inline def tan(x: float) : float = { sin(x) / cos(x); }
