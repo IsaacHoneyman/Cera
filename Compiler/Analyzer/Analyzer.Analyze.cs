@@ -379,13 +379,13 @@ public partial class Analyzer
         string cName = con.ConstructorName.Lexeme;
         string mangledName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
         
-        Symbol? sym = globalEnv.Resolve(mangledName) ?? globalEnv.Resolve(cName);
+        Symbol? sym = currentEnv!.Resolve(mangledName) ?? currentEnv!.Resolve(cName);
         
         if (sym is not ConstructorSymbol cSym)
             return FatalErrorReturn($"Undefined constructor '{cName}'", con.ConstructorName);
 
         List<Token> adtGenerics = [];
-        if (cSym.ParentType is GenericType gt && globalEnv.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
+        if (cSym.ParentType is GenericType gt && currentEnv!.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
             adtGenerics = tSym.GenericParams;
 
         Dictionary<string, ITypeAST> subs = [];
@@ -414,12 +414,12 @@ public partial class Analyzer
     {
         string cName = con.ConstructorName.Lexeme;
         string mangledName = $"_hidden_{con.ConstructorName.File ?? "unknown"}_{cName}";
-        Symbol? sym = globalEnv.Resolve(mangledName) ?? globalEnv.Resolve(cName);
+        Symbol? sym = currentEnv!.Resolve(mangledName) ?? currentEnv!.Resolve(cName);
         if (sym is not ConstructorSymbol cSym)
             return FatalErrorReturn($"Undefined constructor '{cName}'", con.ConstructorName);
 
         List<Token> gens = [];
-        if (cSym.ParentType is GenericType gt && globalEnv.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
+        if (cSym.ParentType is GenericType gt && currentEnv!.Resolve(gt.BaseName.Lexeme) is TypeSymbol tSym)
             gens = tSym.GenericParams;
 
         Dictionary<string, ITypeAST> subs = [];

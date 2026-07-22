@@ -6,9 +6,13 @@ using Cera.Compiler.Lexer;
 namespace Cera.Compiler.Backend;
 
 public partial class Emitter(
-ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Diagnostics diag)
+    Dictionary<string, FileAST> parsedFiles, 
+    Dictionary<string, Analyzer.Environment> localEnvs, 
+    Dictionary<INodeAST, string> res, 
+    Diagnostics diag)
 {
     private readonly Module module = new("CeraModule");
+    private Analyzer.Environment? currentEnv;
 
     private readonly Dictionary<string, int> globalFunctionIndices = [];
     private int nextFunctionIndex = 0;
@@ -36,8 +40,6 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
         public FuncState? Enclosing { get; init; }
         public Chunk Chunk { get; } = new(diag);
         public List<string> Locals { get; } = [];
-
-        // Tracks what we capture: Name, IsLocal (true if from parent's locals, false if from parent's upvalues), Index
         public List<(string Name, bool IsLocal, int Index)> Upvalues { get; } = [];
     }
 
@@ -49,39 +51,53 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
     {
         diag.DetailLog("Creating Bytecode");
 
-        foreach (var func in root.Functions)
+        // 1. Flat Pass: Allocate all indices, inline functions, variables, and ADT tags
+        foreach (var file in parsedFiles.Values)
         {
-            string fName = res.TryGetValue(func, out string? r) ? r : func.Identifier.Lexeme;
-            globalFunctionIndices[fName] = nextFunctionIndex++;
-
-            if (func.IsInline) inlineFunctions[fName] = func;
-        }
-
-        foreach (var topVar in root.TopVars)
-        {
-            globalVariables[topVar.Identifier.Lexeme] = topVar.Initializer;
-        }
-        
-        foreach (var typeDecl in root.Types)
-        {
-            foreach (var constructor in typeDecl.Constructors) 
+            foreach (var func in file.Functions)
             {
-                string cName = constructor.ConstructorName.Lexeme;
-                
-                if (!constructorTags.ContainsKey(cName))
+                string fName = res.TryGetValue(func, out string? r) ? r : func.Identifier.Lexeme;
+                globalFunctionIndices[fName] = nextFunctionIndex++;
+
+                if (func.IsInline) inlineFunctions[fName] = func;
+            }
+
+            foreach (var topVar in file.TopVariables)
+            {
+                string vName = res.TryGetValue(topVar, out string? r) ? r : topVar.Identifier.Lexeme;
+                globalVariables[vName] = topVar.Initializer;
+            }
+            
+            foreach (var typeDecl in file.Types)
+            {
+                foreach (var constructor in typeDecl.Constructors) 
                 {
-                    if (nextConstructorTag == byte.MaxValue)
-                        FatalError("Too many ADT constructors across the module. Limit is 255", typeDecl.Identifier);
-                        
-                    constructorTags[cName] = nextConstructorTag++;
+                    string cName = constructor.ConstructorName.Lexeme;
+                    if (typeDecl.IsHidden) cName = $"_hidden_{constructor.ConstructorName.File ?? "unknown"}_{cName}";
+                    
+                    if (!constructorTags.ContainsKey(cName))
+                    {
+                        if (nextConstructorTag == byte.MaxValue)
+                            FatalError("Too many ADT constructors across the module. Limit is 255", typeDecl.Identifier);
+                            
+                        constructorTags[cName] = nextConstructorTag++;
+                    }
                 }
             }
-        }        
-        
-        foreach (var func in root.Functions) CompileFunction(func);
+        }
+
+        // 2. Flat Pass: Compile all functions within their specific local environments
+        foreach (var file in parsedFiles.Values)
+        {
+            currentEnv = localEnvs[file.FilePath];
+            foreach (var func in file.Functions) 
+            {
+                CompileFunction(func);
+            }
+        }
 
         if (module.EntryPoint == null)
-            diag.LogWarning("No 'entry' function found, This module can only be imported as a library");
+            diag.LogWarning("No 'entry' function found. This module can only be imported as a library");
 
         return module;
     }
@@ -105,7 +121,7 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
 
     private int ResolveUpvalue(FuncState currentState, string name)
     {
-        if (currentState.Enclosing == null) return -1; // Hit the global scope, not found
+        if (currentState.Enclosing == null) return -1;
 
         int localIdx = currentState.Enclosing.Locals.LastIndexOf(name);
         if (localIdx != -1)
@@ -144,7 +160,12 @@ ProgramNode root, Analyzer.Environment env, Dictionary<INodeAST, string> res, Di
 
     private byte GetConstructorTagIndex(Token identifier)
     {
-        if (constructorTags.TryGetValue(identifier.Lexeme, out byte tagId)) return tagId;
+        string cName = identifier.Lexeme;
+        string mangledName = $"_hidden_{identifier.File ?? "unknown"}_{cName}";
+        
+        if (constructorTags.TryGetValue(mangledName, out byte tagIdMangled)) return tagIdMangled;
+        if (constructorTags.TryGetValue(cName, out byte tagId)) return tagId;
+        
         throw ThrowableFatalError($"Emitter Error: Unknown ADT constructor '{identifier.Lexeme}' encountered during emission", identifier);
     }
 

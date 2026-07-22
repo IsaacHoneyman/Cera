@@ -1,4 +1,4 @@
-import "Math.cera";
+hidden import "Math.cera";
 
 /* 
     The offical collection libary for Cera.
@@ -103,8 +103,7 @@ hidden def findIndexAux<g>(lst: g list, p: g -> bool, i: int) : option<int> = {
         (h::tl) -> {
             if (p(h)) { Some(i); }
             else { findIndexAux(tl, p, i + 1); }
-        },
-        _ -> {outN("wtf"); None; }
+        }
     }
 }
 

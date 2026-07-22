@@ -474,9 +474,15 @@ Whitespace characters (spaces, tabs, carriage returns, and newlines) serve stric
 Similarly, single-line (\texttt{//}) and block (\texttt{/* ... */}) comments transition the scanner into an absorption state, aggressively consuming characters until the termination sequence is reached, emitting nothing to the parser stream.
 
 % =========================================================================
-\subsection{Import Handling}
+\subsection{Import Handling \& Module Encapsulation}
 % =========================================================================
-As will be seen in the next section (Parsing), the import keyword and it's syntax \texttt{import "filename"} are not present. This is an intentional choice to prioritise simplicity of our compilation process, and is handled instead in the code via an intermediate \texttt{ImportResolver} stage, which searches the top of lexed files for imports, such the entire included codebase can be parsed as one unit. 
+Cera implements a robust, Directed Acyclic Graph (DAG) module system. The \texttt{import "FileName.cera";} syntax is parsed directly into the Abstract Syntax Tree. 
+
+To guarantee $O(1)$ compilation caching and prevent cyclic dependency loops, the compiler orchestrates imports topologically. Each file is lexed and parsed exactly once. Furthermore, Cera strictly enforces module encapsulation via two-tier environments:
+\begin{itemize}
+    \item \textbf{Standard Imports:} Merges the public API of the target file into both the local execution scope and the public export scope, allowing transitive dependencies.
+    \item \textbf{Hidden Imports:} Using the syntax \texttt{hidden import "FileName.cera";}, the compiler merges the target's public API strictly into the local execution scope. The dependency is trapped within the importing file and cannot leak to external modules, enforcing rigid data hiding.
+\end{itemize}
 
 % =========================================================================
 \section{Syntax Analysis (Parsing)}
@@ -636,6 +642,7 @@ Scope in Cera is managed via a hierarchical, purely functional \texttt{Environme
     \item \textbf{The Scope Chain:} The environment acts as a singly-linked list of hash maps. Each block creates a new environment pointing to its enclosing parent.
     \item \textbf{Symbol Table \& Complexity:} Identifiers are mapped to immutable \texttt{Symbol} records (e.g., \texttt{VarSymbol}, \texttt{FuncSymbol}, \texttt{TypeSymbol}, \texttt{ConstructorSymbol}). Variable lookups operate at $O(1)$ time complexity within the local scope. If a symbol is not found, the traversal up the environment chain operates at $O(K)$ time, where $K$ is the depth of the nested scope.
     \item \textbf{Immutability Guarantee:} Shadowing creates a completely new \texttt{VarSymbol} in the localized $O(1)$ hash map rather than mutating the parent environment. This guarantees the language's strict immutability constraint is enforced directly at the compiler architecture level.
+    \item \textbf{File-Level Isolation \& DAG Traversal:} The monolithic global environment is strictly reserved for native C-intrinsics. User-defined files operate within isolated \texttt{LocalEnv} and \texttt{ExportEnv} layers. The semantic analyzer resolves module boundaries by performing a post-order topological traversal of the parsed ASTs, dynamically composing symbol tables to guarantee dependencies are type-checked before their importers.
 \end{itemize}
 
 \subsection{Hindley-Milner Type Inference (Algorithm W)}
@@ -981,6 +988,7 @@ The inital release of the Cera functional programming language.
     \item \textbf{Hidden keyword: } \texttt{hidden}, restricts scope to defined file (e.g. c's static). Works with named functions, top level var declarations, and types. can also use to modify import, such that secondary importers will not have access to the hidden imported file.
     \item \textbf{Inline keyword: } \texttt{inline}, instructs the compiler to substitute the function's body directly at the call site during the intermediate code generation phase. This optimization eliminates the runtime overhead of allocating and destroying a Call Frame on the virtual machine's operand stack, trading a larger bytecode footprint for increased algorithmic execution speed.
     \item \textbf{Top-Level Declarations:} The \texttt{var} keyword now supports global scope declarations. These are strictly constrained to literal values, and safely eliminate the boilerplate of zero-arity constant functions.
+    \item \textbf{DAG Module System \& Execution Speedups:} The legacy text-concatenation preprocessor has been completely eradicated. Cera now utilizes a \texttt{CompilerContext} cache to parse files into a Directed Acyclic Graph. This speeds up the compilation phase, and prioritises the entry function for situtational vm speed ups.
     \item \textbf{Implicit If Else blocks: } if statements that return unit, will now implicitly include \texttt{else \{ (); \}}, simplifying I/O boilerplate. 
     \item \textbf{Natural Pattern Unpacking: } The \texttt{var} keyword now supports full structural pattern matching on the left-hand side. This allows developers to natively destructure tuples, lists, and Algebraic Data Types directly into the local environment (e.g., \texttt{var (x, y) = tup;}).
     \item \textbf{New Intrinsics \& Std Library: } \texttt{uptime}, \texttt{timeLocal}, to complete timing implementations. Standard library improved to use new hidden and inline keywords, as well as new time libary.

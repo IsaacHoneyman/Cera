@@ -159,8 +159,8 @@ public partial class Analyzer
                 string mangledName = $"_hidden_{b.TypeName.File ?? "unknown"}_{name}";
                 
                 if (!validGenerics.Contains(name) && 
-                    globalEnv.Resolve(mangledName) is not TypeSymbol && 
-                    globalEnv.Resolve(name) is not TypeSymbol)
+                    currentEnv!.Resolve(mangledName) is not TypeSymbol && 
+                    currentEnv!.Resolve(name) is not TypeSymbol)
                 {
                     FatalError($"Semantic Error: Undefined type '{name}'", b.TypeName);
                 }
@@ -181,7 +181,7 @@ public partial class Analyzer
                 break;
             case GenericType gt:
                 string baseName = gt.BaseName.Lexeme;
-                if (globalEnv.Resolve(baseName) is not TypeSymbol)
+                if (currentEnv!.Resolve(baseName) is not TypeSymbol && currentEnv!.Resolve($"_hidden_{gt.BaseName.File ?? "unknown"}_{baseName}") is not TypeSymbol)
                     FatalError($"Undefined generic base type '{baseName}'", gt.BaseName);
                 foreach (var typeArg in gt.TypeArguments)
                     ValidateTypeExists(typeArg, validGenerics);

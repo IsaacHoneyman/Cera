@@ -1,4 +1,6 @@
 import "../Standard/IO.cera";
+import "../Standard/Collection.cera";
+import "../Standard/Time.cera";
 import "Test2.cera";
 
 var testGlobalVar = 2;

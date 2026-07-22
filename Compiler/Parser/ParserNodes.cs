@@ -30,6 +30,10 @@ public record ConDeclNode(Token ConstructorName, ITypeAST? PayloadType) : INodeA
 
 public record PatternMatchNode(IPatternAST Pattern, IExprAST ResultExpression) : INodeAST;
 
+public record ImportNode(Token PathLiteral, bool IsHidden) : INodeAST;
+
+public record FileAST(string FilePath, List<ImportNode> Imports, List<FuncDeclNode> Functions, List<TypeDeclNode> Types, List<TopVarDeclNode> TopVariables) : INodeAST;
+
 // --- Statements ---
 
 public record VarDeclStmt(IPatternAST Pattern, Token Operator, ITypeAST? DeclaredType, IExprAST Initializer) : IStmtAST;

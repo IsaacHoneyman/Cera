@@ -4,8 +4,9 @@ namespace Cera.Compiler.Parser;
 
 public partial class Parser
 {
-    private ProgramNode ParseProgram()
+    private FileAST ParseProgram(string filePath)
     {
+        List<ImportNode> imports = [];
         List<FuncDeclNode> functions = [];
         List<TypeDeclNode> types = [];
         List<TopVarDeclNode> topVars = [];
@@ -16,7 +17,12 @@ public partial class Parser
             bool isHidden = Match(TokenType.Hidden);
             bool isInline = Match(TokenType.Inline);
 
-            if (Check(TokenType.Def)) 
+            if (Check(TokenType.Import))
+            {
+                if (isInline) FatalError("Imports cannot be marked 'inline'", Peek());
+                imports.Add(ParseImportDecl(isHidden));
+            }
+            else if (Check(TokenType.Def)) 
                 functions.Add(ParseFuncDecl(isHidden, isInline));
             else if (Check(TokenType.Var)) 
             {
@@ -25,17 +31,27 @@ public partial class Parser
             }
             else if (Check(TokenType.Type)) 
             {
-                if (isInline) FatalError("Types cannot cannot be marked 'inline'", Peek());
+                if (isInline) FatalError("Types cannot be marked 'inline'", Peek());
                 types.Add(ParseTypeDecl(isHidden));
             }
             else 
-                FatalError("Expected 'def', 'type', or 'var' declaration at the top level", Peek());
+                FatalError("Expected 'import', 'def', 'type', or 'var' declaration at the top level", Peek());
         }
 
-        return new ProgramNode(functions, types, topVars);
+        return new FileAST(filePath, imports, functions, types, topVars);
     }
 
     // --- Decl ---
+
+    private ImportNode ParseImportDecl(bool isHidden)
+    {
+        Consume(TokenType.Import, "Expected 'import' keyword");
+        
+        var pathLiteral = Consume(TokenType.StringLiteral, "Expected file path string after 'import'");
+        Consume(TokenType.Semicolon, "Expected ';' after import statement");
+
+        return new ImportNode(pathLiteral, isHidden);
+    }
 
     private TopVarDeclNode ParseTopVarDecl(bool isHidden)
     {

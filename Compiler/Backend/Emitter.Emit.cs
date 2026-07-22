@@ -338,7 +338,7 @@ public partial class Emitter
         Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
-    private void EmitCall(CallExpr call, bool isTail)
+   private void EmitCall(CallExpr call, bool isTail)
     {
         if (call.Arguments.Count > byte.MaxValue)
             FatalError($"Too many arguments in function call {call.Arguments.Count}, max 255.", GetLeadToken(call));
@@ -346,7 +346,8 @@ public partial class Emitter
         if (call.Callee is IdentifierExpr idExpr)
         {
             string fName = res.TryGetValue(idExpr, out string? r) ? r : idExpr.Identifier.Lexeme;
-            Symbol? sym = env?.Resolve(fName);
+            
+            Symbol? sym = currentEnv?.Resolve(fName);
 
             if (sym is FuncSymbol { NativeId: not null } funcSym)
             {
@@ -370,7 +371,6 @@ public partial class Emitter
                 return;
             }
         }
-
 
         EmitExpression(call.Callee);
         Locals.Add("<temp_callee>");

@@ -1,5 +1,5 @@
-import "Collection.cera";
-import "Time.cera";
+hidden import "Collection.cera";
+hidden import "Time.cera";
 
 /* 
     The offical IO libary for Cera.

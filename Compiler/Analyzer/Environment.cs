@@ -21,6 +21,14 @@ public class Environment(Environment? parent = null)
 
     public IEnumerable<Symbol> GetLocalSymbols() { return locals.Values; }
 
+    public void MergeFrom(Environment other)
+    {
+        foreach (var kvp in other.locals)
+        {
+            if (!locals.ContainsKey(kvp.Key)) locals[kvp.Key] = kvp.Value;
+        }
+    }
+
     public static Environment None() { return new Environment(); }
     
 }

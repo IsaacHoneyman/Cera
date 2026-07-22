@@ -1,3 +1,4 @@
+/*
 namespace Cera.Compiler.Lexer;
 
 using System.Diagnostics.CodeAnalysis;
@@ -97,3 +98,4 @@ public class ImportResolver(Diagnostics diag)
         throw e;
     }
 }
+*/
