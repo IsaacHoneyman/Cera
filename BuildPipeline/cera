@@ -9,7 +9,7 @@ COMMAND=$1
 FILE=$2
 
 print_help() {
-    echo "Cera Compiler & Virtual Machine v1.1-0"
+    echo "Cera Compiler & Virtual Machine __VERSION__"
     echo "Usage: cera <command> [file] [args...]"
     echo ""
     echo "Commands:"
@@ -38,7 +38,7 @@ print_help() {
 }
 
 print_version() {
-    echo "Cera Compiler & Virtual Machine v1.1-0"
+    echo "Cera Compiler & Virtual Machine __VERSION__"
 }
 
 # Handle 'help' or empty commands

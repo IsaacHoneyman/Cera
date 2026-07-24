@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-echo Installing Cera Compiler v1.1-0 for Windows...
+echo Installing Cera Compiler __VERSION__ for Windows...
 
 :: Define target Windows directory
 set "INSTALL_DIR=%LOCALAPPDATA%\Cera"

@@ -2,70 +2,66 @@ hidden import "Math.cera";
 
 type vec3 = Vec: (float * float * float); // x, y, z
 
-def vAdd(a: vec3, b: vec3) : vec3 = {
-    switch ((a, b)) {
-        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
-            Vec(x1 + x2, y1 + y2, z1 + z2)
-    }
+inline def vAdd(a: vec3, b: vec3) : vec3 = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    Vec(x1 + x2, y1 + y2, z1 + z2);
 }
 
-def vSub(a: vec3, b: vec3) : vec3 = {
-    switch ((a, b)) {
-        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
-            Vec(x1 - x2, y1 - y2, z1 - z2)
-    }
+inline def vSub(a: vec3, b: vec3) : vec3 = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    Vec(x1 - x2, y1 - y2, z1 - z2);
 }
 
-def vMul(v: vec3, scalar: float) : vec3 = {
-    switch (v) {
-        Vec(x, y, z) -> Vec(x * scalar, y * scalar, z * scalar)
-    }
+inline def vMul(v: vec3, scalar: float) : vec3 = {
+    var Vec(x, y, z) = v;
+    Vec(x * scalar, y * scalar, z * scalar);
 }
 
-def vColorMul(a: vec3, b: vec3) : vec3 = {
-    switch ((a, b)) {
-        (Vec(r1, g1, b1), Vec(r2, g2, b2)) -> 
-            Vec(r1 * r2, g1 * g2, b1 * b2)
-    }
+inline def vColorMul(a: vec3, b: vec3) : vec3 = {
+    var Vec(r1, g1, b1) = a;
+    var Vec(r2, g2, b2) = b;
+    Vec(r1 * r2, g1 * g2, b1 * b2);
 }
 
-def dot(a: vec3, b: vec3) : float = {
-    switch ((a, b)) {
-        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
-            (x1 * x2) + (y1 * y2) + (z1 * z2)
-    }
+inline def dot(a: vec3, b: vec3) : float = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    (x1 * x2) + (y1 * y2) + (z1 * z2);
 }
 
-def cross(a: vec3, b: vec3) : vec3 = {
-    switch ((a, b)) {
-        (Vec(x1, y1, z1), Vec(x2, y2, z2)) -> 
-            Vec((y1 * z2) - (z1 * y2), (z1 * x2) - (x1 * z2), (x1 * y2) - (y1 * x2))
-    }
+inline def cross(a: vec3, b: vec3) : vec3 = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    Vec((y1 * z2) - (z1 * y2), (z1 * x2) - (x1 * z2), (x1 * y2) - (y1 * x2));
 }
 
-def mag(v: vec3) : float = {
+inline def mag(v: vec3) : float = {
     sqrt(dot(v, v));
 }
 
-def normalize(v: vec3) : vec3 = {
+inline def normalize(v: vec3) : vec3 = {
     var m: float = mag(v);    
     (m == 0.0) ? v : vMul(v, 1.0 / m);
 }
 
-def reflect(incident: vec3, normal: vec3) : vec3 = {
+inline def reflect(incident: vec3, normal: vec3) : vec3 = {
     var scaledNormal: vec3 = vMul(normal, 2.0 * dot(incident, normal));    
     vSub(incident, scaledNormal);
 }
 
-def getD(v: vec3, i: int) : float = {
-    switch ((v, i)) {
-        (Vec(x, _, _), 0) -> x,
-        (Vec(_, y, _), 1) -> y,
-        (Vec(_, _, z), 2) -> z
+inline def getD(v: vec3, i: int) : float = {
+    var Vec(x, y, z) = v;
+    switch (i) {
+        0 -> x,
+        1 -> y,
+        2 -> z,
+        _ -> 0.0
     }
 }
 
-def refract(incident: vec3, normal: vec3, etaRatio: float) : option<vec3> = {
+inline def refract(incident: vec3, normal: vec3, etaRatio: float) : option<vec3> = {
     var cosTheta: float = min(1.0, dot(vMul(incident, -1.0), normal));
     var rOutPerp: vec3 = vMul(vAdd(incident, vMul(normal, cosTheta)), etaRatio);
     var rOutPerpMagSq: float = dot(rOutPerp, rOutPerp);

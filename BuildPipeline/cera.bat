@@ -32,11 +32,11 @@ echo Unknown command: %COMMAND%
 goto Help
 
 :Version
-echo Cera Compiler ^& Virtual Machine v1.1-0
+echo Cera Compiler ^& Virtual Machine __VERSION__
 goto :EOF
 
 :Help
-echo Cera Compiler ^& Virtual Machine v1.1-0
+echo Cera Compiler ^& Virtual Machine __VERSION__
 echo Usage: cera ^<command^> [file] [args...]
 echo.
 echo Commands:

@@ -3,7 +3,8 @@
 # =========================================================================
 # Release Variables
 # =========================================================================
-VERSION="v1.1-0"
+# Read the version dynamically from the central configuration file
+VERSION=$(cat version.txt)
 WIN_DIR="cera-${VERSION}-win-x64"
 LINUX_DIR="cera-${VERSION}-linux-x64"
 
@@ -43,7 +44,6 @@ rm -f ./$LINUX_DIR/bin/*.pdb
 echo "Compiling C virtual machine..."
 
 # Windows VM (Cross-compiled via MinGW)
-# ADDED: -lpthread to fix the clock_gettime linker error
 x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -lm -lpthread -o ./$WIN_DIR/bin/ceravm.exe
 
 # Linux VM (Native compilation)
@@ -57,22 +57,21 @@ for DIR in $WIN_DIR $LINUX_DIR; do
     cp $LIB_SRC/Collection.cera ./$DIR/lib/ 2>/dev/null || true
     cp $LIB_SRC/IO.cera ./$DIR/lib/ 2>/dev/null || true
     cp $LIB_SRC/Math.cera ./$DIR/lib/ 2>/dev/null || true
-    # ADDED: Time.cera included in the release package
     cp $LIB_SRC/Time.cera ./$DIR/lib/ 2>/dev/null || true
 done
 
 # =========================================================================
-# 5. Shell Scripts Assembly
+# 5. Shell Scripts Assembly & Version Injection
 # =========================================================================
-echo "Copying execution and installation scripts..."
+echo "Injecting version tags and copying execution scripts..."
 
-# Windows Scripts
-cp ./cera.bat ./$WIN_DIR/bin/ 2>/dev/null || true
-cp ./install.bat ./$WIN_DIR/install.bat 2>/dev/null || true
+# Windows Scripts - Replace placeholder and pipe directly to release folders
+sed "s/__VERSION__/${VERSION}/g" ./cera.bat > ./$WIN_DIR/bin/cera.bat 2>/dev/null || true
+sed "s/__VERSION__/${VERSION}/g" ./install.bat > ./$WIN_DIR/install.bat 2>/dev/null || true
 
-# Linux Scripts
-cp ./cera ./$LINUX_DIR/bin/ 2>/dev/null || true
-cp ./install.sh ./$LINUX_DIR/install.sh 2>/dev/null || true
+# Linux Scripts - Replace placeholder and pipe directly to release folders
+sed "s/__VERSION__/${VERSION}/g" ./cera > ./$LINUX_DIR/bin/cera 2>/dev/null || true
+sed "s/__VERSION__/${VERSION}/g" ./install.sh > ./$LINUX_DIR/install.sh 2>/dev/null || true
 
 # Ensure Unix scripts and binaries have execution privileges
 chmod +x ./$LINUX_DIR/bin/cera ./$LINUX_DIR/install.sh ./$LINUX_DIR/bin/cerac ./$LINUX_DIR/bin/ceravm 2>/dev/null || true

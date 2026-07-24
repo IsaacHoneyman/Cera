@@ -1,0 +1,3 @@
+Default image completion:
+Start 9.25 seconds
+With inline vecotrs 8.0 seconds

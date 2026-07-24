@@ -1,62 +1,50 @@
 hidden import "Scene.cera";
 hidden import "Renderer.cera";
+hidden import "IO.cera";
 
-def entry(args: char list arr) : int = {
-    
-    var width: int = parseArg(args, 1, 200);
-    var height: int = parseArg(args, 2, 100);
-    var depth: int = parseArg(args, 3, 3); 
-    var shadowSamples: int = parseArg(args, 4, 8); 
-    var aaSamples: int = parseArg(args, 5, 4);     
-    
-    out("Starting render with dimensions: ");
-    out(intToChars(width));
-    out("x");
-    out(intToChars(height));
-    out(" | Depth: ");
-    out(intToChars(depth));
-    out(" | Shadow Samples: ");
-    out(intToChars(shadowSamples));
-    out(" | AA Samples: ");
-    out(intToChars(aaSamples));
-    out("\n");
-    
-    var header: char list = concat("P3\n", 
-        concat(intToChars(width), concat(" ", 
-            concat(intToChars(height), "\n255\n"))));
-            
-    var scn: scene = getScene();
-    
-    // Pass the new hyper-parameters into the rendering pipeline
-    var pixels: char list = renderScreen(0, width, height, depth, shadowSamples, aaSamples, scn, "");
-    var finalData: char list = concat(header, pixels);
-    
-    switch (write("Out/image.ppm", finalData)) {
-        Ok(u) -> {
-            out("Render successfully saved to sky.ppm!\n");
-            0;
-        },
-        Error(err) -> {
-            out("Fatal I/O Error: ");
-            out(err);
-            out("\n");
-            1;
+inline def parseArg(args: char list arr, index: int, defaultVal: int) : int = {
+    switch (get(args, index)) {
+        None -> defaultVal, 
+        Some(str) -> {
+            switch (charsToInt(str)) {
+                None -> defaultVal, 
+                Some(val) -> val   
+            }
         }
     }
 }
 
-def parseArg(args: char list arr, index: int, defaultVal: int) : int = {
-    var argOpt: option<char list> = get(args, index);
+def entry(args: char list arr) : int = {
+    var width: int = parseArg(args, 1, 200);
+    var height: int = parseArg(args, 2, 100);
+    var depth: int = parseArg(args, 3, 3); 
+    var shadowSamples: int = parseArg(args, 4, 8); 
+    var aaSamples: int = parseArg(args, 5, 4);    
+
+    var startTime: int = uptime(); 
     
-    switch (argOpt) {
-        None -> defaultVal, 
-        Some(str) -> {
-            var parsedOpt: option<int> = charsToInt(str);
-            
-            switch (parsedOpt) {
-                None -> defaultVal, 
-                Some(val) -> val   
-            }
+    outFN("Starting render with dimensions: %x% | Depth: % | Shadow Samples: % | AA Samples: %", 
+        [intToChars(width), intToChars(height), intToChars(depth), intToChars(shadowSamples), intToChars(aaSamples)]);
+    
+    var header: char list = strF("P3\n% %\n255\n", [intToChars(width), intToChars(height)]);
+    var scn: scene = getScene();
+    
+    var pixels: char list = renderScreen(0, width, height, depth, shadowSamples, aaSamples, scn, "");
+    var finalData: char list = concat(header, pixels);
+
+    var endTime = uptime();
+
+    outFN("Render completed in % seconds (%ms)", [intToChars((endTime - startTime) / 1000), intToChars(endTime - startTime)]);
+
+    
+    switch (write("Out/image.ppm", finalData)) {
+        Ok(u) -> {
+            outN("Render successfully saved to Out/image.ppm!");
+            0;
+        },
+        Error(err) -> {
+            outFN("Fatal I/O Error: %", [err]);
+            1;
         }
     }
 }
