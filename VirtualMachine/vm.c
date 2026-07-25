@@ -117,7 +117,7 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
         }                                                                                         \
         else if (a.tag != b.tag)                                                                  \
         {                                                                                         \
-            log_error("Type mismatch during comparison");                                        \
+            log_error("Type mismatch during comparison: left tag=%d right tag=%d", a.tag, b.tag); \
             return 1;                                                                             \
         }                                                                                         \
         else if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT) \

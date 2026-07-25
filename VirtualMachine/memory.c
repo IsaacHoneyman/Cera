@@ -69,7 +69,7 @@ void freeObject(Obj* obj) {
     }
 }
 
-static Obj* allocateObject(size_t size, uint8_t type) {
+Obj* allocateObject(size_t size, uint8_t type) {
     log_detail("Allocating heap object (Type: %d, Size: %zu bytes)", type, size); 
     Obj* obj = (Obj*)malloc(size);
     obj -> type = type;

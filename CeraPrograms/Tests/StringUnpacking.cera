@@ -1,0 +1,24 @@
+def entry(args: char list arr) : int = {
+    // 1. Allocate an ObjString on the VM heap
+    var testStr: char list = "%test";
+    
+    // 2. Force the VM to use OP_UNPACK_LIST on the ObjString
+    switch (testStr) {
+        (c::tail) -> {
+            // 3. The Fatal Evaluation
+            // If the C backend is unpatched, 'c' is an untagged integer.
+            // Comparing it to the strictly tagged char '%' will crash the VM.
+            if (c == '%') {
+                out("SUCCESS: The C VM correctly marshalled a strictly-typed char!\n");
+                0;
+            } else {
+                out("FAILURE: The characters did not match.\n");
+                1;
+            }
+        },
+        [] -> {
+            out("FAILURE: The string was incorrectly evaluated as empty.\n");
+            1;
+        }
+    }
+}

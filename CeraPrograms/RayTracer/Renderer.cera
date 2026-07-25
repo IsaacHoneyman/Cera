@@ -6,7 +6,7 @@ hidden import "Scene.cera";
 hidden import "Vector.cera";
 
 
-def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float) : float = {
+hidden def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float) : float = {
     // Jitter the target position
     var jx: float = randRange(-radius, radius);
     var jy: float = randRange(-radius, radius);
@@ -24,7 +24,7 @@ def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: flo
     }
 }
 
-def getShadowFactor(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float, samples: int, current: int, acc: float) : float = {
+hidden def getShadowFactor(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float, samples: int, current: int, acc: float) : float = {
     if (current >= samples) {
         acc / intToFloat(samples); 
     } else {
@@ -33,7 +33,7 @@ def getShadowFactor(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: flo
     }
 }
 
-def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objects: obj list, shadowSamples: int) : vec3 = {
+hidden def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objects: obj list, shadowSamples: int) : vec3 = {
     switch ((m, l)) {
         (Phong(amb, diff, spec, alpha), Light(lPos, lIntens)) -> {            
             // Replaced the hardcoded '8' with the parameterized variable
@@ -63,13 +63,13 @@ def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objects: obj
     }
 }
 
-def schlick(cosine: float, refIdx: float) : float = {
+hidden inline def schlick(cosine: float, refIdx: float) : float = {
     var r0: float = (1.0 - refIdx) / (1.0 + refIdx);
     var r0Sq: float = r0 * r0;
     r0Sq + ((1.0 - r0Sq) * powInt((1.0 - cosine), 5));
 }
 
-def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec3 = {
+hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec3 = {
     if (depth <= 0) {
         Vec(0.0, 0.0, 0.0);
     } else {
@@ -152,12 +152,10 @@ def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec3 = {
     }
 }
 
-def getAAPixelColor(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, current: int, acc: vec3, scn: scene) : vec3 = {
+hidden def getAAPixelColor(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, current: int, acc: vec3, scn: scene) : vec3 = {
     if (current >= aaSamples) {
-        // Base case: Average the accumulated colors by dividing by N
         vMul(acc, 1.0 / intToFloat(aaSamples));
     } else {
-        // Jitter the pixel coordinates using Monte Carlo sampling
         var jx: float = intToFloat(x) + randRange(0.0, 1.0);
         var jy: float = intToFloat(y) + randRange(0.0, 1.0);
         
@@ -167,20 +165,17 @@ def getAAPixelColor(x: int, y: int, width: int, height: int, depth: int, shadowS
         var r: ray = Ray(Vec(0.0, 0.0, 0.0), normalize(Vec(u, v, 1.0)));
         var sampleCol: vec3 = getRayColor(r, scn, depth, shadowSamples);
         
-        // Recursively accumulate the next jittered sample
         getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, current + 1, vAdd(acc, sampleCol), scn);
     }
 }
 
 // --- Main Render Loop ---
 
-def renderRow(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
+hidden def renderRow(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
     if (x >= width) {
         acc; 
     } else {
-        // Hand off rendering to the Anti-Aliasing supersampler
-        var col: vec3 = getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, 0, Vec(0.0, 0.0, 0.0), scn);        
-        
+        var col: vec3 = getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, 0, Vec(0.0, 0.0, 0.0), scn);                
         renderRow(x + 1, y, width, height, depth, shadowSamples, aaSamples, scn, concat(acc, colorToPPM(col)));
     }
 }
@@ -195,25 +190,21 @@ def renderScreen(y: int, width: int, height: int, depth: int, shadowSamples: int
         
         if (y != 0 && currentPct > prevPct) { 
             outF("Render %\\% Complete!\n", [intToChars(currentPct)]); 
-        }
-        else { (); };
+        };
 
         var rowPixels: char list = renderRow(0, y, width, height, depth, shadowSamples, aaSamples, scn, "");        
         renderScreen(y + 1, width, height, depth, shadowSamples, aaSamples, scn, concat(acc, rowPixels));
     }
 }
 
-def colorToPPM(c: vec3) : char list = {
-    switch (c) {
-        Vec(r, g, b) -> {
-            // Clamp floats to a maximum of 1.0 using Math.min before casting
-            var ir: int = floatToInt(255.99 * min(1.0, r));
-            var ig: int = floatToInt(255.99 * min(1.0, g));
-            var ib: int = floatToInt(255.99 * min(1.0, b));
-            
-            concat(intToChars(ir), 
-                concat(" ", concat(intToChars(ig), 
-                    concat(" ", concat(intToChars(ib), "\n")))))
-        }
-    }
+hidden inline def colorToPPM(c: vec3) : char list = {
+    var Vec(r, g, b) = c;
+    
+    var ir: int = floatToInt(255.99 * min(1.0, r));
+    var ig: int = floatToInt(255.99 * min(1.0, g));
+    var ib: int = floatToInt(255.99 * min(1.0, b));
+    
+    concat(intToChars(ir), 
+        concat(" ", concat(intToChars(ig), 
+            concat(" ", concat(intToChars(ib), "\n")))))
 }

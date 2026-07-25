@@ -9,6 +9,7 @@
 void retain(CeraValue value);
 void release(CeraValue value);
 void freeObject(Obj* object);
+Obj* allocateObject(size_t size, uint8_t type); // <-- Add this line
 ObjClosure* newClosure(int function_index, uint8_t arity, uint8_t upvalue_count);
 
 ObjString* newString(const char* text);

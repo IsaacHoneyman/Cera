@@ -255,7 +255,7 @@ public partial class Emitter
         else if (con.Payloads.Count > 1)
         {
             int trackedPayloads = 0;
-            foreach (var p in con.Payloads) 
+            foreach (var p in con.Payloads)
             {
                 EmitExpression(p);
                 Locals.Add("<temp_con_payload>");
@@ -267,7 +267,7 @@ public partial class Emitter
         }
         else
         {
-            CurrentChunk.WriteByte(OpCode.PUSH_UNIT, con.ConstructorName.Line); 
+            CurrentChunk.WriteByte(OpCode.PUSH_UNIT, con.ConstructorName.Line);
         }
 
         CurrentChunk.WriteByte(OpCode.ALLOC_CON, con.ConstructorName.Line);
@@ -277,17 +277,17 @@ public partial class Emitter
     private void EmitListLiteral(ListLitExpr list)
     {
         int trackedElements = 0;
-        foreach (var expr in list.Elements) 
+        foreach (var expr in list.Elements)
         {
             EmitExpression(expr);
             Locals.Add("<temp_list_el>");
             trackedElements++;
         }
-        
+
         CurrentChunk.WriteByte(OpCode.LIST_EMPTY, list.Operator.Line);
         for (int i = 0; i < list.Elements.Count; i++)
             CurrentChunk.WriteByte(OpCode.LIST_CONS, list.Operator.Line);
-            
+
         Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
@@ -298,7 +298,7 @@ public partial class Emitter
             FatalError($"Array literal exceeds maximum size of {ushort.MaxValue} elements.", GetLeadToken(arr));
 
         int trackedElements = 0;
-        foreach (var expr in arr.Elements) 
+        foreach (var expr in arr.Elements)
         {
             EmitExpression(expr);
             Locals.Add("<temp_arr_el>");
@@ -316,14 +316,14 @@ public partial class Emitter
             CurrentChunk.WriteByte((byte)(count & 0xFF), arr.Operator.Line);
             CurrentChunk.WriteByte((byte)((count >> 8) & 0xFF), arr.Operator.Line);
         }
-        
+
         Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
     private void EmitTupleLiteral(TupleLitExpr tuple)
     {
         int trackedElements = 0;
-        foreach (var expr in tuple.Elements) 
+        foreach (var expr in tuple.Elements)
         {
             EmitExpression(expr);
             Locals.Add("<temp_tuple_el>");
@@ -334,11 +334,11 @@ public partial class Emitter
         if (tuple.Elements.Count > byte.MaxValue)
             FatalError($"Too many fields in tuple {tuple.Elements.Count}, max 255", GetLeadToken(tuple));
         CurrentChunk.WriteByte((byte)tuple.Elements.Count, tuple.Operator.Line);
-        
+
         Locals.RemoveRange(Locals.Count - trackedElements, trackedElements);
     }
 
-   private void EmitCall(CallExpr call, bool isTail)
+    private void EmitCall(CallExpr call, bool isTail)
     {
         if (call.Arguments.Count > byte.MaxValue)
             FatalError($"Too many arguments in function call {call.Arguments.Count}, max 255.", GetLeadToken(call));
@@ -346,7 +346,7 @@ public partial class Emitter
         if (call.Callee is IdentifierExpr idExpr)
         {
             string fName = res.TryGetValue(idExpr, out string? r) ? r : idExpr.Identifier.Lexeme;
-            
+
             Symbol? sym = currentEnv?.Resolve(fName);
 
             if (sym is FuncSymbol { NativeId: not null } funcSym)
@@ -354,12 +354,20 @@ public partial class Emitter
                 if ((int)funcSym.NativeId > byte.MaxValue)
                     FatalError($"Intrinsic ID '{funcSym.NativeId.Value}' exceeds byte limit.", sym.DeclToken);
 
-                foreach (var arg in call.Arguments) EmitExpression(arg);
+                int natTrackedArgs = 0;
+                foreach (var arg in call.Arguments)
+                {
+                    EmitExpression(arg);
+                    Locals.Add("<temp_intrinsic_arg>");
+                    natTrackedArgs++;
+                }
 
                 int line = idExpr.Identifier.Line;
                 CurrentChunk.WriteByte(OpCode.CALL_INTRINSIC, line);
                 CurrentChunk.WriteByte((byte)funcSym.NativeId.Value, line);
                 CurrentChunk.WriteByte((byte)call.Arguments.Count, line);
+
+                Locals.RemoveRange(Locals.Count - natTrackedArgs, natTrackedArgs);
                 return;
             }
 
@@ -755,11 +763,11 @@ public partial class Emitter
     private void EmitConsExpression(BinaryExpr binary)
     {
         EmitExpression(binary.Left);
-        Locals.Add("<temp_cons_left>"); 
-        
+        Locals.Add("<temp_cons_left>");
+
         EmitExpression(binary.Right);
-        Locals.RemoveAt(Locals.Count - 1); 
-        
+        Locals.RemoveAt(Locals.Count - 1);
+
         CurrentChunk.WriteByte(OpCode.LIST_CONS, binary.Operator.Line);
     }
 
