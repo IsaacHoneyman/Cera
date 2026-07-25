@@ -15,7 +15,7 @@ inline def hitBound(r: ray, center: vec3, radius: float) : bool = {
     discriminant >= 0.0;
 }
 
-def intersectTriangle(r: ray, v0: vec3, v1: vec3, v2: vec3, m: mat) : option<hit> = {
+inline def intersectTriangle(r: ray, v0: vec3, v1: vec3, v2: vec3, m: mat) : option<hit> = {
     var Ray(origin, dir) = r;
     var edge1: vec3 = vSub(v1, v0);
     var edge2: vec3 = vSub(v2, v0);
@@ -54,7 +54,7 @@ def intersectTriangle(r: ray, v0: vec3, v1: vec3, v2: vec3, m: mat) : option<hit
     }
 }
 
-def intersectSphere(r: ray, center: vec3, radius: float, m: mat) : option<hit> = {
+inline def intersectSphere(r: ray, center: vec3, radius: float, m: mat) : option<hit> = {
     var Ray(origin, dir) = r;
     var oc: vec3 = vSub(origin, center);
     var a: float = dot(dir, dir);
@@ -82,7 +82,7 @@ def intersectSphere(r: ray, center: vec3, radius: float, m: mat) : option<hit> =
     }
 }
 
-def intersectPlane(r: ray, p0: vec3, normal: vec3, m: mat) : option<hit> = {
+inline def intersectPlane(r: ray, p0: vec3, normal: vec3, m: mat) : option<hit> = {
     var Ray(origin, dir) = r;
     var denom: float = dot(dir, normal);
     

@@ -722,10 +722,10 @@ To maximize execution speed and minimize cache misses during the virtual machine
 \end{itemize}
 
 % =========================================================================
-\subsection{Tail Call Optimization (TCO)}
+\subsection{Tail Call Optimisation (TCO)}
 % =========================================================================
 \noindent
-Because Cera is a pure functional language lacking iterative looping constructs (e.g., \texttt{while} or \texttt{for}), all iteration must be achieved through recursion. To prevent Stack Overflow exceptions and catastrophic memory exhaustion, the emitter rigidly enforces Tail Call Optimization.
+Because Cera is a pure functional language lacking iterative looping constructs (e.g., \texttt{while} or \texttt{for}), all iteration must be achieved through recursion. To prevent Stack Overflow exceptions and catastrophic memory exhaustion, the emitter rigidly enforces Tail Call Optimisation.
 
 During AST traversal, a boolean \texttt{isTail} flag tracks the evaluation context. This flag is preserved through control flow boundaries—such as the final expression of an \texttt{ExprBlock}, or the terminal branches of an \texttt{IfExpr} and \texttt{SwitchExpr}. 
 
@@ -894,7 +894,7 @@ CeraVM maintains a contiguous, static array of \texttt{CallFrame} structures to 
 \begin{itemize}
     \item \textbf{Frame Structure:} A \texttt{CallFrame} holds a pointer to the executing \texttt{ObjClosure}, the current Instruction Pointer (\texttt{ip}), and a \texttt{slots} pointer. The \texttt{slots} pointer anchors the function's local variables to a specific sliding window on the global operand stack.
     \item \textbf{Local Variables:} When the compiler emits \texttt{OP\_LOAD\_LOCAL} or \texttt{OP\_STORE\_LOCAL}, it provides a 1-byte integer operand representing an index. The VM calculates the physical memory address by adding this index to the frame's \texttt{slots} pointer, guaranteeing $O(1)$ spatial access to scoped variables.
-    \item \textbf{Tail Call Optimization (TCO):} To support unbounded functional recursion without triggering Stack Overflow exceptions, the VM natively intercepts the \texttt{OP\_TAIL\_CALL} instruction. Instead of allocating a new \texttt{CallFrame}, the VM evaluates the recursive arguments, safely tears down the current local variables via \texttt{release()}, and overwrites the active \texttt{CallFrame} window with the new arguments before resetting the Instruction Pointer. This guarantees that iterative algorithms operate with $O(1)$ stack space complexity.
+    \item \textbf{Tail Call Optimisation (TCO):} To support unbounded functional recursion without triggering Stack Overflow exceptions, the VM natively intercepts the \texttt{OP\_TAIL\_CALL} instruction. Instead of allocating a new \texttt{CallFrame}, the VM evaluates the recursive arguments, safely tears down the current local variables via \texttt{release()}, and overwrites the active \texttt{CallFrame} window with the new arguments before resetting the Instruction Pointer. This guarantees that iterative algorithms operate with $O(1)$ stack space complexity.
 \end{itemize}
 
 % =========================================================================
@@ -987,7 +987,7 @@ These flags are passed to the \texttt{run} command to alter the execution enviro
 The inital release of the Cera functional programming language.
 
 % =========================================================================
-\subsection*{22/06/26 - 1.1}
+\subsection*{22/06/26 - 1.1 (The Ease Of Use Update)} 
 % =========================================================================
 
 \begin{itemize}
@@ -1002,6 +1002,13 @@ The inital release of the Cera functional programming language.
     \item \textbf{VM \& Compiler Bug Fixes: } Bug fixes, including read intrinsic using flipped constructors, local counting errors.
     \item \textbf{Switch Guard Clauses:} Pattern matching branches can now utilize optional \texttt{if} guard clauses (e.g., \texttt{pattern if (condition) ->}). This utilizes a safe test-then-bind virtual machine architecture to evaluate boolean constraints prior to branch commitment, safely popping local variables off the stack upon failure to prevent memory leaks.
 \end{itemize}
+
+% =========================================================================
+\subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
+\begin{itemize}
+    \item \textbf{VM refactor: } Refactored virtual machine, dropping unneeded checks done by analyser, unifying memory allocation, better error messages.
+\end{itemize}
+% =========================================================================
 
 % =========================================================================
 \section{Cera's Future}

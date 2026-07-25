@@ -37,34 +37,14 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
     closure_val.as.obj = (Obj *)entry_closure;
     push(vm, closure_val);
 
-    // Construct the 'char list arr' using the VM's optimized String objects
-    ObjArray *args_array = (ObjArray *)malloc(sizeof(ObjArray));
-    args_array->header.type = VAL_ARRAY;
-    args_array->header.ref_count = 1;
-    args_array->length = argc;
+    ObjArray *args_array = newArray(argc);
 
-    if (argc > 0) {
-        args_array->elements = malloc(sizeof(CeraValue) * argc);
-        
-        for (int i = 0; i < argc; i++) {
-            size_t arg_len = strlen(argv[i]);
-            
-            ObjString *str = malloc(sizeof(ObjString));
-            str->header.type = VAL_STRING;
-            str->header.ref_count = 1;
-            str->length = arg_len;
-            
-            str->chars = malloc(arg_len + 1);
-            strcpy(str->chars, argv[i]);
-            
-            CeraValue arg_val;
-            arg_val.tag = VAL_STRING;
-            arg_val.as.obj = (Obj *)str;
-            
-            args_array->elements[i] = arg_val;
-        }
-    } else {
-        args_array->elements = NULL;
+    for (int i = 0; i < argc; i++)
+    {
+        CeraValue arg_val;
+        arg_val.tag = VAL_STRING;
+        arg_val.as.obj = (Obj *)newString(argv[i]);
+        args_array->elements[i] = arg_val;
     }
 
     CeraValue args_val;
@@ -80,63 +60,85 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
     frame->slots = vm->stack;
 }
 
-#define BINARY_INT_OP(op)                              \
-    do                                                 \
-    {                                                  \
-        CeraValue b = pop(vm);                         \
-        CeraValue a = pop(vm);                         \
-        if (a.tag != VAL_INT || b.tag != VAL_INT)      \
-        {                                              \
-            log_error("Operands must be integers");    \
-            return 1;                                  \
-        }                                              \
-        CeraValue res;                                 \
-        res.tag = VAL_INT;                             \
-        res.as.int_val = a.as.int_val op b.as.int_val; \
-        push(vm, res);                                 \
+#define BINARY_INT_OP(op)                                                                        \
+    do                                                                                           \
+    {                                                                                            \
+        CeraValue b = pop(vm);                                                                   \
+        CeraValue a = pop(vm);                                                                   \
+        if (a.tag != VAL_INT || b.tag != VAL_INT)                                                \
+        {                                                                                        \
+            RUNTIME_ERROR(vm, "Operands must be integers. Received tags: %d, %d", a.tag, b.tag); \
+        }                                                                                        \
+        CeraValue res;                                                                           \
+        res.tag = VAL_INT;                                                                       \
+        res.as.int_val = a.as.int_val op b.as.int_val;                                           \
+        push(vm, res);                                                                           \
     } while (false)
 
-#define BINARY_BOOL_OP(op)                                                                        \
-    do                                                                                            \
-    {                                                                                             \
-        CeraValue b = pop(vm);                                                                    \
-        CeraValue a = pop(vm);                                                                    \
-        CeraValue res;                                                                            \
-        res.tag = VAL_BOOL;                                                                       \
-                                                                                                  \
-        bool a_is_str_like = (a.tag == VAL_STRING || a.tag == VAL_LIST);                          \
-        bool b_is_str_like = (b.tag == VAL_STRING || b.tag == VAL_LIST);                          \
-                                                                                                  \
-        if (a_is_str_like && b_is_str_like)                                                       \
-        {                                                                                         \
-            char *strA = flatten_char_list(a);                                                    \
-            char *strB = flatten_char_list(b);                                                    \
-            res.as.int_val = (strcmp(strA, strB) op 0) ? 1 : 0;                                   \
-            free(strA);                                                                           \
-            free(strB);                                                                           \
-        }                                                                                         \
-        else if (a.tag != b.tag)                                                                  \
-        {                                                                                         \
-            log_error("Type mismatch during comparison: left tag=%d right tag=%d", a.tag, b.tag); \
-            return 1;                                                                             \
-        }                                                                                         \
-        else if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT) \
-        {                                                                                         \
-            res.as.int_val = (a.as.int_val op b.as.int_val) ? 1 : 0;                              \
-        }                                                                                         \
-        else if (a.tag == VAL_FLOAT)                                                              \
-        {                                                                                         \
-            res.as.int_val = (a.as.float_val op b.as.float_val) ? 1 : 0;                          \
-        }                                                                                         \
-        else                                                                                      \
-        {                                                                                         \
-            log_error("Invalid or unimplemented types for comparison");                           \
-            return 1;                                                                             \
-        }                                                                                         \
-                                                                                                  \
-        release(a);                                                                               \
-        release(b);                                                                               \
-        push(vm, res);                                                                            \
+#define BINARY_BOOL_OP(op)                                                                                           \
+    do                                                                                                               \
+    {                                                                                                                \
+        CeraValue b = pop(vm);                                                                                       \
+        CeraValue a = pop(vm);                                                                                       \
+        CeraValue res;                                                                                               \
+        res.tag = VAL_BOOL;                                                                                          \
+                                                                                                                     \
+        bool a_is_str_like = (a.tag == VAL_STRING || a.tag == VAL_LIST);                                             \
+        bool b_is_str_like = (b.tag == VAL_STRING || b.tag == VAL_LIST);                                             \
+                                                                                                                     \
+        if (a_is_str_like && b_is_str_like)                                                                          \
+        {                                                                                                            \
+            char *strA = flatten_char_list(a);                                                                       \
+            char *strB = flatten_char_list(b);                                                                       \
+            res.as.int_val = (strcmp(strA, strB) op 0) ? 1 : 0;                                                      \
+            free(strA);                                                                                              \
+            free(strB);                                                                                              \
+        }                                                                                                            \
+        else if (a.tag != b.tag)                                                                                     \
+        {                                                                                                            \
+            log_error("Type mismatch during comparison: left tag=%d right tag=%d", a.tag, b.tag);                    \
+            return 1;                                                                                                \
+        }                                                                                                            \
+        else if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT)                    \
+        {                                                                                                            \
+            res.as.int_val = (a.as.int_val op b.as.int_val) ? 1 : 0;                                                 \
+        }                                                                                                            \
+        else if (a.tag == VAL_FLOAT)                                                                                 \
+        {                                                                                                            \
+            res.as.int_val = (a.as.float_val op b.as.float_val) ? 1 : 0;                                             \
+        }                                                                                                            \
+        else                                                                                                         \
+        {                                                                                                            \
+            RUNTIME_ERROR(vm, "Invalid or unimplemented types for comparison. Received tags: %d, %d", a.tag, b.tag); \
+        }                                                                                                            \
+                                                                                                                     \
+        release(a);                                                                                                  \
+        release(b);                                                                                                  \
+        push(vm, res);                                                                                               \
+    } while (false)
+
+#define BINARY_NUM_OP(op, op_str)                                                                    \
+    do                                                                                               \
+    {                                                                                                \
+        CeraValue b = pop(vm);                                                                       \
+        CeraValue a = pop(vm);                                                                       \
+        CeraValue res;                                                                               \
+        if (a.tag == VAL_INT && b.tag == VAL_INT)                                                    \
+        {                                                                                            \
+            res.tag = VAL_INT;                                                                       \
+            res.as.int_val = a.as.int_val op b.as.int_val;                                           \
+        }                                                                                            \
+        else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT)                                           \
+        {                                                                                            \
+            res.tag = VAL_FLOAT;                                                                     \
+            res.as.float_val = a.as.float_val op b.as.float_val;                                     \
+        }                                                                                            \
+        else                                                                                         \
+        {                                                                                            \
+            RUNTIME_ERROR(vm, "Operands for '%s' must be numbers. Received tags: %d, %d",            \
+                          op_str, a.tag, b.tag);                                                     \
+        }                                                                                            \
+        push(vm, res);                                                                               \
     } while (false)
 
 #define READ_BYTE() (*frame->ip++)
@@ -312,6 +314,33 @@ void freeVM(VM *vm)
     }
 }
 
+static void print_stack_trace(VM *vm)
+{
+    log_error("--- CeraVM Stack Trace ---");
+    for (int i = vm->frame_count - 1; i >= 0; i--)
+    {
+        CallFrame *frame = &vm->frames[i];
+        CompiledFunction *func = get_function(vm->active_module, frame->closure->function_index);
+
+        int offset = (int)(frame->ip - func->code - 1);
+        log_error("  [Frame %d] Function Index: %d at instruction offset: %04d", i, func->index, offset);
+    }
+}
+
+#define RUNTIME_ERROR(vm, fmt, ...)    \
+    do                                 \
+    {                                  \
+        log_error(fmt, ##__VA_ARGS__); \
+        print_stack_trace(vm);         \
+        return 1;                      \
+    } while (false)
+
+static inline void populate_seq_from_stack(VM* vm, CeraValue* elements, int length) {
+    for (int i = length - 1; i >= 0; i--) {
+        elements[i] = pop(vm); 
+    }
+}
+
 int runVM(VM *vm)
 {
     CallFrame *frame = &vm->frames[vm->frame_count - 1];
@@ -324,14 +353,14 @@ int runVM(VM *vm)
 
         uint8_t instruction = READ_BYTE();
 
-        #ifdef DEBUG_TRACE_EXECUTION
+#ifdef DEBUG_TRACE_EXECUTION
         if (log_detailed)
         {
             dump_stack(vm->stack, vm->stack_top);
             int offset = (int)(frame->ip - active_function->code);
             log_detail("Executing OpCode %02x at offset %04d", instruction, offset);
         }
-        #endif  
+#endif
 
         switch (instruction)
         {
@@ -468,98 +497,10 @@ int runVM(VM *vm)
             push(vm, upvalue);
             break;
         }
-        case OP_ADD:
-        {
-            CeraValue b = pop(vm);
-            CeraValue a = pop(vm);
-            CeraValue res;
-            if (a.tag == VAL_INT && b.tag == VAL_INT)
-            {
-                res.tag = VAL_INT;
-                res.as.int_val = a.as.int_val + b.as.int_val;
-            }
-            else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT)
-            {
-                res.tag = VAL_FLOAT;
-                res.as.float_val = a.as.float_val + b.as.float_val;
-            }
-            else
-            {
-                log_error("Operands for '+' must be numbers");
-                return 1;
-            }
-            push(vm, res);
-            break;
-        }
-        case OP_SUB:
-        {
-            CeraValue b = pop(vm);
-            CeraValue a = pop(vm);
-            CeraValue res;
-            if (a.tag == VAL_INT && b.tag == VAL_INT)
-            {
-                res.tag = VAL_INT;
-                res.as.int_val = a.as.int_val - b.as.int_val;
-            }
-            else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT)
-            {
-                res.tag = VAL_FLOAT;
-                res.as.float_val = a.as.float_val - b.as.float_val;
-            }
-            else
-            {
-                log_error("Operands for '-' must be numbers");
-                return 1;
-            }
-            push(vm, res);
-            break;
-        }
-        case OP_MUL:
-        {
-            CeraValue b = pop(vm);
-            CeraValue a = pop(vm);
-            CeraValue res;
-            if (a.tag == VAL_INT && b.tag == VAL_INT)
-            {
-                res.tag = VAL_INT;
-                res.as.int_val = a.as.int_val * b.as.int_val;
-            }
-            else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT)
-            {
-                res.tag = VAL_FLOAT;
-                res.as.float_val = a.as.float_val * b.as.float_val;
-            }
-            else
-            {
-                log_error("Operands for '*' must be numbers");
-                return 1;
-            }
-            push(vm, res);
-            break;
-        }
-        case OP_DIV:
-        {
-            CeraValue b = pop(vm);
-            CeraValue a = pop(vm);
-            CeraValue res;
-            if (a.tag == VAL_INT && b.tag == VAL_INT)
-            {
-                res.tag = VAL_INT;
-                res.as.int_val = a.as.int_val / b.as.int_val;
-            }
-            else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT)
-            {
-                res.tag = VAL_FLOAT;
-                res.as.float_val = a.as.float_val / b.as.float_val;
-            }
-            else
-            {
-                log_error("Operands for '/' must be numbers");
-                return 1;
-            }
-            push(vm, res);
-            break;
-        }
+        case OP_ADD: BINARY_NUM_OP(+, "+"); break;
+        case OP_SUB: BINARY_NUM_OP(-, "-"); break;
+        case OP_MUL: BINARY_NUM_OP(*, "*"); break;
+        case OP_DIV: BINARY_NUM_OP(/, "/"); break;
         case OP_MOD:
             BINARY_INT_OP(%);
             break;
@@ -571,10 +512,7 @@ int runVM(VM *vm)
             else if (a.tag == VAL_FLOAT)
                 a.as.float_val = -a.as.float_val;
             else
-            {
-                log_error("Cannot negate non-number");
-                return 1;
-            }
+                RUNTIME_ERROR(vm, "Cannot negate non-number. Received tag: %d", a.tag);
             push(vm, a);
             break;
         }
@@ -596,11 +534,7 @@ int runVM(VM *vm)
         case OP_BIT_NOT:
         {
             CeraValue a = pop(vm);
-            if (a.tag != VAL_INT)
-            {
-                log_error("Operand must be int");
-                return 1;
-            }
+            if (a.tag != VAL_INT) RUNTIME_ERROR(vm, "Operand must be int for bitwise NOT. Received tag: %d", a.tag);
             a.as.int_val = ~a.as.int_val;
             push(vm, a);
             break;
@@ -627,11 +561,7 @@ int runVM(VM *vm)
         case OP_NOT:
         {
             CeraValue a = pop(vm);
-            if (a.tag != VAL_BOOL)
-            {
-                log_error("Operand must be bool");
-                return 1;
-            }
+            if (a.tag != VAL_BOOL) RUNTIME_ERROR(vm, "Operand must be bool for logical NOT. Received tag: %d", a.tag);
             a.as.int_val = (a.as.int_val == 0) ? 1 : 0;
             push(vm, a);
             break;
@@ -689,11 +619,7 @@ int runVM(VM *vm)
             uint8_t arg_count = READ_BYTE();
             CeraValue callee = PEEK(arg_count);
 
-            if (callee.tag != VAL_CLOSURE)
-            {
-                log_error("Attempted to call a non-function value");
-                return 1;
-            }
+            if (callee.tag != VAL_CLOSURE) RUNTIME_ERROR(vm, "Attempted to call a non-function value. Received tag: %d", callee.tag);
             if (call_function(vm, (ObjClosure *)callee.as.obj, arg_count) != 0)
             {
                 return 1;
@@ -718,11 +644,7 @@ int runVM(VM *vm)
             uint8_t arg_count = READ_BYTE();
             CeraValue callee = PEEK(arg_count);
 
-            if (callee.tag != VAL_CLOSURE)
-            {
-                log_error("Attempted to tail-call a non-function");
-                return 1;
-            }
+            if (callee.tag != VAL_CLOSURE) RUNTIME_ERROR(vm, "Attempted to tail-call a non-function value. Received tag: %d", callee.tag);
 
             ObjClosure *closure = (ObjClosure *)callee.as.obj;
             CompiledFunction *func = get_function(vm->active_module, closure->function_index);
@@ -773,11 +695,7 @@ int runVM(VM *vm)
         {
             uint8_t upvalue_count = READ_BYTE();
             CeraValue func_val = pop(vm);
-            if (func_val.tag != VAL_INT)
-            {
-                log_error("Runtime Error: OP_MAKE_CLOSURE expected int on stack");
-                return 1;
-            }
+            if (func_val.tag != VAL_INT) RUNTIME_ERROR(vm, "OP_MAKE_CLOSURE expected int on stack. Received tag: %d", func_val.tag);
 
             uint32_t func_index = (uint32_t)func_val.as.int_val;
             CompiledFunction *function = get_function(vm->active_module, func_index);
@@ -816,11 +734,8 @@ int runVM(VM *vm)
             uint8_t tag_id = READ_BYTE();
             CeraValue payload = pop(vm);
 
-            ObjADT *adt = malloc(sizeof(ObjADT));
-            adt->header.type = VAL_ADT;
-            adt->header.ref_count = 1;
+            ObjADT *adt = (ObjADT *)allocateObject(sizeof(ObjADT), VAL_ADT);
             adt->adt_tag = tag_id;
-
             adt->payload = payload;
 
             CeraValue res;
@@ -829,20 +744,14 @@ int runVM(VM *vm)
             push(vm, res);
             break;
         }
-        case OP_ALLOC_TUPLE:
+case OP_ALLOC_TUPLE:
         {
             uint8_t size = READ_BYTE();
-            ObjTuple *tuple = malloc(sizeof(ObjTuple));
-            tuple->header.type = VAL_TUPLE;
-            tuple->header.ref_count = 1;
+            ObjTuple *tuple = (ObjTuple *)allocateObject(sizeof(ObjTuple), VAL_TUPLE);
             tuple->length = size;
             tuple->elements = malloc(sizeof(CeraValue) * size);
-
-            for (int i = size - 1; i >= 0; i--)
-            {
-                CeraValue elem = pop(vm);
-                tuple->elements[i] = elem;
-            }
+            
+            populate_seq_from_stack(vm, tuple->elements, size);
 
             CeraValue res;
             res.tag = VAL_TUPLE;
@@ -854,17 +763,9 @@ int runVM(VM *vm)
         case OP_ALLOC_ARRAY:
         {
             uint8_t size = READ_BYTE();
-            ObjArray *arr = malloc(sizeof(ObjArray));
-            arr->header.type = VAL_ARRAY;
-            arr->header.ref_count = 1;
-            arr->length = size;
-            arr->elements = malloc(sizeof(CeraValue) * size);
-
-            for (int i = size - 1; i >= 0; i--)
-            {
-                CeraValue elem = pop(vm);
-                arr->elements[i] = elem;
-            }
+            ObjArray *arr = newArray(size);
+            
+            populate_seq_from_stack(vm, arr->elements, size);
 
             CeraValue res;
             res.tag = VAL_ARRAY;
@@ -875,19 +776,10 @@ int runVM(VM *vm)
 
         case OP_ALLOC_ARRAY_LONG:
         {
-            uint16_t size = READ_SHORT(); // Extract 16-bit payload
-            ObjArray *arr = malloc(sizeof(ObjArray));
-            arr->header.type = VAL_ARRAY;
-            arr->header.ref_count = 1;
-            arr->length = size;
-            arr->elements = malloc(sizeof(CeraValue) * size);
-
-            for (int i = size - 1; i >= 0; i--)
-            {
-                CeraValue elem = pop(vm);
-                retain(elem);
-                arr->elements[i] = elem;
-            }
+            uint16_t size = READ_SHORT();
+            ObjArray *arr = newArray(size);
+            
+            populate_seq_from_stack(vm, arr->elements, size);
 
             CeraValue res;
             res.tag = VAL_ARRAY;
@@ -916,9 +808,7 @@ int runVM(VM *vm)
                 uint32_t tail_len = (tail.tag == VAL_STRING) ? ((ObjString *)tail.as.obj)->length : 0;
                 uint32_t new_len = tail_len + 1;
 
-                ObjString *new_str = malloc(sizeof(ObjString));
-                new_str->header.type = VAL_STRING;
-                new_str->header.ref_count = 1;
+                ObjString *new_str = (ObjString *)allocateObject(sizeof(ObjString), VAL_STRING);
                 new_str->length = new_len;
                 new_str->chars = malloc(new_len + 1);
 
@@ -938,9 +828,7 @@ int runVM(VM *vm)
             }
             else
             {
-                ObjList *list = malloc(sizeof(ObjList));
-                list->header.type = VAL_LIST;
-                list->header.ref_count = 1;
+                ObjList *list = (ObjList *)allocateObject(sizeof(ObjList), VAL_LIST);
 
                 list->head = head;
                 list->tail = tail;
@@ -1035,9 +923,7 @@ int runVM(VM *vm)
                 head.as.int_val = (uint32_t)str->chars[0]; // Slice the first character
 
                 uint32_t new_len = str->length - 1;
-                ObjString *tail_str = malloc(sizeof(ObjString));
-                tail_str->header.type = VAL_STRING;
-                tail_str->header.ref_count = 1;
+                ObjString *tail_str = (ObjString *)allocateObject(sizeof(ObjString), VAL_STRING);
                 tail_str->length = new_len;
                 tail_str->chars = malloc(new_len + 1);
 
@@ -1132,10 +1018,7 @@ int runVM(VM *vm)
         }
 
         case OP_MATCH_FAIL:
-        {
-            log_error("Pattern match fail");
-            return 1;
-        }
+            RUNTIME_ERROR(vm, "Pattern match exhaustiveness failure. Execution fell through all switch branches.");
 
         default:
             log_error("Fatal: Unknown opcode 0x%02X at offset %d", instruction, (int)(frame->ip - active_function->code - 1));
@@ -1151,3 +1034,4 @@ int runVM(VM *vm)
 #undef PEEK
 #undef BINARY_INT_OP
 #undef BINARY_BOOL_OP
+#undef BINARY_NUM_OP

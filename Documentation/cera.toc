@@ -36,7 +36,7 @@
 \contentsline {section}{\numberline {7}Bytecode Emission and Execution Architecture}{18}{section.7}%
 \contentsline {subsection}{\numberline {7.1}Virtual Machine Target Architecture}{18}{subsection.7.1}%
 \contentsline {subsection}{\numberline {7.2}Operational Limitations and Capacity}{19}{subsection.7.2}%
-\contentsline {subsection}{\numberline {7.3}Tail Call Optimization (TCO)}{19}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.3}Tail Call Optimisation (TCO)}{19}{subsection.7.3}%
 \contentsline {subsection}{\numberline {7.4}Pattern Matching Compilation}{20}{subsection.7.4}%
 \contentsline {subsection}{\numberline {7.5}Executable Object Format (\texttt {.cerabc})}{20}{subsection.7.5}%
 \contentsline {subsection}{\numberline {7.6}Instruction Set Architecture (ISA)}{21}{subsection.7.6}%

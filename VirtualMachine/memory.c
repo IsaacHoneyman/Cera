@@ -120,3 +120,19 @@ ObjArray* newArray(int length) {
     
     return array;
 }
+
+ObjADT* newOption(bool is_some, CeraValue payload) {
+    ObjADT* adt = (ObjADT*)allocateObject(sizeof(ObjADT), VAL_ADT);
+    // 0x03 is the compiler's 'Some' tag, 0x02 is 'None'
+    adt->adt_tag = is_some ? 0x03 : 0x02; 
+    adt->payload = payload;
+    return adt;
+}
+
+ObjADT* newResult(bool is_ok, CeraValue payload) {
+    ObjADT* adt = (ObjADT*)allocateObject(sizeof(ObjADT), VAL_ADT);
+    // 0x05 is the compiler's 'Ok' tag, 0x04 is 'Error'
+    adt->adt_tag = is_ok ? 0x05 : 0x04; 
+    adt->payload = payload;
+    return adt;
+}

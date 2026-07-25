@@ -32,38 +32,35 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     {
         CeraValue index_val = pop(vm); 
         CeraValue arr_val = pop(vm);   
-
         ObjArray *arr = (ObjArray *)arr_val.as.obj;
         int64_t idx = index_val.as.int_val;
 
-        ObjADT *adt = malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
+        CeraValue payload;
+        bool is_some = (idx >= 0 && idx < arr->length);
 
-        if (idx >= 0 && idx < arr->length)
+        if (is_some)
         {
-            adt->adt_tag = 0x03; // Tag for Some
-            CeraValue elem = arr->elements[idx];
-            retain(elem); 
-            adt->payload = elem;
+            payload = arr->elements[idx];
+            retain(payload); 
         }
         else
         {
-            adt->adt_tag = 0x02; 
-            adt->payload.tag = VAL_UNIT;
-            adt->payload.as.int_val = 0;
+            payload.tag = VAL_UNIT;
+            payload.as.int_val = 0;
         }
 
+        ObjADT *adt = newOption(is_some, payload);
         release(arr_val); 
 
         CeraValue res;
         res.tag = VAL_ADT;
         res.as.obj = (Obj *)adt;
-
         push(vm, res);
         return 0;
     }
-    case INTR_ARR_CONCAT: {        
+
+    case INTR_ARR_CONCAT: 
+    {        
         CeraValue right_val = pop(vm);
         CeraValue left_val = pop(vm);
         
@@ -76,7 +73,6 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             new_arr->elements[i] = left->elements[i];
             retain(new_arr->elements[i]);
         }
-        
         for (int i = 0; i < right->length; i++) {
             new_arr->elements[left->length + i] = right->elements[i];
             retain(new_arr->elements[left->length + i]);
@@ -92,15 +88,10 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         push(vm, res);
         return 0;
     }
+
     case INTR_OUT:
     {
         CeraValue arg = pop(vm);
-        
-        if (arg.tag != VAL_STRING && arg.tag != VAL_LIST)
-        {
-            log_error("out() currently only supports Strings and char lists");
-            return 1;
-        }
         
         char* text = flatten_char_list(arg);
         printf("%s", text);
@@ -114,6 +105,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         push(vm, res);
         return 0;
     }
+
     case INTR_IN:
     {
         char buffer[1024];
@@ -127,27 +119,19 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             if (len > 0 && buffer[len - 1] == '\n')
             {
                 buffer[len - 1] = '\0';
-                len--;
             }
         }
 
-        size_t final_len = strlen(buffer);
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = final_len;
-
-        str->chars = malloc(final_len + 1);
-        strcpy(str->chars, buffer);
-
         CeraValue result;
         result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
+        result.as.obj = (Obj *)newString(buffer);
 
         push(vm, result);
         return 0;
     }
-    case INTR_ARR_TO_LIST: {
+
+    case INTR_ARR_TO_LIST: 
+    {
         CeraValue arr_val = pop(vm);
         ObjArray* arr = (ObjArray*)arr_val.as.obj;
         
@@ -156,9 +140,8 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         current_tail.as.obj = NULL; 
         
         for (int i = arr->length - 1; i >= 0; i--) {
-            ObjList* node = malloc(sizeof(ObjList));
-            node->header.type = VAL_LIST;
-            node->header.ref_count = 1;
+            // Using correct managed allocator abstraction
+            ObjList* node = (ObjList*)allocateObject(sizeof(ObjList), VAL_LIST);
             
             CeraValue elem = arr->elements[i];
             retain(elem);
@@ -175,7 +158,8 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         return 0;
     }
 
-    case INTR_LIST_TO_ARR: {
+    case INTR_LIST_TO_ARR: 
+    {
         CeraValue lst_val = pop(vm);
         
         int len = 0;
@@ -230,20 +214,12 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     }
 
     case INTR_CHAR_TO_INT:
-    {
-        CeraValue arg = pop(vm);
-        CeraValue result;
-        result.tag = VAL_INT;
-        result.as.int_val = arg.as.int_val;
-        push(vm, result);
-        return 0;
-    }
-
     case INTR_INT_TO_CHAR:
     {
         CeraValue arg = pop(vm);
         CeraValue result;
-        result.tag = VAL_CHAR;
+        // CHAR and INT structurally share the same underlying memory mapping
+        result.tag = (intrinsic_id == INTR_CHAR_TO_INT) ? VAL_INT : VAL_CHAR;
         result.as.int_val = arg.as.int_val;
         push(vm, result);
         return 0;
@@ -252,21 +228,12 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     case INTR_INT_TO_CHARS:
     {
         CeraValue arg = pop(vm);
-
         char buffer[64];
-        int len = snprintf(buffer, sizeof(buffer), "%ld", (long)arg.as.int_val);
-
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = len;
-
-        str->chars = malloc(len + 1);
-        strcpy(str->chars, buffer);
+        snprintf(buffer, sizeof(buffer), "%ld", (long)arg.as.int_val);
 
         CeraValue result;
         result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
+        result.as.obj = (Obj *)newString(buffer);
 
         push(vm, result);
         return 0;
@@ -275,51 +242,31 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     case INTR_BOOL_TO_CHARS:
     {
         CeraValue arg = pop(vm);
-
         const char *text = arg.as.int_val ? "true" : "false";
-        int len = strlen(text);
-
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = len;
-
-        str->chars = malloc(len + 1);
-        strcpy(str->chars, text);
 
         CeraValue result;
         result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
+        result.as.obj = (Obj *)newString(text);
 
         push(vm, result);
         return 0;
     }
+
     case INTR_FLOAT_TO_CHARS:
     {
         CeraValue arg = pop(vm);
-        if (arg.tag != VAL_FLOAT)
-        {
-            log_error("floatToChars() requires a float");
-            return 1;
-        }
 
         char buffer[64];
-        int len = snprintf(buffer, sizeof(buffer), "%g", arg.as.float_val);
-
-        ObjString *str = malloc(sizeof(ObjString));
-        str->header.type = VAL_STRING;
-        str->header.ref_count = 1;
-        str->length = len;
-        str->chars = malloc(len + 1);
-        strcpy(str->chars, buffer);
+        snprintf(buffer, sizeof(buffer), "%g", arg.as.float_val);
 
         CeraValue result;
         result.tag = VAL_STRING;
-        result.as.obj = (Obj *)str;
+        result.as.obj = (Obj *)newString(buffer);
 
         push(vm, result);
         return 0;
     }
+
     case INTR_CHARS_TO_INT:
     {
         CeraValue arg = pop(vm);
@@ -327,38 +274,30 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 
         char *endptr;
         int64_t parsed_val = strtoll(str, &endptr, 10);
+        while (*endptr != '\0' && isspace((unsigned char)*endptr)) { endptr++; }
 
-        // Skip any trailing whitespace (like \n or Windows \r) that in() might have caught
-        while (*endptr != '\0' && isspace((unsigned char)*endptr))
+        CeraValue payload;
+        bool is_some = (str != endptr && *endptr == '\0');
+        
+        if (is_some)
         {
-            endptr++;
-        }
-
-        ObjADT *adt = malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
-
-        // Use the tags revealed by your debug probe
-        if (str == endptr || *endptr != '\0')
-        {
-            adt->adt_tag = 0x02; // Update from 0x00 to the compiler's 'None' tag
-            adt->payload.tag = VAL_UNIT;
-            adt->payload.as.int_val = 0;
+            payload.tag = VAL_INT;
+            payload.as.int_val = parsed_val;
         }
         else
         {
-            adt->adt_tag = 0x03; // Update from 0x01 to the compiler's 'Some' tag
-            adt->payload.tag = VAL_INT;
-            adt->payload.as.int_val = parsed_val;
+            payload.tag = VAL_UNIT;
+            payload.as.int_val = 0;
         }
 
+        ObjADT *adt = newOption(is_some, payload);
+
         free(str);
-        release(arg); // Prevent memory leak of the consumed string
+        release(arg); 
 
         CeraValue result;
         result.tag = VAL_ADT;
         result.as.obj = (Obj *)adt;
-
         push(vm, result);
         return 0;
     }
@@ -370,28 +309,23 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 
         char *endptr;
         double parsed_val = strtod(str, &endptr);
+        while (*endptr != '\0' && isspace((unsigned char)*endptr)) { endptr++; }
 
-        while (*endptr != '\0' && isspace((unsigned char)*endptr))
+        CeraValue payload;
+        bool is_some = (str != endptr && *endptr == '\0');
+
+        if (is_some)
         {
-            endptr++;
-        }
-
-        ObjADT *adt = malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
-
-        if (str == endptr || *endptr != '\0')
-        {
-            adt->adt_tag = 0x02; // None
-            adt->payload.tag = VAL_UNIT;
-            adt->payload.as.int_val = 0;
+            payload.tag = VAL_FLOAT;
+            payload.as.float_val = parsed_val;
         }
         else
         {
-            adt->adt_tag = 0x03; // Some
-            adt->payload.tag = VAL_FLOAT;
-            adt->payload.as.float_val = parsed_val;
+            payload.tag = VAL_UNIT;
+            payload.as.int_val = 0;
         }
+
+        ObjADT *adt = newOption(is_some, payload);
 
         free(str);
         release(arg);
@@ -399,10 +333,10 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         CeraValue result;
         result.tag = VAL_ADT;
         result.as.obj = (Obj *)adt;
-
         push(vm, result);
         return 0;
     }
+
     case INTR_CONCAT:
     {
         CeraValue right = pop(vm);
@@ -415,17 +349,15 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         {
             char *s1 = flatten_char_list(left);
             char *s2 = flatten_char_list(right);
-
+            
             uint32_t len = strlen(s1) + strlen(s2);
-            ObjString *new_str = malloc(sizeof(ObjString));
-            new_str->header.type = VAL_STRING;
-            new_str->header.ref_count = 1;
-            new_str->length = len;
-            new_str->chars = malloc(len + 1);
+            char* temp_buf = malloc(len + 1);
+            strcpy(temp_buf, s1);
+            strcat(temp_buf, s2);
 
-            strcpy(new_str->chars, s1);
-            strcat(new_str->chars, s2);
+            ObjString *new_str = newString(temp_buf);
 
+            free(temp_buf);
             free(s1);
             free(s2);
             release(left);  
@@ -434,7 +366,6 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             CeraValue res;
             res.tag = VAL_STRING;
             res.as.obj = (Obj *)new_str;
-
             push(vm, res);
             return 0;
         }
@@ -469,9 +400,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             retain(current_tail); 
 
             for (int i = left_len - 1; i >= 0; i--) {
-                ObjList* node = malloc(sizeof(ObjList));
-                node->header.type = VAL_LIST;
-                node->header.ref_count = 1;
+                ObjList* node = (ObjList*)allocateObject(sizeof(ObjList), VAL_LIST);
 
                 CeraValue head_val = temp_buffer[i];
                 retain(head_val);
@@ -491,7 +420,6 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             return 0;
         }
 
-        log_error("Type mismatch or unhandled tags encountered during evaluation of concat()");
         return 1;
     }
 
@@ -500,7 +428,6 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         CeraValue result;
         result.tag = VAL_FLOAT;
         result.as.float_val = (double)rand() / (double)RAND_MAX;
-
         push(vm, result);
         return 0;
     }
@@ -514,24 +441,17 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         int64_t low = (int64_t)rand();
 
         result.as.int_val = (high << 32) | low;
-
         push(vm, result);
         return 0;
     }
 
-    case INTR_SQRT: {
+    case INTR_SQRT: 
+    {
         CeraValue arg = pop(vm);
-        
-        if (arg.tag != VAL_FLOAT)
-        {
-            log_error("sqrt() requires a float operand");
-            return 1;
-        }
 
         CeraValue result;
         result.tag = VAL_FLOAT;
         result.as.float_val = sqrt(arg.as.float_val);
-
         push(vm, result);
         return 0;
     }
@@ -540,25 +460,17 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     {
         CeraValue path_val = pop(vm);
         char *path = flatten_char_list(path_val);
-
         FILE *file = fopen(path, "rb");
-        ObjADT *result_adt = malloc(sizeof(ObjADT));
-        result_adt->header.type = VAL_ADT;
-        result_adt->header.ref_count = 1;
+
+        CeraValue payload;
+        bool is_ok = false;
 
         if (file == NULL)
         {
-            result_adt->adt_tag = 0x04; 
-            
-            ObjString *err_msg = malloc(sizeof(ObjString));
-            err_msg->header.type = VAL_STRING;
-            err_msg->header.ref_count = 1;
-            err_msg->length = 24;
-            err_msg->chars = malloc(25);
-            strcpy(err_msg->chars, "File could not be opened");
-
-            result_adt->payload.tag = VAL_STRING;
-            result_adt->payload.as.obj = (Obj *)err_msg;
+            char err_buf[256];
+            snprintf(err_buf, sizeof(err_buf), "File could not be opened: %s", path);
+            payload.tag = VAL_STRING;
+            payload.as.obj = (Obj *)newString(err_buf);
         }
         else
         {
@@ -566,22 +478,20 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             long size = ftell(file);
             fseek(file, 0, SEEK_SET);
 
-            ObjString *content_str = malloc(sizeof(ObjString));
-            content_str->header.type = VAL_STRING;
-            content_str->header.ref_count = 1;
+            // Avoid double memory copying for large files by building manually here
+            ObjString *content_str = (ObjString *)allocateObject(sizeof(ObjString), VAL_STRING);
             content_str->length = size;
             content_str->chars = malloc(size + 1);
-
             size_t read_bytes = fread(content_str->chars, 1, size, file);
             content_str->chars[read_bytes] = '\0';
             fclose(file);
 
-            // Success path: Construct Ok(content) -> Tag 0x05
-            result_adt->adt_tag = 0x05;
-            result_adt->payload.tag = VAL_STRING;
-            result_adt->payload.as.obj = (Obj *)content_str;
+            is_ok = true;
+            payload.tag = VAL_STRING;
+            payload.as.obj = (Obj *)content_str;
         }
 
+        ObjADT *result_adt = newResult(is_ok, payload);
         free(path);
         release(path_val);
 
@@ -593,6 +503,7 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
     }
 
     case INTR_WRITE:
+    case INTR_APPEND:
     {
         CeraValue content = pop(vm);
         CeraValue path = pop(vm);
@@ -600,37 +511,29 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         char* file_path = flatten_char_list(path);
         char* file_data = flatten_char_list(content);
         
-        FILE *f = fopen(file_path, "w");
+        const char* mode = (intrinsic_id == INTR_WRITE) ? "w" : "a";
+        FILE *f = fopen(file_path, mode);
         
-        // Allocate the ADT Wrapper
-        ObjADT* adt = (ObjADT*)malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
+        CeraValue payload;
+        bool is_ok = false;
 
         if (f == NULL)
         {
-            // Construct the Error(string) payload
-            adt->adt_tag = 0x04; 
-            CeraValue err_val;
-            err_val.tag = VAL_STRING;
-            
-            // NOTE: newString is defined in your memory.h
-            err_val.as.obj = (Obj*)newString("Failed to write to file");
-            adt->payload = err_val;
+            payload.tag = VAL_STRING;
+            payload.as.obj = (Obj*)newString((intrinsic_id == INTR_WRITE) 
+                ? "Failed to write to file" : "Failed to append to file");
         }
         else
         {
-            // Write to disk
             fputs(file_data, f);
             fclose(f);
             
-            // Construct the Ok(unit) payload
-            adt->adt_tag = 0x05; 
-            CeraValue ok_val;
-            ok_val.tag = VAL_UNIT;
-            ok_val.as.int_val = 0;
-            adt->payload = ok_val;
+            is_ok = true;
+            payload.tag = VAL_UNIT;
+            payload.as.int_val = 0;
         }
+        
+        ObjADT* adt = newResult(is_ok, payload);
         
         free(file_path);
         free(file_data);
@@ -641,10 +544,11 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         res.tag = VAL_ADT;
         res.as.obj = (Obj*)adt;
         push(vm, res);
-        
         return 0;
     }
-    case INTR_TIME: {
+
+    case INTR_TIME: 
+    {
         struct timespec ts;        
         clock_gettime(CLOCK_REALTIME, &ts);
         CeraValue res;
@@ -653,7 +557,9 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         push(vm, res);
         return 0;
     }
-    case INTR_TIME_LOCAL: {
+
+    case INTR_TIME_LOCAL: 
+    {
         struct timespec ts;        
         clock_gettime(CLOCK_REALTIME, &ts);        
         struct tm local_tm;
@@ -665,12 +571,11 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             int hours = (z_buf[1] - '0') * 10 + (z_buf[2] - '0');
             int mins = (z_buf[3] - '0') * 10 + (z_buf[4] - '0');
             offset = (hours * 3600) + (mins * 60);
-            
             if (z_buf[0] == '-') {
                 offset = -offset;
             }
         }
-                int64_t local_sec = (int64_t)ts.tv_sec + offset;
+        int64_t local_sec = (int64_t)ts.tv_sec + offset;
         
         CeraValue res;
         res.tag = VAL_INT;        
@@ -678,7 +583,9 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         push(vm, res);
         return 0;
     }
-    case INTR_UPTIME: {
+
+    case INTR_UPTIME: 
+    {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         CeraValue res;
@@ -688,69 +595,19 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         return 0;
     }
 
-    case INTR_APPEND:
-    {
-        CeraValue content = pop(vm);
-        CeraValue path = pop(vm);
-        
-        char* file_path = flatten_char_list(path);
-        char* file_data = flatten_char_list(content);
-        
-        FILE *f = fopen(file_path, "a"); // "a" mode for appending
-        
-        ObjADT* adt = (ObjADT*)malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
-
-        if (f == NULL)
-        {
-            adt->adt_tag = 0x04; 
-            CeraValue err_val;
-            err_val.tag = VAL_STRING;
-            err_val.as.obj = (Obj*)newString("Failed to append to file");
-            adt->payload = err_val;
-        }
-        else
-        {
-            fputs(file_data, f);
-            fclose(f);
-            
-            adt->adt_tag = 0x05; 
-            CeraValue ok_val;
-            ok_val.tag = VAL_UNIT;
-            ok_val.as.int_val = 0;
-            adt->payload = ok_val;
-        }
-        
-        free(file_path);
-        free(file_data);
-        release(path);   
-        release(content);
-        
-        CeraValue res;
-        res.tag = VAL_ADT;
-        res.as.obj = (Obj*)adt;
-        push(vm, res);
-        
-        return 0;
-    }
-
-    // --- Binary I/O Operations ---
     case INTR_READ_BIN:
     {
         CeraValue path_val = pop(vm);
         char *path = flatten_char_list(path_val);
-
         FILE *file = fopen(path, "rb");
-        ObjADT *result_adt = malloc(sizeof(ObjADT));
-        result_adt->header.type = VAL_ADT;
-        result_adt->header.ref_count = 1;
+
+        CeraValue payload;
+        bool is_ok = false;
 
         if (file == NULL)
         {
-            result_adt->adt_tag = 0x04; // Error
-            result_adt->payload.tag = VAL_STRING;
-            result_adt->payload.as.obj = (Obj *)newString("Failed to open binary file");
+            payload.tag = VAL_STRING;
+            payload.as.obj = (Obj *)newString("Failed to open binary file");
         }
         else
         {
@@ -761,17 +618,14 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             ObjArray *arr = newArray(size);
             uint8_t *buffer = malloc(size);
             
-            // Capture the actual amount of bytes read
             size_t bytes_read = fread(buffer, 1, size, file);
             fclose(file);
 
-            // Defensive programming check
             if (bytes_read != (size_t)size) 
             {
                 free(buffer);
-                result_adt->adt_tag = 0x04; // Error
-                result_adt->payload.tag = VAL_STRING;
-                result_adt->payload.as.obj = (Obj *)newString("I/O Fault: File read interrupted or corrupted");
+                payload.tag = VAL_STRING;
+                payload.as.obj = (Obj *)newString("I/O Fault: File read interrupted or corrupted");
             } 
             else 
             {
@@ -779,17 +633,18 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
                 {
                     CeraValue byte_val;
                     byte_val.tag = VAL_INT;
-                    byte_val.as.int_val = buffer[i]; // Store as standard Cera 64-bit int
+                    byte_val.as.int_val = buffer[i]; 
                     arr->elements[i] = byte_val;
                 }
                 free(buffer);
 
-                result_adt->adt_tag = 0x05; // Ok
-                result_adt->payload.tag = VAL_ARRAY;
-                result_adt->payload.as.obj = (Obj *)arr;
+                is_ok = true;
+                payload.tag = VAL_ARRAY;
+                payload.as.obj = (Obj *)arr;
             }
         }
 
+        ObjADT *result_adt = newResult(is_ok, payload);
         free(path);
         release(path_val);
 
@@ -807,24 +662,21 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         
         char* file_path = flatten_char_list(path_val);
         ObjArray* arr = (ObjArray*)data_val.as.obj;
-        
         FILE *f = fopen(file_path, "wb");
-        ObjADT* adt = (ObjADT*)malloc(sizeof(ObjADT));
-        adt->header.type = VAL_ADT;
-        adt->header.ref_count = 1;
+        
+        CeraValue payload;
+        bool is_ok = false;
 
         if (f == NULL)
         {
-            adt->adt_tag = 0x04; // Error
-            adt->payload.tag = VAL_STRING;
-            adt->payload.as.obj = (Obj*)newString("Failed to write binary file");
+            payload.tag = VAL_STRING;
+            payload.as.obj = (Obj*)newString("Failed to write binary file");
         }
         else
         {
             uint8_t *buffer = malloc(arr->length);
             for (int i = 0; i < arr->length; i++)
             {
-                // Safely downcast the 64-bit integer to an 8-bit byte
                 buffer[i] = (uint8_t)arr->elements[i].as.int_val;
             }
             
@@ -832,10 +684,12 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
             fclose(f);
             free(buffer);
             
-            adt->adt_tag = 0x05; // Ok
-            adt->payload.tag = VAL_UNIT;
-            adt->payload.as.int_val = 0;
+            is_ok = true;
+            payload.tag = VAL_UNIT;
+            payload.as.int_val = 0;
         }
+        
+        ObjADT* adt = newResult(is_ok, payload);
         
         free(file_path);
         release(path_val);   
@@ -847,24 +701,21 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         push(vm, res);
         return 0;
     }
+
     case INTR_LN:
     {
         CeraValue arg = pop(vm);
-        if (arg.tag != VAL_FLOAT) { log_error("ln requires float"); return 1; }
         CeraValue res; 
         res.tag = VAL_FLOAT;
-        res.as.float_val = log(arg.as.float_val); // C's log() is natural log
+        res.as.float_val = log(arg.as.float_val); 
         push(vm, res);
         return 0;
     }
+
     case INTR_FLOAT_POW:
     {
         CeraValue exp_val = pop(vm);
         CeraValue base_val = pop(vm);
-        if (base_val.tag != VAL_FLOAT || exp_val.tag != VAL_FLOAT) { 
-            log_error("floatPow requires float operands"); 
-            return 1; 
-        }
         CeraValue res;
         res.tag = VAL_FLOAT;
         res.as.float_val = pow(base_val.as.float_val, exp_val.as.float_val);

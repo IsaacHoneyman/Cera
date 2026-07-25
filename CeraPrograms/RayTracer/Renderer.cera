@@ -53,7 +53,7 @@ hidden def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objec
                 var reflectDir: vec3 = reflect(incident, n);
                 var rDotV: float = dot(reflectDir, v);            
                 var specFactor: float = max(0.0, rDotV);
-                var specPower: float = powInt(specFactor, floatToInt(alpha)); 
+                var specPower: float = pow(specFactor, alpha); 
                 var specCol: vec3 = vColorMul(vMul(spec, specPower), lIntens);
                 
                 var totalIllum: vec3 = vAdd(diffuseCol, specCol);
@@ -66,7 +66,7 @@ hidden def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objec
 hidden inline def schlick(cosine: float, refIdx: float) : float = {
     var r0: float = (1.0 - refIdx) / (1.0 + refIdx);
     var r0Sq: float = r0 * r0;
-    r0Sq + ((1.0 - r0Sq) * powInt((1.0 - cosine), 5));
+    r0Sq + ((1.0 - r0Sq) * pow((1.0 - cosine), 5.0));
 }
 
 hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec3 = {
@@ -152,37 +152,37 @@ hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec
     }
 }
 
-hidden def getAAPixelColor(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, current: int, acc: vec3, scn: scene) : vec3 = {
+hidden def getAAPixelColor(x: int, y: int, width: int, height: int, hWidth: float, hHeight: float, depth: int, shadowSamples: int, aaSamples: int, current: int, acc: vec3, scn: scene) : vec3 = {
     if (current >= aaSamples) {
         vMul(acc, 1.0 / intToFloat(aaSamples));
     } else {
         var jx: float = intToFloat(x) + randRange(0.0, 1.0);
         var jy: float = intToFloat(y) + randRange(0.0, 1.0);
         
-        var u: float = (jx - (intToFloat(width) / 2.0)) / intToFloat(height);
-        var v: float = ((intToFloat(height) / 2.0) - jy) / intToFloat(height);
+        var u: float = (jx - hWidth) / intToFloat(height);
+        var v: float = (hHeight - jy) / intToFloat(height);
         
         var r: ray = Ray(Vec(0.0, 0.0, 0.0), normalize(Vec(u, v, 1.0)));
         var sampleCol: vec3 = getRayColor(r, scn, depth, shadowSamples);
         
-        getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, current + 1, vAdd(acc, sampleCol), scn);
+        getAAPixelColor(x, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, current + 1, vAdd(acc, sampleCol), scn);
     }
 }
 
 // --- Main Render Loop ---
 
-hidden def renderRow(x: int, y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
+hidden def renderRow(x: int, y: int, width: int, height: int, hWidth: float, hHeight: float, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
     if (x >= width) {
         acc; 
     } else {
-        var col: vec3 = getAAPixelColor(x, y, width, height, depth, shadowSamples, aaSamples, 0, Vec(0.0, 0.0, 0.0), scn);                
-        renderRow(x + 1, y, width, height, depth, shadowSamples, aaSamples, scn, concat(acc, colorToPPM(col)));
+        var col: vec3 = getAAPixelColor(x, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, 0, Vec(0.0, 0.0, 0.0), scn);                
+        renderRow(x + 1, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn, concat(acc, colorToPPM(col)));
     }
 }
 
-def renderScreen(y: int, width: int, height: int, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
+def renderScreen(y: int, width: int, height: int, hWidth: float, hHeight: float, depth: int, shadowSamples: int, aaSamples: int, scn: scene) : unit = {    
     if (y >= height) {
-        acc; 
+        (); 
     } 
     else {
         var currentPct: int = (y * 100) / height;
@@ -192,8 +192,9 @@ def renderScreen(y: int, width: int, height: int, depth: int, shadowSamples: int
             outF("Render %\\% Complete!\n", [intToChars(currentPct)]); 
         };
 
-        var rowPixels: char list = renderRow(0, y, width, height, depth, shadowSamples, aaSamples, scn, "");        
-        renderScreen(y + 1, width, height, depth, shadowSamples, aaSamples, scn, concat(acc, rowPixels));
+        var rowPixels: char list = renderRow(0, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn, "");
+        append("Out/image.ppm", rowPixels);
+        renderScreen(y + 1, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn);
     }
 }
 
