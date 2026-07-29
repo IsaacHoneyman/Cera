@@ -33,14 +33,12 @@ public partial class Emitter
 
     private void EmitFailureCleanup(int baseScopeDepth, List<int> failureJumps, int line)
     {
-        // Dynamically calculate how many items are currently polluting the stack
         int varsToPop = Locals.Count - baseScopeDepth;
         for (int i = 0; i < varsToPop; i++)
         {
             CurrentChunk.WriteByte(OpCode.POP, line);
         }
 
-        // Append an unconditional jump to the next switch case
         failureJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, line));
     }
 
@@ -51,11 +49,40 @@ public partial class Emitter
             case LiteralPattern lit:
                 if (lit.Value.Tag == TokenType.WildCard) break;
 
+                int localIdx = Locals.LastIndexOf(targetVar);
+                if (localIdx != -1 && localIdx <= byte.MaxValue)
+                {
+                    int constIdx = -1;
+                    if (lit.Value.Tag == TokenType.IntLiteral) constIdx = CurrentChunk.AddConstant(CeraValue.Int(long.Parse(lit.Value.Lexeme)));
+                    else if (lit.Value.Tag == TokenType.FloatLiteral) constIdx = CurrentChunk.AddConstant(CeraValue.Float(double.Parse(lit.Value.Lexeme)));
+                    else if (lit.Value.Tag == TokenType.StringLiteral) constIdx = CurrentChunk.AddConstant(CeraValue.String(lit.Value.Lexeme.Trim('"')));
+                    else if (lit.Value.Tag == TokenType.CharLiteral) constIdx = CurrentChunk.AddConstant(CeraValue.Char(char.ConvertToUtf32(lit.Value.Lexeme.Trim('\''), 0)));
+                    else if (lit.Value.Tag == TokenType.True) constIdx = CurrentChunk.AddConstant(CeraValue.Bool(true));
+                    else if (lit.Value.Tag == TokenType.False) constIdx = CurrentChunk.AddConstant(CeraValue.Bool(false));
+                    else if (lit.Value.Tag == TokenType.Unit) constIdx = CurrentChunk.AddConstant(CeraValue.Unit());
+
+                    if (constIdx != -1 && constIdx <= byte.MaxValue)
+                    {
+                        CurrentChunk.WriteByte(OpCode.JUMP_IF_LOCAL_NOT_EQ_CONST, line);
+                        CurrentChunk.WriteByte((byte)localIdx, line);
+                        CurrentChunk.WriteByte((byte)constIdx, line);
+
+                        int jumpIfNotMatchCo = CurrentChunk.Code.Count;
+                        CurrentChunk.WriteByte(0xff, line);
+                        CurrentChunk.WriteByte(0xff, line);
+
+                        int jumpIfMatchCo = CurrentChunk.EmitJump(OpCode.JUMP, line);
+                        CurrentChunk.PatchJump(jumpIfNotMatchCo);
+                        EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+                        CurrentChunk.PatchJump(jumpIfMatchCo);
+                        break;
+                    }
+                }
+
                 EmitLoadLocal(targetVar, line);
                 EmitLiteral(new LiteralExpr(lit.Value));
                 CurrentChunk.WriteByte(OpCode.EQ, line);
 
-                // Jump over the cleanup block if the test succeeds
                 int jumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
                 CurrentChunk.PatchJump(jumpIfTrue);
@@ -68,12 +95,12 @@ public partial class Emitter
 
             case ConPattern con:
                 EmitLoadLocal(targetVar, line);
-                
+
                 CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
                 CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), line);
                 int jumpIfNotMatch = CurrentChunk.Code.Count;
-                CurrentChunk.WriteByte(0xff, line); 
-                CurrentChunk.WriteByte(0xff, line); 
+                CurrentChunk.WriteByte(0xff, line);
+                CurrentChunk.WriteByte(0xff, line);
                 int jumpIfMatch = CurrentChunk.EmitJump(OpCode.JUMP, line);
                 CurrentChunk.PatchJump(jumpIfNotMatch);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
@@ -127,11 +154,11 @@ public partial class Emitter
 
             case ConsPattern cons:
                 EmitLoadLocal(targetVar, line);
-                
+
                 CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
                 CurrentChunk.WriteByte(constructorTags["Cons"], line);
                 int jumpIfNotMatchC = CurrentChunk.Code.Count;
-                CurrentChunk.WriteByte(0xff, line); 
+                CurrentChunk.WriteByte(0xff, line);
                 CurrentChunk.WriteByte(0xff, line);
 
                 int jumpIfMatchC = CurrentChunk.EmitJump(OpCode.JUMP, line);
@@ -154,24 +181,12 @@ public partial class Emitter
                 break;
 
             case ListPattern list:
-                if (list.Patterns.Count == 0)
                 {
-                    EmitLoadLocal(targetVar, line);
-                    CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
-
-                    int emptyJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
-                    EmitFailureCleanup(baseScopeDepth, failureJumps, line);
-                    CurrentChunk.PatchJump(emptyJumpIfTrue);
-                }
-                else
-                {
-                    string currentListVar = targetVar;
-                    for (int i = 0; i < list.Patterns.Count; i++)
+                    if (list.Patterns.Count == 0)
                     {
-                        EmitLoadLocal(currentListVar, line);
-                        
-                        CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
-                        CurrentChunk.WriteByte(constructorTags["Cons"], line);
+                        EmitLoadLocal(targetVar, line);
+                        CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_LIST_EMPTY, line);
+
                         int jumpIfNotMatchL = CurrentChunk.Code.Count;
                         CurrentChunk.WriteByte(0xff, line);
                         CurrentChunk.WriteByte(0xff, line);
@@ -182,52 +197,84 @@ public partial class Emitter
                         EmitFailureCleanup(baseScopeDepth, failureJumps, line);
 
                         CurrentChunk.PatchJump(jumpIfMatchL);
-
-                        EmitLoadLocal(currentListVar, line);
-                        CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
-
-                        string hVar = list.Patterns[i] is IdPattern id ? id.Identifier.Lexeme : $"<list_el_{Guid.NewGuid().ToString()[..8]}>";
-                        string tVar = $"<list_tail_{Guid.NewGuid().ToString()[..8]}>";
-                        Locals.Add(hVar);
-                        Locals.Add(tVar);
-
-                        if (list.Patterns[i] is not IdPattern)
-                            CompilePatternCase(list.Patterns[i], hVar, failureJumps, baseScopeDepth, line);
-
-                        currentListVar = tVar;
                     }
+                    else
+                    {
+                        string currentListVar = targetVar;
+                        for (int i = 0; i < list.Patterns.Count; i++)
+                        {
+                            // ... (Cons pattern unpacking remains unchanged) ...
+                            EmitLoadLocal(currentListVar, line);
 
-                    EmitLoadLocal(currentListVar, line);
-                    CurrentChunk.WriteByte(OpCode.IS_LIST_EMPTY, line);
+                            CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
+                            CurrentChunk.WriteByte(constructorTags["Cons"], line);
+                            int jumpIfNotMatchL = CurrentChunk.Code.Count;
+                            CurrentChunk.WriteByte(0xff, line);
+                            CurrentChunk.WriteByte(0xff, line);
 
-                    int finalEmptyJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
-                    EmitFailureCleanup(baseScopeDepth, failureJumps, line);
-                    CurrentChunk.PatchJump(finalEmptyJumpIfTrue);
+                            int jumpIfMatchL = CurrentChunk.EmitJump(OpCode.JUMP, line);
+
+                            CurrentChunk.PatchJump(jumpIfNotMatchL);
+                            EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+
+                            CurrentChunk.PatchJump(jumpIfMatchL);
+
+                            EmitLoadLocal(currentListVar, line);
+                            CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
+
+                            string hVar = list.Patterns[i] is IdPattern id ? id.Identifier.Lexeme : $"<list_el_{Guid.NewGuid().ToString()[..8]}>";
+                            string tVar = $"<list_tail_{Guid.NewGuid().ToString()[..8]}>";
+                            Locals.Add(hVar);
+                            Locals.Add(tVar);
+
+                            if (list.Patterns[i] is not IdPattern)
+                                CompilePatternCase(list.Patterns[i], hVar, failureJumps, baseScopeDepth, line);
+
+                            currentListVar = tVar;
+                        }
+
+                        // Tail validation updated to the fused instruction
+                        EmitLoadLocal(currentListVar, line);
+                        CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_LIST_EMPTY, line);
+
+                        int finalJumpIfNotMatch = CurrentChunk.Code.Count;
+                        CurrentChunk.WriteByte(0xff, line);
+                        CurrentChunk.WriteByte(0xff, line);
+
+                        int finalJumpIfMatch = CurrentChunk.EmitJump(OpCode.JUMP, line);
+
+                        CurrentChunk.PatchJump(finalJumpIfNotMatch);
+                        EmitFailureCleanup(baseScopeDepth, failureJumps, line);
+
+                        CurrentChunk.PatchJump(finalJumpIfMatch);
+                    }
+                    break;
                 }
-                break;
 
             case ArrPattern arr:
                 EmitLoadLocal(targetVar, line);
                 int length = arr.Patterns.Count;
 
-                if (length == 0) CurrentChunk.WriteByte(OpCode.PUSH_0, line);
-                else if (length == 1) CurrentChunk.WriteByte(OpCode.PUSH_1, line);
-                else if (length <= 127)
-                {
-                    CurrentChunk.WriteByte(OpCode.PUSH_BYTE, line);
-                    CurrentChunk.WriteByte((byte)length, line);
-                }
-                else
-                {
-                    int idx = CurrentChunk.AddConstant(CeraValue.Int(length));
-                    EmitLoadConst(idx, line);
-                }
+                if (length > ushort.MaxValue)
+                    FatalError($"Array pattern exceeds maximum size of {ushort.MaxValue} elements.", GetLeadToken(arr));
 
-                CurrentChunk.WriteByte(OpCode.MATCH_ARRAY_LENGTH, line);
+                CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_ARRAY_LENGTH, line);
 
-                int arrJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                // Write the 2-byte expected length payload (Little-Endian)
+                CurrentChunk.WriteByte((byte)(length & 0xFF), line);
+                CurrentChunk.WriteByte((byte)((length >> 8) & 0xFF), line);
+
+                // Write the 2-byte jump offset placeholders
+                int arrJumpIfNotMatch = CurrentChunk.Code.Count;
+                CurrentChunk.WriteByte(0xff, line);
+                CurrentChunk.WriteByte(0xff, line);
+
+                int arrJumpIfMatch = CurrentChunk.EmitJump(OpCode.JUMP, line);
+
+                CurrentChunk.PatchJump(arrJumpIfNotMatch);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
-                CurrentChunk.PatchJump(arrJumpIfTrue);
+
+                CurrentChunk.PatchJump(arrJumpIfMatch);
 
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.UNPACK_ARRAY, line);
@@ -364,7 +411,6 @@ public partial class Emitter
         if (call.Callee is IdentifierExpr idExpr)
         {
             string fName = res.TryGetValue(idExpr, out string? r) ? r : idExpr.Identifier.Lexeme;
-
             Symbol? sym = currentEnv?.Resolve(fName);
 
             if (sym is FuncSymbol { NativeId: not null } funcSym)
@@ -394,6 +440,42 @@ public partial class Emitter
                 curInlining.Add(fName);
                 EmitInlineCall(inlineFunc, call.Arguments, isTail);
                 curInlining.Remove(fName);
+                return;
+            }
+
+            int localIndex = Locals.LastIndexOf(fName);
+            int upvalueIndex = ResolveUpvalue(state, fName);
+
+            if (localIndex == -1 && upvalueIndex == -1 && !globalVariables.ContainsKey(fName))
+            {
+                int funcIndex = GetGlobalFunctionIndex(fName, idExpr.Identifier);
+                int line = idExpr.Identifier.Line;
+
+                CurrentChunk.WriteByte(OpCode.PUSH_UNIT, line);
+                Locals.Add("<temp_callee_padding>");
+
+                int globTrackedArgs = 0;
+                foreach (var arg in call.Arguments)
+                {
+                    EmitExpression(arg);
+                    Locals.Add("<temp_arg>");
+                    globTrackedArgs++;
+                }
+
+                if (funcIndex <= byte.MaxValue)
+                {
+                    CurrentChunk.WriteByte(isTail ? OpCode.TAIL_CALL_GLOBAL : OpCode.CALL_GLOBAL, line);
+                    CurrentChunk.WriteByte((byte)funcIndex, line);
+                }
+                else
+                {
+                    CurrentChunk.WriteByte(isTail ? OpCode.TAIL_CALL_GLOBAL_LONG : OpCode.CALL_GLOBAL_LONG, line);
+                    CurrentChunk.WriteByte((byte)(funcIndex & 0xFF), line);
+                    CurrentChunk.WriteByte((byte)((funcIndex >> 8) & 0xFF), line);
+                }
+
+                CurrentChunk.WriteByte((byte)call.Arguments.Count, line);
+                Locals.RemoveRange(Locals.Count - (globTrackedArgs + 1), globTrackedArgs + 1);
                 return;
             }
         }
@@ -513,13 +595,40 @@ public partial class Emitter
         return (myIndex, requiredCaptures);
     }
 
+    private int EmitConditionAndJump(IExprAST condition, int line)
+    {
+        if (condition is BinaryExpr bin)
+        {
+            OpCode? jumpOp = bin.Operator.Tag switch
+            {
+                TokenType.EqualEqual => OpCode.JUMP_IF_FALSE_EQ,
+                TokenType.NotEqual => OpCode.JUMP_IF_FALSE_NEQ,
+                TokenType.Lesser => OpCode.JUMP_IF_FALSE_LT,
+                TokenType.LesserEqual => OpCode.JUMP_IF_FALSE_LTE,
+                TokenType.Greater => OpCode.JUMP_IF_FALSE_GT,
+                TokenType.GreaterEqual => OpCode.JUMP_IF_FALSE_GTE,
+                _ => null
+            };
+
+            if (jumpOp.HasValue)
+            {
+                EmitExpression(bin.Left);
+                Locals.Add("<temp_bin_left>");
+                EmitExpression(bin.Right);
+                Locals.RemoveAt(Locals.Count - 1);
+                return CurrentChunk.EmitJump(jumpOp.Value, line);
+            }
+        }
+
+        EmitExpression(condition);
+        return CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, line);
+    }
 
     private void EmitIfExpr(IfExpr ifExpr, bool isTail)
     {
         List<int> exitJumps = [];
 
-        EmitExpression(ifExpr.Condition);
-        int nextBranchJump = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, ifExpr.Operator.Line);
+        int nextBranchJump = EmitConditionAndJump(ifExpr.Condition, ifExpr.Operator.Line);
 
         EmitExpressionBlock(ifExpr.TrueBlock, isTail);
         exitJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, ifExpr.Operator.Line));
@@ -529,7 +638,7 @@ public partial class Emitter
             CurrentChunk.PatchJump(nextBranchJump);
 
             EmitExpression(Condition, false);
-            nextBranchJump = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, ifExpr.Operator.Line);
+            nextBranchJump = EmitConditionAndJump(Condition, ifExpr.Operator.Line);
 
             EmitExpressionBlock(Block, isTail);
             exitJumps.Add(CurrentChunk.EmitJump(OpCode.JUMP, ifExpr.Operator.Line));
@@ -547,8 +656,7 @@ public partial class Emitter
 
     private void EmitTernaryExpression(TernaryExpr tern, bool isTail)
     {
-        EmitExpression(tern.Condition, false);
-        int jumpIfFalse = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, tern.Operator.Line);
+        int jumpIfFalse = EmitConditionAndJump(tern.Condition, tern.Operator.Line);
         EmitExpression(tern.TrueBranch, isTail);
         int jumpEnd = CurrentChunk.EmitJump(OpCode.JUMP, tern.Operator.Line);
         CurrentChunk.PatchJump(jumpIfFalse);
@@ -710,13 +818,23 @@ public partial class Emitter
     {
         if (binary.Operator.Tag == TokenType.And || binary.Operator.Tag == TokenType.Or)
         {
-            EmitLogicalExpression(binary);
-            return;
+            EmitLogicalExpression(binary); return;
         }
-
         if (binary.Operator.Tag == TokenType.ColonColon)
         {
-            EmitConsExpression(binary);
+            EmitConsExpression(binary); return;
+        }
+
+        if (binary.Operator.Tag == TokenType.Plus && binary.Right is LiteralExpr rLitP && rLitP.Value.Lexeme == "1")
+        {
+            EmitExpression(binary.Left);
+            CurrentChunk.WriteByte(OpCode.ADD_1, binary.Operator.Line);
+            return;
+        }
+        if (binary.Operator.Tag == TokenType.Minus && binary.Right is LiteralExpr rLitM && rLitM.Value.Lexeme == "1")
+        {
+            EmitExpression(binary.Left);
+            CurrentChunk.WriteByte(OpCode.SUB_1, binary.Operator.Line);
             return;
         }
 
@@ -760,21 +878,17 @@ public partial class Emitter
 
         if (binary.Operator.Tag == TokenType.And)
         {
-            int jumpIfFalse = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE, binary.Operator.Line);
+            int jumpIfFalse = CurrentChunk.EmitJump(OpCode.JUMP_IF_FALSE_PEEK, binary.Operator.Line);
+            CurrentChunk.WriteByte(OpCode.POP, binary.Operator.Line); // Pop left value
             EmitExpression(binary.Right);
-            int jumpEnd = CurrentChunk.EmitJump(OpCode.JUMP, binary.Operator.Line);
             CurrentChunk.PatchJump(jumpIfFalse);
-            CurrentChunk.WriteByte(OpCode.PUSH_FALSE, binary.Operator.Line);
-            CurrentChunk.PatchJump(jumpEnd);
         }
         else if (binary.Operator.Tag == TokenType.Or)
         {
-            int jumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, binary.Operator.Line);
+            int jumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE_PEEK, binary.Operator.Line);
+            CurrentChunk.WriteByte(OpCode.POP, binary.Operator.Line); // Pop left value
             EmitExpression(binary.Right);
-            int jumpEnd = CurrentChunk.EmitJump(OpCode.JUMP, binary.Operator.Line);
             CurrentChunk.PatchJump(jumpIfTrue);
-            CurrentChunk.WriteByte(OpCode.PUSH_TRUE, binary.Operator.Line);
-            CurrentChunk.PatchJump(jumpEnd);
         }
     }
 

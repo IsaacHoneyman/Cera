@@ -54,25 +54,21 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
 
     CallFrame *frame = &vm->frames[vm->frame_count++];
     frame->closure = entry_closure;
+    frame->function_index = module->entry_index;
     frame->ip = entry_func->code;
 
     // Index 0 is the closure itself, Index 1 is the args array.
     frame->slots = vm->stack;
 }
 
-#define BINARY_INT_OP(op)                                                                        \
-    do                                                                                           \
-    {                                                                                            \
-        CeraValue b = pop(vm);                                                                   \
-        CeraValue a = pop(vm);                                                                   \
-        if (a.tag != VAL_INT || b.tag != VAL_INT)                                                \
-        {                                                                                        \
-            RUNTIME_ERROR(vm, "Operands must be integers. Received tags: %d, %d", a.tag, b.tag); \
-        }                                                                                        \
-        CeraValue res;                                                                           \
-        res.tag = VAL_INT;                                                                       \
-        res.as.int_val = a.as.int_val op b.as.int_val;                                           \
-        push(vm, res);                                                                           \
+#define BINARY_INT_OP(op) \
+    do { \
+        CeraValue b = pop(vm); \
+        CeraValue a = pop(vm); \
+        CeraValue res; \
+        res.tag = VAL_INT; \
+        res.as.int_val = a.as.int_val op b.as.int_val; \
+        push(vm, res); \
     } while (false)
 
 #define BINARY_BOOL_OP(op)                                                                                           \
@@ -117,28 +113,39 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
         push(vm, res);                                                                                               \
     } while (false)
 
-#define BINARY_NUM_OP(op, op_str)                                                         \
-    do                                                                                    \
-    {                                                                                     \
-        CeraValue b = pop(vm);                                                            \
-        CeraValue a = pop(vm);                                                            \
-        CeraValue res;                                                                    \
-        if (a.tag == VAL_INT && b.tag == VAL_INT)                                         \
-        {                                                                                 \
-            res.tag = VAL_INT;                                                            \
-            res.as.int_val = a.as.int_val op b.as.int_val;                                \
-        }                                                                                 \
-        else if (a.tag == VAL_FLOAT && b.tag == VAL_FLOAT)                                \
-        {                                                                                 \
-            res.tag = VAL_FLOAT;                                                          \
-            res.as.float_val = a.as.float_val op b.as.float_val;                          \
-        }                                                                                 \
-        else                                                                              \
-        {                                                                                 \
-            RUNTIME_ERROR(vm, "Operands for '%s' must be numbers. Received tags: %d, %d", \
-                          op_str, a.tag, b.tag);                                          \
-        }                                                                                 \
-        push(vm, res);                                                                    \
+#define BINARY_NUM_OP(op) \
+    do { \
+        CeraValue b = pop(vm); \
+        CeraValue a = pop(vm); \
+        CeraValue res; \
+        if (a.tag == VAL_FLOAT) { \
+            res.tag = VAL_FLOAT; \
+            res.as.float_val = a.as.float_val op b.as.float_val; \
+        } else { \
+            res.tag = VAL_INT; \
+            res.as.int_val = a.as.int_val op b.as.int_val; \
+        } \
+        push(vm, res); \
+    } while (false)
+
+#define FUSED_RELATIONAL_JUMP(op) \
+    do { \
+        uint16_t offset = READ_SHORT(); \
+        CeraValue b = pop(vm); \
+        CeraValue a = pop(vm); \
+        bool cond = false; \
+        if (a.tag == VAL_STRING || a.tag == VAL_LIST) { \
+            char *strA = flatten_char_list(a); \
+            char *strB = flatten_char_list(b); \
+            cond = (strcmp(strA, strB) op 0); \
+            free(strA); free(strB); \
+        } else if (a.tag == VAL_FLOAT) { \
+            cond = (a.as.float_val op b.as.float_val); \
+        } else { \
+            cond = (a.as.int_val op b.as.int_val); \
+        } \
+        release(a); release(b); \
+        if (!cond) frame->ip += offset; \
     } while (false)
 
 #define READ_BYTE() (*frame->ip++)
@@ -163,24 +170,6 @@ static int call_function(VM *vm, ObjClosure *closure, uint8_t arg_count)
 {
     CompiledFunction *func = get_function(vm->active_module, closure->function_index);
 
-    if (func == NULL)
-    {
-        log_error("Fatal: Attempted to call unknown function index %d", closure->function_index);
-        return 1;
-    }
-
-    if (func->code_size == 0)
-    {
-        log_error("Fatal: Function %d has 0 bytes of bytecode compiled", func->index);
-        return 1;
-    }
-
-    if (arg_count != func->arity)
-    {
-        log_error("Expected %d arguments but got %d", func->arity, arg_count);
-        return 1;
-    }
-
     if (vm->frame_count == FRAMES_MAX)
     {
         log_error("Stack overflow, infinite recursion detected");
@@ -189,9 +178,28 @@ static int call_function(VM *vm, ObjClosure *closure, uint8_t arg_count)
 
     CallFrame *frame = &vm->frames[vm->frame_count++];
     frame->closure = closure;
+    frame->function_index = closure->function_index; 
     frame->ip = func->code;
-
     frame->slots = vm->stack_top - arg_count - 1;
+    return 0;
+}
+
+static int call_static_function(VM *vm, uint32_t func_index, uint8_t arg_count)
+{
+    CompiledFunction *func = get_function(vm->active_module, func_index);
+
+    if (vm->frame_count == FRAMES_MAX)
+    {
+        log_error("Stack overflow, infinite recursion detected");
+        return 1;
+    }
+
+    CallFrame *frame = &vm->frames[vm->frame_count++];
+    frame->closure = NULL; // No dynamic memory
+    frame->function_index = func_index;
+    frame->ip = func->code;
+    frame->slots = vm->stack_top - arg_count - 1;
+
     return 0;
 }
 
@@ -320,7 +328,7 @@ static void print_stack_trace(VM *vm)
     for (int i = vm->frame_count - 1; i >= 0; i--)
     {
         CallFrame *frame = &vm->frames[i];
-        CompiledFunction *func = get_function(vm->active_module, frame->closure->function_index);
+        CompiledFunction *func = get_function(vm->active_module, frame->function_index);
 
         int offset = (int)(frame->ip - func->code - 1);
         log_error("  [Frame %d] Function Index: %d at instruction offset: %04d", i, func->index, offset);
@@ -346,7 +354,7 @@ static inline void populate_seq_from_stack(VM *vm, CeraValue *elements, int leng
 int runVM(VM *vm)
 {
     CallFrame *frame = &vm->frames[vm->frame_count - 1];
-    CompiledFunction *active_function = get_function(vm->active_module, frame->closure->function_index);
+    CompiledFunction *active_function = get_function(vm->active_module, frame->function_index);
 
     log_info("--- Execution Started ---");
 
@@ -371,13 +379,6 @@ int runVM(VM *vm)
         case OP_POP:
             release(pop(vm));
             break;
-        case OP_DUP:
-        {
-            CeraValue top = PEEK(0);
-            retain(top);
-            push(vm, top);
-            break;
-        }
         case OP_LOAD_CONST:
         {
             CeraValue constant = READ_CONSTANT();
@@ -499,21 +500,27 @@ int runVM(VM *vm)
             push(vm, upvalue);
             break;
         }
-        case OP_ADD:
-            BINARY_NUM_OP(+, "+");
+        case OP_ADD: BINARY_NUM_OP(+); break;
+        case OP_SUB: BINARY_NUM_OP(-); break;
+        case OP_MUL: BINARY_NUM_OP(*); break;
+        case OP_DIV: BINARY_NUM_OP(/); break;
+        case OP_MOD: BINARY_INT_OP(%); break;
+        case OP_ADD_1: 
+        {
+            CeraValue a = pop(vm);
+            if (a.tag == VAL_FLOAT) a.as.float_val += 1.0;
+            else a.as.int_val += 1;
+            push(vm, a);
             break;
-        case OP_SUB:
-            BINARY_NUM_OP(-, "-");
+        }
+        case OP_SUB_1: 
+        {
+            CeraValue a = pop(vm);
+            if (a.tag == VAL_FLOAT) a.as.float_val -= 1.0;
+            else a.as.int_val -= 1;
+            push(vm, a);
             break;
-        case OP_MUL:
-            BINARY_NUM_OP(*, "*");
-            break;
-        case OP_DIV:
-            BINARY_NUM_OP(/, "/");
-            break;
-        case OP_MOD:
-            BINARY_INT_OP(%);
-            break;
+        }
         case OP_NEGATE:
         {
             CeraValue a = pop(vm);
@@ -544,8 +551,6 @@ int runVM(VM *vm)
         case OP_BIT_NOT:
         {
             CeraValue a = pop(vm);
-            if (a.tag != VAL_INT)
-                RUNTIME_ERROR(vm, "Operand must be int for bitwise NOT. Received tag: %d", a.tag);
             a.as.int_val = ~a.as.int_val;
             push(vm, a);
             break;
@@ -572,8 +577,6 @@ int runVM(VM *vm)
         case OP_NOT:
         {
             CeraValue a = pop(vm);
-            if (a.tag != VAL_BOOL)
-                RUNTIME_ERROR(vm, "Operand must be bool for logical NOT. Received tag: %d", a.tag);
             a.as.int_val = (a.as.int_val == 0) ? 1 : 0;
             push(vm, a);
             break;
@@ -601,6 +604,48 @@ int runVM(VM *vm)
                 frame->ip += offset;
             break;
         }
+        case OP_JUMP_IF_FALSE_EQ: FUSED_RELATIONAL_JUMP(==); break;
+        case OP_JUMP_IF_FALSE_NEQ: FUSED_RELATIONAL_JUMP(!=); break;
+        case OP_JUMP_IF_FALSE_LT: FUSED_RELATIONAL_JUMP(<); break;
+        case OP_JUMP_IF_FALSE_LTE: FUSED_RELATIONAL_JUMP(<=); break;
+        case OP_JUMP_IF_FALSE_GT: FUSED_RELATIONAL_JUMP(>); break;
+        case OP_JUMP_IF_FALSE_GTE: FUSED_RELATIONAL_JUMP(>=); break;
+        case OP_JUMP_IF_FALSE_PEEK:
+        {
+            uint16_t offset = READ_SHORT();
+            if (PEEK(0).as.int_val == 0) frame->ip += offset;
+            break;
+        }
+        case OP_JUMP_IF_TRUE_PEEK:
+        {
+            uint16_t offset = READ_SHORT();
+            if (PEEK(0).as.int_val == 1) frame->ip += offset;
+            break;
+        }
+        case OP_JUMP_IF_LOCAL_NOT_EQ_CONST:
+        {
+            uint8_t local_slot = READ_BYTE();
+            uint8_t const_idx = READ_BYTE();
+            uint16_t offset = READ_SHORT();
+            
+            CeraValue a = frame->slots[local_slot];
+            CeraValue b = active_function->constants[const_idx];
+            bool matches = false;
+            
+            if (a.tag == VAL_STRING || a.tag == VAL_LIST) {
+                char *strA = flatten_char_list(a);
+                char *strB = flatten_char_list(b);
+                matches = (strcmp(strA, strB) == 0);
+                free(strA); free(strB);
+            } else if (a.tag == VAL_FLOAT) {
+                matches = (a.as.float_val == b.as.float_val);
+            } else {
+                matches = (a.as.int_val == b.as.int_val);
+            }
+            
+            if (!matches) frame->ip += offset;
+            break;
+        }
 
         case OP_RETURN:
         {
@@ -622,7 +667,7 @@ int runVM(VM *vm)
             push(vm, result);
 
             frame = &vm->frames[vm->frame_count - 1];
-            active_function = get_function(vm->active_module, frame->closure->function_index);
+            active_function = get_function(vm->active_module, frame->function_index);
             break;
         }
 
@@ -701,6 +746,7 @@ int runVM(VM *vm)
             free(temp_args);
 
             frame->closure = closure;
+            frame->function_index = closure->function_index;
             frame->ip = func->code;
             active_function = func;
             break;
@@ -742,6 +788,154 @@ int runVM(VM *vm)
             closure_val.tag = VAL_CLOSURE;
             closure_val.as.obj = (Obj *)closure;
             push(vm, closure_val);
+            break;
+        }
+        case OP_CALL_GLOBAL:
+        {
+            uint8_t func_index = READ_BYTE();
+            uint8_t arg_count = READ_BYTE();
+
+            if (call_static_function(vm, func_index, arg_count) != 0) return 1;
+
+            frame = &vm->frames[vm->frame_count - 1];
+            active_function = get_function(vm->active_module, frame->function_index);
+            break;
+        }
+
+        case OP_CALL_GLOBAL_LONG:
+        {
+            uint16_t func_index = READ_SHORT();
+            uint8_t arg_count = READ_BYTE();
+
+            if (call_static_function(vm, func_index, arg_count) != 0) return 1;
+
+            frame = &vm->frames[vm->frame_count - 1];
+            active_function = get_function(vm->active_module, frame->function_index);
+            break;
+        }
+        case OP_TAIL_CALL_GLOBAL:
+        {
+            uint8_t func_index = READ_BYTE();
+            uint8_t arg_count = READ_BYTE();
+
+            CompiledFunction *func = get_function(vm->active_module, func_index);
+
+            if (func == NULL)
+            {
+                log_error("Fatal: Unknown function index %d in static tail call", func_index);
+                return 1;
+            }
+            if (func->code_size == 0)
+            {
+                log_error("Fatal: Function %d has 0 bytes of bytecode", func->index);
+                return 1;
+            }
+
+            if (arg_count != func->arity)
+            {
+                log_error("Expected %d arguments but got %d", func->arity, arg_count);
+                return 1;
+            }
+
+            close_upvalues(vm, frame->slots);
+
+            CeraValue *temp_args = NULL;
+            if (arg_count > 0) 
+            {
+                temp_args = malloc(sizeof(CeraValue) * arg_count);
+                for (int i = 0; i < arg_count; i++)
+                {
+                    temp_args[i] = PEEK(arg_count - 1 - i);
+                    retain(temp_args[i]);
+                }
+            }
+
+            while (vm->stack_top > frame->slots)
+            {
+                release(pop(vm));
+            }
+
+            CeraValue padding;
+            padding.tag = VAL_UNIT;
+            padding.as.int_val = 0;
+            push(vm, padding);
+
+            if (arg_count > 0) 
+            {
+                for (int i = 0; i < arg_count; i++)
+                {
+                    push(vm, temp_args[i]);
+                }
+                free(temp_args);
+            }
+
+            frame->closure = NULL; 
+            frame->function_index = func_index;
+            frame->ip = func->code;
+            active_function = func;
+            break;
+        }
+
+        case OP_TAIL_CALL_GLOBAL_LONG:
+        {
+            uint16_t func_index = READ_SHORT();
+            uint8_t arg_count = READ_BYTE();
+
+            CompiledFunction *func = get_function(vm->active_module, func_index);
+
+            if (func == NULL)
+            {
+                log_error("Fatal: Unknown function index %d in static tail call", func_index);
+                return 1;
+            }
+            if (func->code_size == 0)
+            {
+                log_error("Fatal: Function %d has 0 bytes of bytecode", func->index);
+                return 1;
+            }
+
+            if (arg_count != func->arity)
+            {
+                log_error("Expected %d arguments but got %d", func->arity, arg_count);
+                return 1;
+            }
+
+            close_upvalues(vm, frame->slots);
+
+            CeraValue *temp_args = NULL;
+            if (arg_count > 0) 
+            {
+                temp_args = malloc(sizeof(CeraValue) * arg_count);
+                for (int i = 0; i < arg_count; i++)
+                {
+                    temp_args[i] = PEEK(arg_count - 1 - i);
+                    retain(temp_args[i]);
+                }
+            }
+
+            while (vm->stack_top > frame->slots)
+            {
+                release(pop(vm));
+            }
+
+            CeraValue padding;
+            padding.tag = VAL_UNIT;
+            padding.as.int_val = 0;
+            push(vm, padding);
+
+            if (arg_count > 0) 
+            {
+                for (int i = 0; i < arg_count; i++)
+                {
+                    push(vm, temp_args[i]);
+                }
+                free(temp_args);
+            }
+
+            frame->closure = NULL; 
+            frame->function_index = func_index;
+            frame->ip = func->code;
+            active_function = func;
             break;
         }
         case OP_ALLOC_CON:
@@ -978,48 +1172,51 @@ int runVM(VM *vm)
             break;
         }
 
-        case OP_IS_LIST_EMPTY:
+        case OP_JUMP_IF_NOT_LIST_EMPTY:
         {
+            uint16_t offset = READ_SHORT();
             CeraValue top = pop(vm);
-            CeraValue res;
-            res.tag = VAL_BOOL;
+            
+            bool matches = false;
 
             if (top.tag == VAL_LIST && top.as.obj == NULL)
             {
-                res.as.int_val = 1;
+                matches = true;
             }
+
             else if (top.tag == VAL_STRING && ((ObjString *)top.as.obj)->length == 0)
             {
-                res.as.int_val = 1;
-            }
-            else
-            {
-                res.as.int_val = 0;
+                matches = true;
             }
 
             release(top);
-            push(vm, res);
+
+            if (!matches)
+            {
+                frame->ip += offset;
+            }
             break;
         }
 
-        case OP_MATCH_ARRAY_LENGTH:
+        case OP_JUMP_IF_NOT_ARRAY_LENGTH:
         {
-            CeraValue expected_len = pop(vm);
+            uint16_t expected_len = READ_SHORT();
+            uint16_t offset = READ_SHORT();
             CeraValue top = pop(vm);
-            CeraValue res;
-            res.tag = VAL_BOOL;
+            
+            bool matches = false;
 
-            if (top.tag == VAL_ARRAY && ((ObjArray *)top.as.obj)->length == expected_len.as.int_val)
+            if (top.tag == VAL_ARRAY && ((ObjArray *)top.as.obj)->length == expected_len)
             {
-                res.as.int_val = 1;
-            }
-            else
-            {
-                res.as.int_val = 0;
+                matches = true;
             }
 
             release(top);
-            push(vm, res);
+
+            if (!matches)
+            {
+                frame->ip += offset;
+            }
             break;
         }
 

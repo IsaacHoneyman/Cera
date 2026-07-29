@@ -41,18 +41,18 @@
 \contentsline {subsection}{\numberline {7.5}Executable Object Format (\texttt {.cerabc})}{20}{subsection.7.5}%
 \contentsline {subsection}{\numberline {7.6}Instruction Set Architecture (ISA)}{21}{subsection.7.6}%
 \contentsline {section}{\numberline {8}The Cera Virtual Machine (CeraVM)}{23}{section.8}%
-\contentsline {subsection}{\numberline {8.1}Architectural Overview}{23}{subsection.8.1}%
-\contentsline {subsection}{\numberline {8.2}Memory Management and Reference Counting}{23}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.1}Architectural Overview}{24}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Memory Management and Reference Counting}{24}{subsection.8.2}%
 \contentsline {subsection}{\numberline {8.3}The Call Stack and Lexical Scoping}{24}{subsection.8.3}%
-\contentsline {subsection}{\numberline {8.4}Closures and Upvalues}{24}{subsection.8.4}%
-\contentsline {subsection}{\numberline {8.5}Algebraic Data Types and Pattern Matching}{24}{subsection.8.5}%
+\contentsline {subsection}{\numberline {8.4}Closures and Upvalues}{25}{subsection.8.4}%
+\contentsline {subsection}{\numberline {8.5}Algebraic Data Types and Pattern Matching}{25}{subsection.8.5}%
 \contentsline {subsection}{\numberline {8.6}The Intrinsic Pipeline}{25}{subsection.8.6}%
-\contentsline {section}{\numberline {9}Command Line Interface and Usage}{25}{section.9}%
-\contentsline {subsection}{\numberline {9.1}The Execution Pipeline}{25}{subsection.9.1}%
+\contentsline {section}{\numberline {9}Command Line Interface and Usage}{26}{section.9}%
+\contentsline {subsection}{\numberline {9.1}The Execution Pipeline}{26}{subsection.9.1}%
 \contentsline {subsection}{\numberline {9.2}Compiler and Virtual Machine Flags}{26}{subsection.9.2}%
-\contentsline {section}{\numberline {10}Changelog \& Version History}{26}{section.10}%
-\contentsline {subsection}{\numberline {10.1}19/06/26 - 1.0}{26}{subsection.10.1}%
-\contentsline {section}{\numberline {11}Cera's Future}{27}{section.11}%
-\contentsline {subsection}{\numberline {11.1}Excluded Features}{27}{subsection.11.1}%
-\contentsline {subsection}{\numberline {11.2}Excluded Optimisations}{28}{subsection.11.2}%
-\contentsline {subsection}{\numberline {11.3}Planned Features}{28}{subsection.11.3}%
+\contentsline {section}{\numberline {10}Changelog \& Version History}{27}{section.10}%
+\contentsline {subsection}{\numberline {10.1}19/06/26 - 1.0}{27}{subsection.10.1}%
+\contentsline {section}{\numberline {11}Cera's Future}{28}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Excluded Features}{28}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Excluded Optimisations}{29}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Planned Features}{29}{subsection.11.3}%

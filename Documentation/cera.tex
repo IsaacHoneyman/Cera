@@ -783,7 +783,6 @@ The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands ar
 \begin{itemize}
     \item \texttt{NOP (0x00)}: No operation. Used for memory alignment or patching.
     \item \texttt{POP (0x01)}: Discards the top value of the stack.
-    \item \texttt{DUP (0x02)}: Duplicates the top value of the stack (critical for pattern testing).
     \item \texttt{LOAD\_CONST (0x03)}: Consumes a 1-byte operand representing an index in the constant pool, pushing the loaded value to the stack.
     \item \texttt{PUSH\_0 (0x04)}: Optimized instruction to push the integer $0$.
     \item \texttt{PUSH\_1 (0x05)}: Optimized instruction to push the integer $1$.
@@ -809,17 +808,21 @@ The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands ar
 \begin{itemize}
     \item \textbf{Mathematical:} \texttt{ADD (0x20)}, \texttt{SUB (0x21)}, \texttt{MUL (0x22)}, \texttt{DIV (0x23)}, \texttt{MOD (0x24)}.
     \item \textbf{Unary Math:} \texttt{NEGATE (0x25)} pops a number and pushes its arithmetic negation.
+    \item \textbf{Mathematical Fast-Paths:} \texttt{OP\_ADD\_1 (0x26)} pops a number, increments it by 1, and pushes the result (bypassing loading \texttt{1} as a separate instruction). \texttt{OP\_SUB\_1 (0x27)} pops a number, decrements it by 1, and pushes the result.
     \item \textbf{Bitwise:} \texttt{BIT\_AND (0x30)}, \texttt{BIT\_OR (0x31)}, \texttt{BIT\_XOR (0x32)}, \texttt{SHL (0x34)}, \texttt{SHR (0x35)}.
     \item \textbf{Unary Bitwise:} \texttt{BIT\_NOT (0x33)} pushes the one's complement of the popped integer.
     \item \textbf{Relational:} \texttt{EQ (0x40)}, \texttt{NEQ (0x41)}, \texttt{LT (0x42)}, \texttt{GT (0x43)}, \texttt{LTE (0x44)}, \texttt{GTE (0x45)}.
     \item \textbf{Logical:} \texttt{NOT (0x46)} pops a boolean and pushes its logical negation.
 \end{itemize}
 
-\subsubsection*{Control Flow}
+\subsubsection*{Control Flow \& Fused Operations}
 \begin{itemize}
     \item \texttt{JUMP (0x50)}: Consumes a 2-byte operand and unconditionally adds it to the Instruction Pointer (IP).
     \item \texttt{JUMP\_IF\_FALSE (0x51)}: Pops a boolean. If \texttt{false}, consumes a 2-byte operand and branches the IP. Otherwise, skips the operand.
-    \item \texttt{JUMP\_IF\_TRUE (0x52)}: Pops a boolean. If \texttt{true}, branches the IP. Used for \texttt{||} short-circuit optimizations.
+    \item \texttt{JUMP\_IF\_TRUE (0x52)}: Pops a boolean. If \texttt{true}, branches the IP.
+    \item \texttt{OP\_JUMP\_IF\_FALSE\_PEEK (0x53)}: Evaluates the boolean at the top of the stack without popping it. If \texttt{false}, branches the IP. Optimises \texttt{\&\&} evaluation.
+    \item \texttt{OP\_JUMP\_IF\_TRUE\_PEEK (0x54)}: Evaluates the boolean at the top of the stack without popping it. If \texttt{true}, branches the IP. Optimises \texttt{||} evaluation.
+    \item \texttt{OP\_JUMP\_IF\_FALSE\_EQ (0x55) - GTE (0x5A)}: Pops two numbers, executes the designated relational comparison in the ALU, and branches the IP if the result is false. Collapses a standard 2-cycle evaluate-then-branch routine into a single cycle.
 \end{itemize}
 
 \subsubsection*{Functions \& Closures}
@@ -829,6 +832,10 @@ The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands ar
     \item \texttt{TAIL\_CALL (0x62)}: Consumes a 1-byte argument count. Overwrites the current Call Frame, preserving $O(1)$ memory during recursion.
     \item \texttt{RETURN (0x63)}: Pops the return value, destroys the current Call Frame, restores the parent frame, and pushes the result.
     \item \texttt{MAKE\_CLOSURE (0x64)}: Consumes a 1-byte upvalue count. Pops a function pointer and dynamically allocates a closure object on the heap, capturing the specified surrounding variables.
+    \item \texttt{CALL\_GLOBAL (0x65)}: Consumes a 1-byte global index and a 1-byte argument count. Executes a top-level function statically, bypassing the heap-allocated closure completely.
+    \item \texttt{CALL\_GLOBAL\_LONG (0x66)}: Consumes a 2-byte global index (Little-Endian) and a 1-byte argument count for static execution.
+    \item \texttt{TAIL\_CALL\_GLOBAL (0x67)}: Consumes a 1-byte global index and a 1-byte argument count. Overwrites the current Call Frame for static recursion, maintaining $O(1)$ spatial complexity.
+    \item \texttt{TAIL\_CALL\_GLOBAL\_LONG (0x68)}: Consumes a 2-byte global index (Little-Endian) and a 1-byte argument count for static recursion.
 \end{itemize}
 
 \subsubsection*{Memory Allocation \& Data Structures}
@@ -841,15 +848,16 @@ The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands ar
     \item \texttt{LIST\_CONS (0x74)}: Pops a Tail and a Head, allocating a linked-list node on the heap.
 \end{itemize}
 
-\subsubsection*{Pattern Matching}
+\subsubsection*{Pattern Matching \& Memory Fast-Paths}
 \begin{itemize} 
     \item \texttt{JUMP\_IF\_NOT\_TAG (0x80)}: Consumes a 1-byte Tag ID and a 16-bit offset. Pops the top ADT; if the tags mismatch, branches the Instruction Pointer by the offset.    \item \texttt{UNPACK\_CON (0x81)}: Pops an ADT and pushes its inner payload to the stack.
     \item \texttt{UNPACK\_TUPLE (0x82)}: Pops a tuple and pushes all its constituent elements sequentially onto the stack.
     \item \texttt{UNPACK\_LIST (0x83)}: Pops a Cons node and pushes its Head, followed by its Tail.
-    \item \texttt{IS\_LIST\_EMPTY (0x84)}: Peeks at the top list node; pushes \texttt{true} if it is \texttt{Nil}, \texttt{false} otherwise.
-    \item \texttt{MATCH\_ARRAY\_LENGTH (0x85)}: Pops an integer length and peeks at an array; pushes \texttt{true} if their lengths match.
+    \item \texttt{JUMP\_IF\_NOT\_LIST\_EMPTY (0x84)}: Pops a list; if it is not \texttt{Nil} (or an empty string), branches the Instruction Pointer by a 16-bit offset.
+    \item \texttt{JUMP\_IF\_NOT\_ARRAY\_LENGTH (0x85)}: Pops an array; if its length does not match the expected 16-bit operand, branches the Instruction Pointer by a 16-bit offset.
     \item \texttt{UNPACK\_ARRAY (0x86)}: Pops an array and pushes all $N$ of its elements to the stack.
     \item \texttt{MATCH\_FAIL (0x87)}: Triggers a fatal runtime panic indicating a non-exhaustive pattern fallthrough.
+    \item \texttt{OP\_JUMP\_IF\_LOCAL\_NOT\_EQ\_CONST (0x5B)}: Consumes a local slot index, a constant pool index, and a 16-bit offset. Directly compares the two memory addresses, jumping if they mismatch without interacting with the operand stack.
 \end{itemize}
 
 % =========================================================================
@@ -958,8 +966,7 @@ The CLI exposes several diagnostic and execution flags to reveal the internal st
 \subsubsection*{Compiler Flags (\texttt{cerac})}
 These flags are passed to the \texttt{build} command to monitor the frontend translation phases:
 \begin{itemize}
-    \item \textbf{\texttt{-v} (\texttt{--verbose}):} Enables verbose compiler logging.            for (int i = 0; i < varsToPop; i++)
-
+    \item \textbf{\texttt{-v} (\texttt{--verbose}):} Enables verbose compiler logging.
     \item \textbf{\texttt{-t} (\texttt{--tokens}):} Dumps the linearly segmented token stream generated by the Lexical Analyzer.
     \item \textbf{\texttt{-a} (\texttt{--ast}):} Dumps the hierarchical Abstract Syntax Tree generated by the Pratt Parser.
     \item \textbf{\texttt{-s} (\texttt{--analyzer}):} Dumps the Semantic Analyzer's global environment, detailing resolved Hindley-Milner type signatures.
@@ -1004,8 +1011,11 @@ The inital release of the Cera functional programming language.
 % =========================================================================
 \subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
 \begin{itemize}
-    \item \textbf{VM refactor: } Refactored virtual machine, dropping unneeded checks done by analyser, unifying memory allocation, better error messages.
-    \item \textbf{Instruction Fusion: } Replaced the legacy \texttt{MATCH\_TAG} and \texttt{JUMP\_IF\_FALSE} pattern-matching pipeline with a singular \texttt{JUMP\_IF\_NOT\_TAG} superinstruction. This eliminates redundant stack manipulations and accelerates deep structural traversals.
+    \item \textbf{VM refactor: } Refactored virtual machine memory allocation and diagnostic tools. 
+    \item \textbf{Instruction Fusion: } Replaced the legacy \texttt{MATCH\_TAG} pattern-matching pipeline with a singular \texttt{JUMP\_IF\_NOT\_TAG} superinstruction. Expanded this architecture to include \texttt{JUMP\_IF\_NOT\_LIST\_EMPTY} and \texttt{JUMP\_IF\_NOT\_ARRAY\_LENGTH}, eliminating redundant stack manipulations and accelerating structural traversals.
+    \item \textbf{ALU Fast-Paths:} Implemented \texttt{OP\_ADD\_1} and \texttt{OP\_SUB\_1} to optimize iteration counters. Implemented Fused Relational Jumps (e.g., \texttt{OP\_JUMP\_IF\_FALSE\_LT}) to compute boolean expressions and branch control flow in a single, non-allocating instruction cycle.
+    \item \textbf{Static Global Dispatch: } Implemented static routing for top-level named functions. By bypassing the dynamic allocation of \texttt{ObjClosure} objects on the heap, global calls now execute directly from the stack, drastically reducing fetch-decode overhead and eliminating garbage collection pressure.
+    \item \textbf{Memory Fast-Paths:} \texttt{OP\_JUMP\_IF\_LOCAL\_NOT\_EQ\_CONST}, comparing local slots directly against the constant pool without pushing them to the stack.
 \end{itemize}
 % =========================================================================
 
@@ -1041,7 +1051,6 @@ A similar section, instead covering attempts to improve the speed of Language.
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
     \item \textbf{Default Function Values:} Similar to C\#, with \texttt{param : type = value}.
-    \item \textbf{Better Error Messages:} Certain error messages appear vague, missing end of patterns or similar syntax will point to end of file, as well as column number being hard to track. The virtual machine suffers even worse in this case, with no details of location for runtime errors. 
     \item \textbf{Concurrency:} As Cera is a functional language, a multithreaded model would fit the language perfectly, and shall come in a later version.
     \item \textbf{Record:} Simply an immutable tuple under the hood, but offers named fields for each part, allowing for syntax such as \texttt{coord.x} or \texttt{coord -> x} (to be decided).
     \item \textbf{FFI:} Expansion of intrinsics to allow for .so and .ddl files to be managed at runtime.

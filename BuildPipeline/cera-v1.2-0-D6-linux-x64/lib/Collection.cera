@@ -1,0 +1,249 @@
+hidden import "Math.cera";
+
+/* 
+    The offical collection libary for Cera.
+    Offers support for standard list operations, 
+    as well as useful types like streams.
+*/
+
+// --- Lists ---
+
+def head<g>(lst: g list, default: g) : g = {
+    switch (lst) {
+        [] -> default,
+        (h::_) -> h
+    }
+} 
+
+def tail<g>(lst: g list) : g list = {
+    switch (lst) {
+        [] -> [],
+        (_::tl) -> tl
+    }
+}
+
+def length<g>(lst: g list) : int = {
+    foldLeft(lst, func (acc: int, val: g) : int = acc + 1, 0)
+}
+
+def nth<g>(lst: g list, index: int) : option<g> = { 
+    switch(lst) {
+        [] -> None,
+        (h::_) if (index == 0) -> Some(h),
+        (_::tl) -> nth(tl, index - 1)
+    }
+}
+
+hidden def revAux<g>(lst: g list, acc: g list) : g list = {
+    switch(lst) {
+        [] -> acc,
+        (h::tl) -> revAux(tl, h::acc)
+    }
+}
+
+def rev<g>(lst: g list) : g list = {
+    revAux(lst, [])
+}
+
+def mem<g>(lst: g list, elm: g) : bool = {
+    switch (lst) {
+        [] -> false,
+        (h::_) if (h == elm) -> true,
+        (_::tl) -> mem(tl, elm)
+    }
+}
+
+def map<g, h>(lst: g list, f: g -> h) : h list = {
+    switch (lst) {
+        [] -> [],
+        (val::tl) -> (f(val) :: map(tl, f))
+    }
+}
+
+def filter<g>(lst: g list, p: g -> bool) : g list = {
+    switch(lst) {
+        [] -> [],
+        (h::tl) if (p(h)) -> (h :: filter(tl, p)),
+        (_::tl) -> filter(tl, p)
+    }
+}
+
+def exists<g>(lst: g list, p: g -> bool) : bool = {
+    var x = find(lst, p);
+    switch (x) {
+        None -> false,
+        _ -> true
+    }
+}
+
+def forAll<g>(lst: g list, p: g -> bool) : bool = {
+    switch(lst) {
+        [] -> true,
+        (h::tl) ->
+            if (p(h)) { forAll(tl, p) }
+            else { false }
+    }
+}
+
+def find<g>(lst: g list, p: g -> bool) : option<g> = {
+    switch(lst) {
+        [] -> None,
+        (h::_) if (p(h)) -> Some(h),
+        (_::tl) -> find(tl, p)
+    }
+}
+
+hidden def findIndexAux<g>(lst: g list, p: g -> bool, i: int) : option<int> = {
+    switch (lst) {
+        [] -> None,
+        (h::tl) -> {
+            if (p(h)) { Some(i); }
+            else { findIndexAux(tl, p, i + 1); }
+        }
+    }
+}
+
+def findIndex<g>(lst: g list, p: g -> bool) : option<int> = { 
+    findIndexAux(lst, p, 0); 
+}
+
+def foldLeft<g, h>(lst: g list, f: (h * g) -> h, acc: h) : h = {
+    switch(lst) {
+        [] -> acc,
+        (val::tl) -> foldLeft(tl, f, f(acc, val))
+    }
+}
+
+def foldRight<g, h>(lst: g list, f: (g * h) -> h, acc: h) : h = {
+    switch (lst) {
+        [] -> acc,
+        (val::tl) -> f(val, foldRight(tl, f, acc))
+    }
+}
+
+hidden def takeAux<g>(lst: g list, num: int, i: int, acc: g list) : g list = {
+    switch(lst) {
+        [] -> acc,
+        _ if (i >= num) -> acc,
+        (h::tl) -> takeAux(tl, num, i + 1, (h::acc))
+    }
+}
+
+def take<g>(lst: g list, num: int) : g list = { 
+    rev(takeAux(lst, num, 0, [])); 
+}
+
+hidden def skipAux<g>(lst: g list, num: int, i: int) : g list = {
+    switch(lst) {
+        [] -> [],
+        _ if (i >= num) -> lst,
+        (_::tl) -> skipAux(tl, num, i + 1) 
+    }
+}
+
+def skip<g>(lst: g list, num: int) : g list = { 
+    skipAux(lst, num, 0); 
+}
+
+hidden def buildAux<g>(index: int, acc: g list, f: int -> g) : g list = {
+    if (index < 0) {
+        acc;
+    } else {
+        buildAux(index - 1, f(index) :: acc, f);
+    }
+}
+
+def build<g>(size: int, f: int -> g) : g list = {
+    if (size <= 0) { []; }
+    else { buildAux(size - 1, [], f); }
+}
+
+def qs<g>(lst: g list, cmp: (g * g) -> int) : g list = {    
+    switch (lst) {
+        [] -> [],
+        [x] -> [x],
+        (h::tl) -> 
+            concat(
+                qs(filter(tl, lessThanEqual(cmp, h)), cmp),                 
+                (h :: qs(filter(tl, moreThan(cmp, h)), cmp)) 
+            )
+    }
+}
+
+// --- Arrays ---
+
+// unsafe array grab, fall back value used upon out of bounds failure
+def arrGetD<g>(array: g arr, index: int, fallback: g) : g = {
+    switch (get(array, index)) {
+        Some(val) -> val,
+        None -> fallback
+    }
+}
+
+hidden def arrFoldLeftAux<g, h>(array: g arr, f: (h * g) -> h, i: int, currentAcc: h, len: int) : h = {
+    if (i >= len) { currentAcc; }
+    else {
+        var Some(val) = get(array, i);
+        arrFoldLeftAux(array, f, i + 1, f(currentAcc, val), len);
+    }
+}
+
+def arrFoldLeft<g, h>(array: g arr, f: (h * g) -> h, acc: h) : h = {
+    arrFoldLeftAux(array, f, 0, acc, arrLength(array));
+}
+
+hidden def arrFoldRightAux<g, h>(array: g arr, f: (g * h) -> h, i: int, currentAcc: h) : h = {
+    if (i < 0) { currentAcc; }
+    else {
+        var Some(val) = get(array, i);
+        arrFoldRightAux(array, f, i - 1, f(val, currentAcc));
+    }
+}
+
+def arrFoldRight<g, h>(array: g arr, f: (g * h) -> h, acc: h) : h = {
+    arrFoldRightAux(array, f, arrLength(array) - 1, acc);
+}
+
+def arrMap<g, h>(array: g arr, f: g -> h) : h arr = {
+    var len = arrLength(array);
+    arrBuild(len, func(i: int) : h = {
+        var Some(val) = get(array, i);
+        f(val);
+    });
+}
+
+inline def arrMem<g>(array: g arr, elm: g) : bool = {
+    mem(arrToList(array), elm);
+}
+
+inline def arrBuild<g>(size: int, f: int -> g) : g arr = {
+    listToArr(build(size, f));
+}
+
+inline def arrFilter<g>(array: g arr, p: g -> bool) : g arr = {
+    listToArr(filter(arrToList(array), p));
+}
+
+inline def arrRev<g>(array: g arr) : g arr = {
+    listToArr(rev(arrToList(array)));
+}
+
+inline def arrExists<g>(array: g arr, p: g -> bool) : bool = {
+    exists(arrToList(array), p);
+}
+
+// --- Streams ---
+
+type stream<g> = Nil | Cons : (g * (unit -> stream<g>));
+
+def counter(start: int, end: int) : stream<int> = {
+    if (start == end) { Nil }
+    else {
+        Cons(start, func (u : unit) : stream<int> = counter(start + 1, end))
+    }
+}
+
+def counterInfinite(start: int) : stream<int> = {
+    Cons(start, func (u : unit) : stream<int> = counterInfinite(start + 1))
+}
+

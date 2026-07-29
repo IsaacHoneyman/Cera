@@ -6,9 +6,10 @@
 #define STACK_MAX (FRAMES_MAX * 255) 
 
 typedef struct {
-    ObjClosure* closure;
-    uint8_t* ip;         // Instruction Pointer
-    CeraValue* slots;    // Pointer into the VM's operand stack for locals
+    ObjClosure* closure;     // Can now safely be NULL for static global calls
+    uint32_t function_index; // Explicit tracking decouples routing from closures
+    uint8_t* ip;         
+    CeraValue* slots;    
 } CallFrame;
 
 typedef struct {
@@ -42,7 +43,7 @@ typedef enum {
     // --- Stack & Constants (0x00 - 0x0F) ---
     OP_NOP = 0x00,           
     OP_POP = 0x01,           
-    OP_DUP = 0x02,           
+    // 0x02 (Deprecated)      
     OP_LOAD_CONST = 0x03,    
     OP_PUSH_0 = 0x04,        
     OP_PUSH_1 = 0x05,        
@@ -67,6 +68,8 @@ typedef enum {
     OP_DIV = 0x23,
     OP_MOD = 0x24,
     OP_NEGATE = 0x25,        
+    OP_ADD_1 = 0x26,
+    OP_SUB_1 = 0x27,
 
     // --- Bitwise ALU (0x30 - 0x3F) ---
     OP_BIT_AND = 0x30,
@@ -89,6 +92,19 @@ typedef enum {
     OP_JUMP = 0x50,          
     OP_JUMP_IF_FALSE = 0x51, 
     OP_JUMP_IF_TRUE = 0x52,  
+    OP_JUMP_IF_FALSE_PEEK = 0x53, 
+    OP_JUMP_IF_TRUE_PEEK = 0x54,  
+
+    // --- Fused Relational Jumps ---
+    OP_JUMP_IF_FALSE_EQ = 0x55,
+    OP_JUMP_IF_FALSE_NEQ = 0x56,
+    OP_JUMP_IF_FALSE_LT = 0x57,
+    OP_JUMP_IF_FALSE_LTE = 0x58,
+    OP_JUMP_IF_FALSE_GT = 0x59,
+    OP_JUMP_IF_FALSE_GTE = 0x5A,
+
+    // --- Memory Fast-Paths ---
+    OP_JUMP_IF_LOCAL_NOT_EQ_CONST = 0x5B, 
 
     // --- Functions & Closures (0x60 - 0x6F) ---
     OP_CALL = 0x60,          
@@ -96,6 +112,10 @@ typedef enum {
     OP_TAIL_CALL = 0x62,     
     OP_RETURN = 0x63,        
     OP_MAKE_CLOSURE = 0x64,  
+    OP_CALL_GLOBAL = 0x65, 
+    OP_CALL_GLOBAL_LONG = 0x66, 
+    OP_TAIL_CALL_GLOBAL = 0x67, 
+    OP_TAIL_CALL_GLOBAL_LONG = 0x68,
 
     // --- Memory & ADTs (0x70 - 0x7F) ---
     OP_ALLOC_CON = 0x70,     
@@ -110,8 +130,8 @@ typedef enum {
     OP_UNPACK_CON = 0x81,    
     OP_UNPACK_TUPLE = 0x82,  
     OP_UNPACK_LIST = 0x83,   
-    OP_IS_LIST_EMPTY = 0x84,  
-    OP_MATCH_ARRAY_LENGTH = 0x85, 
+    OP_JUMP_IF_NOT_LIST_EMPTY = 0x84,
+    OP_JUMP_IF_NOT_ARRAY_LENGTH = 0x85, 
     OP_UNPACK_ARRAY = 0x86,       
     OP_MATCH_FAIL = 0x87,         
 } OpCode;
