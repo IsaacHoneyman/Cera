@@ -734,12 +734,11 @@ When a \texttt{CallExpr} is evaluated in a tail position, the compiler emits the
 % =========================================================================
 \subsection{Pattern Matching Compilation}
 % =========================================================================
-Compiling the \texttt{switch} expression requires complex stack discipline to handle sequential fallthrough without leaking memory. Cera employs a ``Test-then-Bind'' architecture:
+Compiling the \texttt{switch} expression requires complex stack discipline to handle sequential fallthrough without leaking memory. Cera employs a ``Test-then-Bind'' architecture utilizing instruction fusion:
 
 \begin{enumerate}
-    \item \textbf{Target Duplication:} The target expression is pushed to the stack, immediately followed by the \texttt{DUP} (\texttt{0x02}) opcode. This allows individual cases to test the structural shape of the target without permanently consuming the pointer.
-    \item \textbf{Structural Testing:} The pattern's outer shape is evaluated via type-specific testing opcodes (e.g., \texttt{MATCH\_TAG} for ADTs, \texttt{IS\_LIST\_EMPTY} for \texttt{Nil}, or \texttt{MATCH\_ARRAY\_LENGTH}). If the test fails, a \texttt{JUMP\_IF\_FALSE} instruction routes execution to the next case.
-    \item \textbf{Memory Unpacking (Binding):} If the test succeeds, the original duplicated target must be consumed. Unpacking opcodes (e.g., \texttt{UNPACK\_TUPLE}, \texttt{UNPACK\_CON}, \texttt{UNPACK\_LIST}) extract the heap-allocated payload elements directly onto the operand stack, where they are inherently bound to the compiler's local variable tracking for the duration of the case body.
+    \item \textbf{Structural Testing via Superinstructions:} The target expression is loaded onto the stack and evaluated via fused testing opcodes (e.g., \texttt{JUMP\_IF\_NOT\_TAG} for ADTs). This instruction pops the target and checks its structural shape in a single fetch-decode cycle. If the test fails, it natively routes execution to the next case.
+    \item \textbf{Memory Unpacking (Binding):} If the test succeeds, execution falls through. Unpacking opcodes (e.g., \texttt{UNPACK\_TUPLE}, \texttt{UNPACK\_CON}, \texttt{UNPACK\_LIST}) extract the heap-allocated payload elements directly onto the operand stack, where they are inherently bound to the compiler's local variable tracking for the duration of the case body.
     \item \textbf{Exhaustiveness \& Soundness:} If all pattern cases are exhausted and execution falls through, the compiler emits a terminal \texttt{MATCH\_FAIL} (\texttt{0x87}) instruction. This deliberately halts the virtual machine, preventing silent failures and guaranteeing strict evaluation soundness.
 \end{enumerate}
 
@@ -843,9 +842,8 @@ The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands ar
 \end{itemize}
 
 \subsubsection*{Pattern Matching}
-\begin{itemize}
-    \item \texttt{MATCH\_TAG (0x80)}: Consumes a 1-byte Tag ID. Peeks at the top ADT; pushes \texttt{true} if the tags match, \texttt{false} otherwise.
-    \item \texttt{UNPACK\_CON (0x81)}: Pops an ADT and pushes its inner payload to the stack.
+\begin{itemize} 
+    \item \texttt{JUMP\_IF\_NOT\_TAG (0x80)}: Consumes a 1-byte Tag ID and a 16-bit offset. Pops the top ADT; if the tags mismatch, branches the Instruction Pointer by the offset.    \item \texttt{UNPACK\_CON (0x81)}: Pops an ADT and pushes its inner payload to the stack.
     \item \texttt{UNPACK\_TUPLE (0x82)}: Pops a tuple and pushes all its constituent elements sequentially onto the stack.
     \item \texttt{UNPACK\_LIST (0x83)}: Pops a Cons node and pushes its Head, followed by its Tail.
     \item \texttt{IS\_LIST\_EMPTY (0x84)}: Peeks at the top list node; pushes \texttt{true} if it is \texttt{Nil}, \texttt{false} otherwise.
@@ -1007,6 +1005,7 @@ The inital release of the Cera functional programming language.
 \subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
 \begin{itemize}
     \item \textbf{VM refactor: } Refactored virtual machine, dropping unneeded checks done by analyser, unifying memory allocation, better error messages.
+    \item \textbf{Instruction Fusion: } Replaced the legacy \texttt{MATCH\_TAG} and \texttt{JUMP\_IF\_FALSE} pattern-matching pipeline with a singular \texttt{JUMP\_IF\_NOT\_TAG} superinstruction. This eliminates redundant stack manipulations and accelerates deep structural traversals.
 \end{itemize}
 % =========================================================================
 
