@@ -1,0 +1,78 @@
+/* 
+    The offical time libary for Cera.
+    Offers support for basic time related
+    operations and manipulation.
+*/
+
+// --- Basic Utility ---
+
+inline def timeSeconds() : int = { msInSeconds(time()) }
+inline def localTimeSeconds() : int = { msInSeconds(timeLocal())}
+inline def uptimeSeconds() : int = { msInSeconds(uptime()) }
+
+// --- Constants ---
+
+hidden var msPerDay: int = 86400000;
+hidden var msPerHour: int = 3600000;
+hidden var msPerMinute: int = 60000;
+hidden var msPerSecond: int = 1000;
+
+inline def daysInMs(days : int) : int = { days * msPerDay }
+inline def hoursInMs(hours : int) : int = { hours * msPerHour } 
+inline def minutesInMs(minutes : int) : int = { minutes * msPerMinute }
+inline def secondsInMs(seconds: int) : int = { seconds * msPerSecond } 
+
+inline def msInDays(ms: int) : int = { ms / msPerDay }
+inline def msInHours(ms: int) : int = { ms / msPerHour }
+inline def msInMinutes(ms: int) : int = { ms / msPerMinute }
+inline def msInSeconds(ms: int) : int = { ms / msPerSecond }
+
+hidden inline def daysInMonth(year: int) : int list = {
+    [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+}
+
+hidden inline def isLeapYear(year : int) : bool = {
+    ((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0);
+}
+
+hidden def getYear(year: int, day: int) : (int * int) = {
+    var daysInYear = isLeapYear(year) ? 366 : 365;
+    if (day >= daysInYear) { getYear(year + 1, day - daysInYear ) }
+    else { (year, day) }
+}
+
+hidden def getMonth(daysList: int list, currentMonth: int, day: int) : (int * int) = {
+    switch(daysList) {
+        [] -> (currentMonth, day + 1),
+        (days::tail) if (day >= days) -> getMonth(tail, currentMonth + 1, day - days),
+        _ -> (currentMonth, day + 1)
+    }
+}
+
+// --- Date Time ---
+
+type timeOnly = TimeOnly: (int * int * int * int); // hour, minute, second, millisecond
+type dateOnly = DateOnly: (int * int * int); // year, month, day 
+type dateTime = DateTime: (dateOnly * timeOnly);
+// type dateTime = DateTime: (Date * Time); // date, time
+
+def buildTime(ms: int) : timeOnly = {
+    var hours = msInHours(ms);
+    var minutes = msInMinutes(ms - hoursInMs(hours));
+    var seconds = msInSeconds(ms - hoursInMs(hours) - minutesInMs(minutes));
+    TimeOnly(hours % 24, minutes, seconds,
+        ms - hoursInMs(hours) - minutesInMs(minutes) - secondsInMs(seconds))
+}
+
+def buildDate(ms: int) : dateOnly = {
+    var totalDays = msInDays(ms);    
+    var (year, remainingDays) = getYear(1970, totalDays);
+    var monthList = daysInMonth(year);    
+    var (month, day) = getMonth(monthList, 1, remainingDays);
+    
+    DateOnly(year, month, day);
+}
+
+inline def buildDateTime(ms: int) : dateTime = {
+    DateTime(buildDate(ms), buildTime(ms));
+}

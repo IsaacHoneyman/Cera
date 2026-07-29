@@ -1043,6 +1043,7 @@ A similar section, instead covering attempts to improve the speed of Language.
 \begin{itemize}
     \item \textbf{(1.2) Computed Go-To Dispatch Table:} Modern day compilers are far smarter than me, and using a dispatch table in the VM consistently reduced performance, and hence has been omitted.
     \item \textbf{(1.2) Freelist Allocation:} Again beaten by the minds at gcc, attempting to reserve ADT and List objs in a pool, resulted in a slowdown to the VM.
+    \item \textbf{(1.2) Stack Register:} The common theme continues, creating a register purely for our stack reduced performance.
 \end{itemize}
 
 % =========================================================================
