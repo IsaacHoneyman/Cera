@@ -54,4 +54,5 @@
 \contentsline {subsection}{\numberline {10.1}19/06/26 - 1.0}{26}{subsection.10.1}%
 \contentsline {section}{\numberline {11}Cera's Future}{27}{section.11}%
 \contentsline {subsection}{\numberline {11.1}Excluded Features}{27}{subsection.11.1}%
-\contentsline {subsection}{\numberline {11.2}Planned Features}{28}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.2}Excluded Optimisations}{28}{subsection.11.2}%
+\contentsline {subsection}{\numberline {11.3}Planned Features}{28}{subsection.11.3}%

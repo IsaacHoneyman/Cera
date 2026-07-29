@@ -68,12 +68,16 @@ public partial class Emitter
 
             case ConPattern con:
                 EmitLoadLocal(targetVar, line);
-                CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
+                
+                CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
                 CurrentChunk.WriteByte(GetConstructorTagIndex(con.ConstructorName), line);
-
-                int conJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                int jumpIfNotMatch = CurrentChunk.Code.Count;
+                CurrentChunk.WriteByte(0xff, line); 
+                CurrentChunk.WriteByte(0xff, line); 
+                int jumpIfMatch = CurrentChunk.EmitJump(OpCode.JUMP, line);
+                CurrentChunk.PatchJump(jumpIfNotMatch);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
-                CurrentChunk.PatchJump(conJumpIfTrue);
+                CurrentChunk.PatchJump(jumpIfMatch);
 
                 if (con.PayloadPatterns.Count > 0)
                 {
@@ -123,12 +127,19 @@ public partial class Emitter
 
             case ConsPattern cons:
                 EmitLoadLocal(targetVar, line);
-                CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
+                
+                CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
                 CurrentChunk.WriteByte(constructorTags["Cons"], line);
+                int jumpIfNotMatchC = CurrentChunk.Code.Count;
+                CurrentChunk.WriteByte(0xff, line); 
+                CurrentChunk.WriteByte(0xff, line);
 
-                int consJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                int jumpIfMatchC = CurrentChunk.EmitJump(OpCode.JUMP, line);
+
+                CurrentChunk.PatchJump(jumpIfNotMatchC);
                 EmitFailureCleanup(baseScopeDepth, failureJumps, line);
-                CurrentChunk.PatchJump(consJumpIfTrue);
+
+                CurrentChunk.PatchJump(jumpIfMatchC);
 
                 EmitLoadLocal(targetVar, line);
                 CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);
@@ -158,12 +169,19 @@ public partial class Emitter
                     for (int i = 0; i < list.Patterns.Count; i++)
                     {
                         EmitLoadLocal(currentListVar, line);
-                        CurrentChunk.WriteByte(OpCode.MATCH_TAG, line);
+                        
+                        CurrentChunk.WriteByte(OpCode.JUMP_IF_NOT_TAG, line);
                         CurrentChunk.WriteByte(constructorTags["Cons"], line);
+                        int jumpIfNotMatchL = CurrentChunk.Code.Count;
+                        CurrentChunk.WriteByte(0xff, line);
+                        CurrentChunk.WriteByte(0xff, line);
 
-                        int listJumpIfTrue = CurrentChunk.EmitJump(OpCode.JUMP_IF_TRUE, line);
+                        int jumpIfMatchL = CurrentChunk.EmitJump(OpCode.JUMP, line);
+
+                        CurrentChunk.PatchJump(jumpIfNotMatchL);
                         EmitFailureCleanup(baseScopeDepth, failureJumps, line);
-                        CurrentChunk.PatchJump(listJumpIfTrue);
+
+                        CurrentChunk.PatchJump(jumpIfMatchL);
 
                         EmitLoadLocal(currentListVar, line);
                         CurrentChunk.WriteByte(OpCode.UNPACK_LIST, line);

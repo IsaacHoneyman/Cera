@@ -475,10 +475,11 @@ public class Diagnostics
             case Backend.OpCode.ALLOC_CON:
             case Backend.OpCode.ALLOC_TUPLE:
             case Backend.OpCode.ALLOC_ARRAY:
-            case Backend.OpCode.MATCH_TAG:
-                byte operand = code[offset + 1];
-                Log($"{prefix} {operand}", true);
-                return offset + 2;
+            case Backend.OpCode.JUMP_IF_NOT_TAG:
+                byte expectedTag = code[offset + 1];
+                int jumpOffset0 = (code[offset + 2] << 8) | code[offset + 3];
+                Log($"{prefix} Tag: {expectedTag:X2} -> Jump: {jumpOffset0}", true);
+                return offset + 4; 
 
             // --- 2-Byte Operand Instructions (Little-Endian) ---
             case Backend.OpCode.LOAD_CONST_LONG:

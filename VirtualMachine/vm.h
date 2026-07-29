@@ -106,7 +106,7 @@ typedef enum {
     OP_LIST_CONS = 0x74,     
 
     // --- Pattern Matching / Switch Operations (0x80 - 0x8F) ---
-    OP_MATCH_TAG = 0x80,     
+    OP_JUMP_IF_NOT_TAG = 0x80, 
     OP_UNPACK_CON = 0x81,    
     OP_UNPACK_TUPLE = 0x82,  
     OP_UNPACK_LIST = 0x83,   

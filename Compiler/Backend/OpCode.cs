@@ -70,7 +70,7 @@ public enum OpCode : byte
     LIST_CONS = 0x74,     // Allocate Cons node joining Head and Tail (::)
 
     // --- Pattern Matching / Switch Operations (0x80 - 0x8F) ---
-    MATCH_TAG = 0x80,     // Check if top ADT matches a specific constructor tag
+    JUMP_IF_NOT_TAG = 0x80,     // Peeks top value; if tag mismatches, branches by 16-bit offset
     UNPACK_CON = 0x81,    // Extract constructor payload to stack (ConPattern)
     UNPACK_TUPLE = 0x82,  // Extract all elements of a tuple to stack (TuplePattern)
     UNPACK_LIST = 0x83,   // Pop list, push head and tail (ConsPattern)

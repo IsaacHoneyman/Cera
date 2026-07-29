@@ -1,4 +1,5 @@
 Default image completion:
 Start 9.25 seconds
-With inline vecotrs 8.0 seconds
-Fully optimised without 1.2 Changes 7.5-7.8 seconds
+Fully optimised with 1.1 Changes 7.7 - 7.8 seconds
+Removed debug flag 7.4-7.5
+With new jump_tag optimisation 7.3-7.4

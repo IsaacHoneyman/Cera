@@ -1020,10 +1020,20 @@ The inital release of the Cera functional programming language.
 
 Before considering future features for the language, we shall consider previous planned additions, that where decided against for various reasons:
 \begin{itemize}
-    \item \textbf{Lazy Keyword, Force Pattern:} When the language was first being developed, the idea of a \texttt{lazy} keyword was planned, allowing for delayed evaluation thunks similar to unit thunks, but caching the results upon evaluation. This aforementioned similarity, was the primary reason for it's exclusion (see design principles), as well as adding a vast, complicated system, that can be replicated without the use of unique keywords and syntax.
-    \item \textbf{Is Keyword, As Keyword:} Similar to C\# implementation, would allow type of a generic to be checked at runtime, and converted. However this is an anti-functional pattern, can be replicated with ADTs, and would require the bytecode to not use type erasure. As such this feature does not fit within the language's principles, and will not be added.
-    \item \textbf{Inner Named Functions:} With the implementation of the 1.1 hidden modifier, and the existing ability to create inner lambda functions, there is no longer a need for this feature, and would result in overall worse code quality.
-    \item \textbf{Exhaustive Pattern Matching:} A check that every pattern match is exhaustive, like in OCaml, has been left out of the language as I disagree with the principal. A developer will often know there input, and it adds extra boilerplate. TLDR, write better code.
+    \item \textbf{(1.0) Lazy Keyword, Force Pattern:} When the language was first being developed, the idea of a \texttt{lazy} keyword was planned, allowing for delayed evaluation thunks similar to unit thunks, but caching the results upon evaluation. This aforementioned similarity, was the primary reason for it's exclusion (see design principles), as well as adding a vast, complicated system, that can be replicated without the use of unique keywords and syntax.
+    \item \textbf{(1.0) Exhaustive Pattern Matching:} A check that every pattern match is exhaustive, like in OCaml, has been left out of the language as I disagree with the principal. A developer will often know there input, and it adds extra boilerplate. TLDR, write better code.
+    \item \textbf{(1.1) Is Keyword, As Keyword:} Similar to C\# implementation, would allow type of a generic to be checked at runtime, and converted. However this is an anti-functional pattern, can be replicated with ADTs, and would require the bytecode to not use type erasure. As such this feature does not fit within the language's principles, and will not be added.
+    \item \textbf{(1.1) Inner Named Functions:} With the implementation of the 1.1 hidden modifier, and the existing ability to create inner lambda functions, there is no longer a need for this feature, and would result in overall worse code quality.
+\end{itemize}
+
+% =========================================================================
+\subsection{Excluded Optimisations}
+% =========================================================================
+
+A similar section, instead covering attempts to improve the speed of Language.
+\begin{itemize}
+    \item \textbf{(1.2) Computed Go-To Dispatch Table:} Modern day compilers are far smarter than me, and using a dispatch table in the VM consistently reduced performance, and hence has been omitted.
+    \item \textbf{(1.2) Freelist Allocation:} Again beaten by the minds at gcc, attempting to reserve ADT and List objs in a pool, resulted in a slowdown to the VM.
 \end{itemize}
 
 % =========================================================================
