@@ -17,7 +17,7 @@ public partial class Analyzer
     private void InitializeBaseTokens()
     {
         foreach (string key in new[] {
-            "option", "None", "Some", "g", // option
+            "option", "None", "Some", "g", "h", // option
             "result", "Ok", "Error", "v", "e", // result
             // functions / params
             "get", "target", "index", "arrLength", "array",
@@ -31,7 +31,8 @@ public partial class Analyzer
             "build", "arrBuild", "size", "f",
             "rand", "randInt", "sqrt", "append",
             "time", "timeLocal", "uptime",
-            "ln", "pow", "base", "exp"
+            "ln", "pow", "base", "exp",
+            "threadedMap",
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
@@ -68,6 +69,8 @@ public partial class Analyzer
     {
         Token gParamToken = intrT["g"];
         ITypeAST gType = new BaseType(gParamToken);
+        Token hParamToken = intrT["h"];
+        ITypeAST hType = new BaseType(hParamToken);
 
         void DefineIntrinsic(string name, IntrinsicId nativeId, ITypeAST type, int arity, List<Token>? generics = null)
         {
@@ -231,5 +234,12 @@ public partial class Analyzer
         DefineIntrinsic("pow", IntrinsicId.FloatPow,
             new FuncType(new TupleType([new BaseType(intrT["float"]), new BaseType(intrT["float"])]), new BaseType(intrT["float"])),
             2);
+
+        // threadedMap<g, h>(lst: g list, f: g -> h) : h list
+        DefineIntrinsic("threadedMap", IntrinsicId.ThreadedMap,
+            new FuncType(
+                new TupleType([new ListType(gType), new FuncType(gType, hType)]), 
+                new ListType(hType)),
+            2, [gParamToken, hParamToken]);
     }
 }

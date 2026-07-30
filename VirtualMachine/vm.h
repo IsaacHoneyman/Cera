@@ -2,15 +2,30 @@
 #define VM_H
 
 #include "value.h"
+#include "memory.h"
+#include <pthread.h>
+
 #define FRAMES_MAX 256
 #define STACK_MAX (FRAMES_MAX * 255) 
 
 typedef struct {
-    ObjClosure* closure;     // Can now safely be NULL for static global calls
-    uint32_t function_index; // Explicit tracking decouples routing from closures
+    ObjClosure* closure;     
+    uint32_t function_index; 
     uint8_t* ip;         
     CeraValue* slots;    
 } CallFrame;
+
+typedef struct {
+    ObjClosure* mapped_func;
+    ObjList* chunk_head;
+    int chunk_size;
+    Module* active_module;
+
+    CeraValue result_list;
+    CeraValue* result_tail;
+
+    ThreadArena* arena_ptr;
+} WorkerState;
 
 typedef struct {
     CallFrame frames[FRAMES_MAX];
@@ -174,6 +189,10 @@ typedef enum {
     INTR_UPTIME = 0x35,
     INTR_LN = 0x36,
     INTR_FLOAT_POW = 0x37,
+
+    // --- Multithreading ---
+    INTR_THREADED_MAP = 0x40,
+
 } IntrinsicId;
 
 #endif 

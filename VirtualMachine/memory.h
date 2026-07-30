@@ -2,9 +2,18 @@
 #define MEMORY_H
 
 #include "value.h"
+#include <stddef.h>
 
 #define IS_OBJ(value) ((value).tag >= VAL_STRING)
 #define AS_OBJ(value) ((value).as.obj)
+
+typedef struct {
+    uint8_t* base;
+    uint8_t* current;
+    size_t capacity;
+} ThreadArena;
+
+extern _Thread_local ThreadArena* current_arena;
 
 void retain(CeraValue value);
 void release(CeraValue value);

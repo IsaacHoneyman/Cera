@@ -3,18 +3,21 @@
 #include "memory.h"
 #include "logger.h"
 
-void retain(CeraValue value) { // increments ref count
+_Thread_local ThreadArena* current_arena = NULL;
+
+void retain(CeraValue value) { 
     if (IS_OBJ(value) && AS_OBJ(value) != NULL) {
-        AS_OBJ(value) -> ref_count++; 
+        if (AS_OBJ(value)->is_pinned) return; 
+        AS_OBJ(value)->ref_count++; 
     }
 }
 
-void release(CeraValue value) { // decrements ref count
+void release(CeraValue value) { 
     if (IS_OBJ(value) && AS_OBJ(value) != NULL) {
         Obj* obj = AS_OBJ(value);
-        obj -> ref_count--;
-
-        if (obj -> ref_count == 0) {
+        if (obj->is_pinned) return; 
+        obj->ref_count--;
+        if (obj->ref_count == 0) {
             freeObject(obj);
         }
     }
@@ -25,8 +28,8 @@ void freeObject(Obj* obj) {
     switch (obj -> type) {
         case VAL_STRING: {
             ObjString* string = (ObjString*)obj;
-            free(string -> chars); // free char arr
-            free(string); // free wrapper
+            free(string -> chars); 
+            if (!obj->is_arena) free(string); 
             break;
         }
         case VAL_TUPLE: case VAL_ARRAY: {
@@ -35,20 +38,20 @@ void freeObject(Obj* obj) {
                 release(seq -> elements[i]);
             }
             free(seq -> elements);
-            free (seq);
+            if (!obj->is_arena) free(seq); 
             break;
         }
         case VAL_ADT: {
             ObjADT* adt = (ObjADT*) obj;
             release(adt -> payload);
-            free(adt);
+            if (!obj->is_arena) free(adt); 
             break;
         }
         case VAL_LIST: {
             ObjList* lst = (ObjList*)obj;
             release(lst -> head);
             release(lst -> tail);
-            free(lst);
+            if (!obj->is_arena) free(lst); 
             break;
         }
         case VAL_CLOSURE: { 
@@ -63,7 +66,7 @@ void freeObject(Obj* obj) {
                 }
             }
             free(closure->upvalues);
-            free(closure);
+            if (!obj->is_arena) free(closure); 
             break;
         }
     }
@@ -71,9 +74,29 @@ void freeObject(Obj* obj) {
 
 Obj* allocateObject(size_t size, uint8_t type) {
     log_detail("Allocating heap object (Type: %d, Size: %zu bytes)", type, size); 
-    Obj* obj = (Obj*)malloc(size);
-    obj -> type = type;
-    obj -> ref_count = 1;
+    
+    Obj* obj;    
+    uint8_t in_arena = 0;
+
+    if (current_arena != NULL) {
+        size_t aligned_size = (size + 7) & ~7; 
+        
+        if (current_arena->current + aligned_size > current_arena->base + current_arena->capacity) {
+            log_error("Fatal: Thread-local arena out of memory!");
+            exit(1);
+        }
+        
+        obj = (Obj*)current_arena->current;
+        current_arena->current += aligned_size;
+        in_arena = 1; 
+    } else {
+        obj = (Obj*)malloc(size);
+    }
+    
+    obj->type = type;
+    obj->ref_count = 1;
+    obj->is_arena = in_arena; 
+    obj->is_pinned = 0;
 
     return obj;
 }

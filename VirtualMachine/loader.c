@@ -100,6 +100,7 @@ Module *loadModule(const char *file_path)
                 SAFE_READ(&length, sizeof(uint32_t), 1, file);
 
                 ObjString *str = (ObjString *)allocateObject(sizeof(ObjString), VAL_STRING);
+                str->header.is_pinned = 1;
                 str->length = length;
 
                 str->chars = malloc(length + 1); // +1 for null terminator

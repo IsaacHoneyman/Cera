@@ -1,0 +1,8 @@
+Default image completion:
+Start 9.25 seconds
+Fully optimised with 1.1 Changes 7.7 - 7.8 seconds
+Removed debug flag 7.4-7.5
+With new jump_tag optimisation 7.3-7.4 (864 Long)
+With new jump optimisation (843 Long) 
+Static functions 7.1 - 7.2 (806 Long)
+Final jump optimisations 6.9-7 (789 Long)

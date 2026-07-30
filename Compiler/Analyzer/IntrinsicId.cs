@@ -38,5 +38,8 @@ public enum IntrinsicId : byte
     LocalTime = 0x34,
     Uptime = 0x35,
     Ln = 0x36,
-    FloatPow = 0x37
+    FloatPow = 0x37,
+
+    // --- Multithreading ---
+    ThreadedMap = 0x40
 }

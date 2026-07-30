@@ -57,7 +57,6 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
     frame->function_index = module->entry_index;
     frame->ip = entry_func->code;
 
-    // Index 0 is the closure itself, Index 1 is the args array.
     frame->slots = vm->stack;
 }
 
@@ -71,46 +70,43 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
         push(vm, res); \
     } while (false)
 
-#define BINARY_BOOL_OP(op)                                                                                           \
-    do                                                                                                               \
-    {                                                                                                                \
-        CeraValue b = pop(vm);                                                                                       \
-        CeraValue a = pop(vm);                                                                                       \
-        CeraValue res;                                                                                               \
-        res.tag = VAL_BOOL;                                                                                          \
-                                                                                                                     \
-        bool a_is_str_like = (a.tag == VAL_STRING || a.tag == VAL_LIST);                                             \
-        bool b_is_str_like = (b.tag == VAL_STRING || b.tag == VAL_LIST);                                             \
-                                                                                                                     \
-        if (a_is_str_like && b_is_str_like)                                                                          \
-        {                                                                                                            \
-            char *strA = flatten_char_list(a);                                                                       \
-            char *strB = flatten_char_list(b);                                                                       \
-            res.as.int_val = (strcmp(strA, strB) op 0) ? 1 : 0;                                                      \
-            free(strA);                                                                                              \
-            free(strB);                                                                                              \
-        }                                                                                                            \
-        else if (a.tag != b.tag)                                                                                     \
-        {                                                                                                            \
-            log_error("Type mismatch during comparison: left tag=%d right tag=%d", a.tag, b.tag);                    \
-            return 1;                                                                                                \
-        }                                                                                                            \
-        else if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT)                    \
-        {                                                                                                            \
-            res.as.int_val = (a.as.int_val op b.as.int_val) ? 1 : 0;                                                 \
-        }                                                                                                            \
-        else if (a.tag == VAL_FLOAT)                                                                                 \
-        {                                                                                                            \
-            res.as.int_val = (a.as.float_val op b.as.float_val) ? 1 : 0;                                             \
-        }                                                                                                            \
-        else                                                                                                         \
-        {                                                                                                            \
+#define BINARY_BOOL_OP(op) \
+    do \
+    { \
+        CeraValue b = pop(vm); \
+        CeraValue a = pop(vm); \
+        CeraValue res; \
+        res.tag = VAL_BOOL; \
+        bool a_is_str_like = (a.tag == VAL_STRING || a.tag == VAL_LIST); \
+        bool b_is_str_like = (b.tag == VAL_STRING || b.tag == VAL_LIST); \
+        if (a_is_str_like && b_is_str_like) \
+        { \
+            char *strA = flatten_char_list(a); \
+            char *strB = flatten_char_list(b); \
+            res.as.int_val = (strcmp(strA, strB) op 0) ? 1 : 0; \
+            free(strA); \
+            free(strB); \
+        } \
+        else if (a.tag != b.tag) \
+        { \
+            log_error("Type mismatch during comparison: left tag=%d right tag=%d", a.tag, b.tag); \
+            return 1; \
+        } \
+        else if (a.tag == VAL_INT || a.tag == VAL_BOOL || a.tag == VAL_CHAR || a.tag == VAL_UNIT) \
+        { \
+            res.as.int_val = (a.as.int_val op b.as.int_val) ? 1 : 0; \
+        } \
+        else if (a.tag == VAL_FLOAT) \
+        { \
+            res.as.int_val = (a.as.float_val op b.as.float_val) ? 1 : 0; \
+        } \
+        else \
+        { \
             RUNTIME_ERROR(vm, "Invalid or unimplemented types for comparison. Received tags: %d, %d", a.tag, b.tag); \
-        }                                                                                                            \
-                                                                                                                     \
-        release(a);                                                                                                  \
-        release(b);                                                                                                  \
-        push(vm, res);                                                                                               \
+        } \
+        release(a); \
+        release(b); \
+        push(vm, res); \
     } while (false)
 
 #define BINARY_NUM_OP(op) \
@@ -163,7 +159,7 @@ static CompiledFunction *get_function(Module *module, int target_index)
             return &module->functions[i];
         }
     }
-    return NULL; // Should never be reached
+    return NULL; 
 }
 
 static int call_function(VM *vm, ObjClosure *closure, uint8_t arg_count)
@@ -242,7 +238,6 @@ char *flatten_char_list(CeraValue val)
         return buf;
     }
 
-    // Safety fallback to prevent segfaults
     char *buf = malloc(1);
     buf[0] = '\0';
     return buf;
@@ -255,11 +250,10 @@ static void close_upvalues(VM *vm, CeraValue *last)
         ObjUpvalue *upvalue = vm->open_upvalues;
 
         upvalue->closed_value = *upvalue->location;
-        retain(upvalue->closed_value); // Safely claim ownership of the stack data
+        retain(upvalue->closed_value); 
         upvalue->location = &upvalue->closed_value;
         vm->open_upvalues = upvalue->next;
 
-        // The list surrenders its reference. If the closure is already dead, free it.
         upvalue->header.ref_count--;
         if (upvalue->header.ref_count == 0)
         {
@@ -282,15 +276,17 @@ static ObjUpvalue *capture_upvalue(VM *vm, CeraValue *local)
 
     if (upvalue != NULL && upvalue->location == local)
     {
-        upvalue->header.ref_count++; // Increment for the new capturing closure
+        upvalue->header.ref_count++; 
         return upvalue;
     }
 
     ObjUpvalue *created_upvalue = malloc(sizeof(ObjUpvalue));
     created_upvalue->header.type = 0;
 
-    // 1 ref for the closure, 1 ref for the open_upvalues list
     created_upvalue->header.ref_count = 2;
+    
+    created_upvalue->header.is_arena = 0;
+    created_upvalue->header.is_pinned = 0;
 
     created_upvalue->location = local;
     created_upvalue->closed_value.tag = VAL_INT;
@@ -307,6 +303,14 @@ static ObjUpvalue *capture_upvalue(VM *vm, CeraValue *local)
     }
 
     return created_upvalue;
+}
+
+static inline void populate_seq_from_stack(VM *vm, CeraValue *elements, int length)
+{
+    for (int i = length - 1; i >= 0; i--)
+    {
+        elements[i] = pop(vm);
+    }
 }
 
 void freeVM(VM *vm)
@@ -335,21 +339,13 @@ static void print_stack_trace(VM *vm)
     }
 }
 
-#define RUNTIME_ERROR(vm, fmt, ...)    \
-    do                                 \
-    {                                  \
+#define RUNTIME_ERROR(vm, fmt, ...) \
+    do \
+    { \
         log_error(fmt, ##__VA_ARGS__); \
-        print_stack_trace(vm);         \
-        return 1;                      \
+        print_stack_trace(vm); \
+        return 1; \
     } while (false)
-
-static inline void populate_seq_from_stack(VM *vm, CeraValue *elements, int length)
-{
-    for (int i = length - 1; i >= 0; i--)
-    {
-        elements[i] = pop(vm);
-    }
-}
 
 int runVM(VM *vm)
 {
@@ -374,11 +370,9 @@ int runVM(VM *vm)
 
         switch (instruction)
         {
-        case OP_NOP:
-            break;
-        case OP_POP:
-            release(pop(vm));
-            break;
+        case OP_NOP: break;
+        case OP_POP: release(pop(vm)); break;
+
         case OP_LOAD_CONST:
         {
             CeraValue constant = READ_CONSTANT();
@@ -386,6 +380,7 @@ int runVM(VM *vm)
             push(vm, constant);
             break;
         }
+        
         case OP_LOAD_CONST_LONG:
         {
             CeraValue constant = READ_CONSTANT_LONG();
@@ -393,6 +388,7 @@ int runVM(VM *vm)
             push(vm, constant);
             break;
         }
+        
         case OP_PUSH_0:
         {
             CeraValue v;
@@ -401,6 +397,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_PUSH_1:
         {
             CeraValue v;
@@ -409,6 +406,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_PUSH_BYTE:
         {
             CeraValue v;
@@ -417,6 +415,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_PUSH_TRUE:
         {
             CeraValue v;
@@ -425,6 +424,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_PUSH_FALSE:
         {
             CeraValue v;
@@ -433,6 +433,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_PUSH_UNIT:
         {
             CeraValue v;
@@ -441,6 +442,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_PUSH_CHAR:
         {
             uint8_t b1 = READ_BYTE();
@@ -465,6 +467,7 @@ int runVM(VM *vm)
             push(vm, local);
             break;
         }
+        
         case OP_STORE_LOCAL:
         {
             uint8_t slot = READ_BYTE();
@@ -474,15 +477,17 @@ int runVM(VM *vm)
             frame->slots[slot] = value;
             break;
         }
+        
         case OP_LOAD_FUNCTION:
         {
             uint8_t index = READ_BYTE();
             CeraValue v;
             v.tag = VAL_INT;
-            v.as.int_val = index; // Storing index
+            v.as.int_val = index; 
             push(vm, v);
             break;
         }
+        
         case OP_LOAD_FUNCTION_LONG:
         {
             uint16_t index = READ_SHORT();
@@ -492,6 +497,7 @@ int runVM(VM *vm)
             push(vm, v);
             break;
         }
+        
         case OP_LOAD_UPVALUE:
         {
             uint8_t slot = READ_BYTE();
@@ -500,11 +506,13 @@ int runVM(VM *vm)
             push(vm, upvalue);
             break;
         }
+        
         case OP_ADD: BINARY_NUM_OP(+); break;
         case OP_SUB: BINARY_NUM_OP(-); break;
         case OP_MUL: BINARY_NUM_OP(*); break;
         case OP_DIV: BINARY_NUM_OP(/); break;
         case OP_MOD: BINARY_INT_OP(%); break;
+        
         case OP_ADD_1: 
         {
             CeraValue a = pop(vm);
@@ -513,6 +521,7 @@ int runVM(VM *vm)
             push(vm, a);
             break;
         }
+        
         case OP_SUB_1: 
         {
             CeraValue a = pop(vm);
@@ -521,6 +530,7 @@ int runVM(VM *vm)
             push(vm, a);
             break;
         }
+        
         case OP_NEGATE:
         {
             CeraValue a = pop(vm);
@@ -533,21 +543,13 @@ int runVM(VM *vm)
             push(vm, a);
             break;
         }
-        case OP_BIT_AND:
-            BINARY_INT_OP(&);
-            break;
-        case OP_BIT_OR:
-            BINARY_INT_OP(|);
-            break;
-        case OP_BIT_XOR:
-            BINARY_INT_OP(^);
-            break;
-        case OP_SHL:
-            BINARY_INT_OP(<<);
-            break;
-        case OP_SHR:
-            BINARY_INT_OP(>>);
-            break;
+        
+        case OP_BIT_AND: BINARY_INT_OP(&); break;
+        case OP_BIT_OR: BINARY_INT_OP(|); break;
+        case OP_BIT_XOR: BINARY_INT_OP(^); break;
+        case OP_SHL: BINARY_INT_OP(<<); break;
+        case OP_SHR: BINARY_INT_OP(>>); break;
+
         case OP_BIT_NOT:
         {
             CeraValue a = pop(vm);
@@ -556,24 +558,13 @@ int runVM(VM *vm)
             break;
         }
 
-        case OP_EQ:
-            BINARY_BOOL_OP(==);
-            break;
-        case OP_NEQ:
-            BINARY_BOOL_OP(!=);
-            break;
-        case OP_LT:
-            BINARY_BOOL_OP(<);
-            break;
-        case OP_GT:
-            BINARY_BOOL_OP(>);
-            break;
-        case OP_LTE:
-            BINARY_BOOL_OP(<=);
-            break;
-        case OP_GTE:
-            BINARY_BOOL_OP(>=);
-            break;
+        case OP_EQ: BINARY_BOOL_OP(==); break;
+        case OP_NEQ: BINARY_BOOL_OP(!=); break;
+        case OP_LT: BINARY_BOOL_OP(<); break;
+        case OP_GT: BINARY_BOOL_OP(>); break;
+        case OP_LTE: BINARY_BOOL_OP(<=); break;
+        case OP_GTE: BINARY_BOOL_OP(>=); break;
+
         case OP_NOT:
         {
             CeraValue a = pop(vm);
@@ -588,6 +579,7 @@ int runVM(VM *vm)
             frame->ip += offset;
             break;
         }
+
         case OP_JUMP_IF_FALSE:
         {
             uint16_t offset = READ_SHORT();
@@ -596,6 +588,7 @@ int runVM(VM *vm)
                 frame->ip += offset;
             break;
         }
+        
         case OP_JUMP_IF_TRUE:
         {
             uint16_t offset = READ_SHORT();
@@ -604,24 +597,28 @@ int runVM(VM *vm)
                 frame->ip += offset;
             break;
         }
+        
         case OP_JUMP_IF_FALSE_EQ: FUSED_RELATIONAL_JUMP(==); break;
         case OP_JUMP_IF_FALSE_NEQ: FUSED_RELATIONAL_JUMP(!=); break;
         case OP_JUMP_IF_FALSE_LT: FUSED_RELATIONAL_JUMP(<); break;
         case OP_JUMP_IF_FALSE_LTE: FUSED_RELATIONAL_JUMP(<=); break;
         case OP_JUMP_IF_FALSE_GT: FUSED_RELATIONAL_JUMP(>); break;
         case OP_JUMP_IF_FALSE_GTE: FUSED_RELATIONAL_JUMP(>=); break;
+        
         case OP_JUMP_IF_FALSE_PEEK:
         {
             uint16_t offset = READ_SHORT();
             if (PEEK(0).as.int_val == 0) frame->ip += offset;
             break;
         }
+        
         case OP_JUMP_IF_TRUE_PEEK:
         {
             uint16_t offset = READ_SHORT();
             if (PEEK(0).as.int_val == 1) frame->ip += offset;
             break;
         }
+        
         case OP_JUMP_IF_LOCAL_NOT_EQ_CONST:
         {
             uint8_t local_slot = READ_BYTE();
@@ -653,11 +650,6 @@ int runVM(VM *vm)
             close_upvalues(vm, frame->slots);
 
             vm->frame_count--;
-            if (vm->frame_count == 0)
-            {
-                log_info("Program Terminated Cleanly");
-                return 0;
-            }
 
             while (vm->stack_top > frame->slots)
             {
@@ -665,6 +657,12 @@ int runVM(VM *vm)
             }
 
             push(vm, result);
+
+            if (vm->frame_count == 0)
+            {
+                // The main program OR the worker thread terminated cleanly
+                return 0;
+            }
 
             frame = &vm->frames[vm->frame_count - 1];
             active_function = get_function(vm->active_module, frame->function_index);
@@ -751,6 +749,7 @@ int runVM(VM *vm)
             active_function = func;
             break;
         }
+        
         case OP_MAKE_CLOSURE:
         {
             uint8_t upvalue_count = READ_BYTE();
@@ -780,7 +779,8 @@ int runVM(VM *vm)
                 }
                 else
                 {
-                    closure->upvalues[i] = frame->closure->upvalues[index];
+                    closure->upvalues[i] = frame->closure->upvalues[index];                    
+                    closure->upvalues[i]->header.ref_count++;
                 }
             }
 
@@ -790,6 +790,7 @@ int runVM(VM *vm)
             push(vm, closure_val);
             break;
         }
+        
         case OP_CALL_GLOBAL:
         {
             uint8_t func_index = READ_BYTE();
@@ -813,6 +814,7 @@ int runVM(VM *vm)
             active_function = get_function(vm->active_module, frame->function_index);
             break;
         }
+        
         case OP_TAIL_CALL_GLOBAL:
         {
             uint8_t func_index = READ_BYTE();
@@ -938,6 +940,7 @@ int runVM(VM *vm)
             active_function = func;
             break;
         }
+        
         case OP_ALLOC_CON:
         {
             uint8_t tag_id = READ_BYTE();
@@ -953,6 +956,7 @@ int runVM(VM *vm)
             push(vm, res);
             break;
         }
+        
         case OP_ALLOC_TUPLE:
         {
             uint8_t size = READ_BYTE();

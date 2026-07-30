@@ -1,0 +1,140 @@
+hidden import "Scene.cera";
+hidden import "Vector.cera";
+
+var shadowBias: float = 0.001;
+var farDist: float = 99999.0;
+
+inline def hitBound(r: ray, center: vec3, radius: float) : bool = {
+    var Ray(origin, dir) = r;
+    var oc: vec3 = vSub(origin, center);
+    var a: float = dot(dir, dir);
+    var b: float = 2.0 * dot(oc, dir);
+    var c: float = dot(oc, oc) - (radius * radius);
+    var discriminant: float = (b * b) - (4.0 * a * c);
+    
+    discriminant >= 0.0;
+}
+
+inline def intersectTriangle(r: ray, v0: vec3, v1: vec3, v2: vec3, m: mat) : option<hit> = {
+    var Ray(origin, dir) = r;
+    var edge1: vec3 = vSub(v1, v0);
+    var edge2: vec3 = vSub(v2, v0);
+    var h: vec3 = cross(dir, edge2);
+    var a: float = dot(edge1, h);
+    
+    if ((a > -0.0001) && (a < 0.0001)) {
+        None;
+    } else {
+        var f: float = 1.0 / a;
+        var s: vec3 = vSub(origin, v0);
+        var u: float = f * dot(s, h);
+        
+        if ((u < 0.0) || (u > 1.0)) {
+            None;
+        } else {
+            var q: vec3 = cross(s, edge1);
+            var v: float = f * dot(dir, q);
+            
+            if ((v < 0.0) || ((u + v) > 1.0)) {
+                None;
+            } else {
+                var t: float = f * dot(edge2, q);
+                if (t > shadowBias) {
+                    var point: vec3 = vAdd(origin, vMul(dir, t));
+                    var normal: vec3 = normalize(cross(edge1, edge2));
+                    var viewDir: vec3 = vMul(dir, -1.0);
+                    
+                    var finalNormal: vec3 = (a < 0.0) ? vMul(normal, -1.0) : normal;
+                    Some(Hit(t, point, finalNormal, viewDir, m));
+                } else {
+                    None;
+                }
+            }
+        }
+    }
+}
+
+inline def intersectSphere(r: ray, center: vec3, radius: float, m: mat) : option<hit> = {
+    var Ray(origin, dir) = r;
+    var oc: vec3 = vSub(origin, center);
+    var a: float = dot(dir, dir);
+    var b: float = 2.0 * dot(oc, dir);
+    var c: float = dot(oc, oc) - (radius * radius);
+    var discriminant: float = (b * b) - (4.0 * a * c);
+
+    if (discriminant < 0.0) {
+        None;
+    } else {
+        var t1: float = (-b - sqrt(discriminant)) / (2.0 * a);
+        var t2: float = (-b + sqrt(discriminant)) / (2.0 * a);
+        
+        var t: float = (t1 > shadowBias) ? t1 : t2;
+        
+        if (t > shadowBias) {
+            var point: vec3 = vAdd(origin, vMul(dir, t));
+            var normal: vec3 = normalize(vSub(point, center));
+            var viewDir: vec3 = vMul(dir, -1.0);
+            
+            Some(Hit(t, point, normal, viewDir, m));
+        } else {
+            None;
+        }
+    }
+}
+
+inline def intersectPlane(r: ray, p0: vec3, normal: vec3, m: mat) : option<hit> = {
+    var Ray(origin, dir) = r;
+    var denom: float = dot(dir, normal);
+    
+    if ((denom > 0.0001) || (denom < -0.0001)) {
+        var t: float = dot(vSub(p0, origin), normal) / denom;
+        
+        if (t > shadowBias) {
+            var point: vec3 = vAdd(origin, vMul(dir, t));
+            var viewDir: vec3 = vMul(dir, -1.0);
+            
+            var finalNormal: vec3 = (denom < 0.0) ? normal : vMul(normal, -1.0);
+            Some(Hit(t, point, finalNormal, viewDir, m));
+        } else {
+            None;
+        }
+    } else {
+        None; 
+    }
+}
+
+def intersectObj(r: ray, o: obj) : option<hit> = {
+    switch (o) {
+        Sphere(center, radius, m) -> intersectSphere(r, center, radius, m),
+        Plane(p0, normal, m) -> intersectPlane(r, p0, normal, m),
+        Triangle(v0, v1, v2, m) -> intersectTriangle(r, v0, v1, v2, m),
+        
+        BoundGroup(center, radius, children) -> {
+            if (hitBound(r, center, radius)) {
+                nearestHit(r, children, farDist, None);
+            } else {
+                None; 
+            }
+        }
+    }
+}
+
+def nearestHit(r: ray, objs: obj list, closestT: float, currentHit: option<hit>) : option<hit> = {
+    switch (objs) {
+        [] -> currentHit,
+        (h::tl) -> {
+            var testHit: option<hit> = intersectObj(r, h);
+            
+            switch (testHit) {
+                None -> nearestHit(r, tl, closestT, currentHit),
+                Some(Hit(t, p, n, v, m)) -> {
+                    if (t < closestT) {
+                        nearestHit(r, tl, t, testHit);
+                    } else {
+                        nearestHit(r, tl, closestT, currentHit);
+                    }
+                }
+            }
+        }
+    }
+}

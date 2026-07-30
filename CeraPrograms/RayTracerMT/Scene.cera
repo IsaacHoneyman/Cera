@@ -1,0 +1,81 @@
+hidden import "Vector.cera";
+hidden import "Collection.cera";
+hidden import "Math.cera";
+
+type mat = 
+    Phong: (vec3 * vec3 * vec3 * float) |
+    Glass: (vec3 * float); // attenuation tint, index of refraction 
+type light = Light: (vec3 * vec3); 
+
+type obj = 
+    Sphere: (vec3 * float * mat) | 
+    Plane: (vec3 * vec3 * mat) |   
+    Triangle: (vec3 * vec3 * vec3 * mat) | 
+    BoundGroup: (vec3 * float * obj list); 
+
+type scene = Scene: (obj list * light list * vec3); 
+type ray = Ray: (vec3 * vec3); 
+type hit = Hit: (float * vec3 * vec3 * vec3 * mat); 
+
+// Dynamically calculates a bounding sphere to encapsulate an arbitrary list of geometry
+def createBVH(objs: obj list) : obj = {
+    var centers: vec3 list = map(objs, func(o: obj): vec3 = {
+        switch (o) {
+            Sphere(c, r, m) -> c,
+            Triangle(v0, v1, v2, m) -> vMul(vAdd(vAdd(v0, v1), v2), 1.0 / 3.0),
+            BoundGroup(c, r, children) -> c,
+            Plane(p0, n, m) -> p0 // Planes are technically infinite and should be excluded from BVH logic if possible
+        }
+    });
+    
+    var totalCenter: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = vAdd(acc, c), Vec(0.0, 0.0, 0.0));
+    var count: float = intToFloat(length(objs));
+    var globalCenter: vec3 = (count == 0.0) ? Vec(0.0, 0.0, 0.0) : vMul(totalCenter, 1.0 / count);
+    
+    var radii: float list = map(objs, func(o: obj): float = {
+        switch (o) {
+            Sphere(c, r, m) -> mag(vSub(c, globalCenter)) + r,
+            Triangle(v0, v1, v2, m) -> {
+                var d0: float = mag(vSub(v0, globalCenter));
+                var d1: float = mag(vSub(v1, globalCenter));
+                var d2: float = mag(vSub(v2, globalCenter));
+                max(d0, max(d1, d2));
+            },
+            BoundGroup(c, r, children) -> mag(vSub(c, globalCenter)) + r,
+            Plane(p0, n, m) -> 99999.0 
+        }
+    });
+    
+    var maxRadius: float = foldLeft(radii, func(acc: float, r: float): float = max(acc, r), 0.0);
+    
+    // Assemble the node with a slight padding factor
+    BoundGroup(globalCenter, maxRadius + 0.1, objs);
+}
+
+def getScene() : scene = {
+    var matRed: mat = Phong(Vec(0.1, 0.0, 0.0), Vec(1.0, 0.0, 0.0), Vec(1.0, 1.0, 1.0), 64.0);
+    var matGreen: mat = Phong(Vec(0.0, 0.1, 0.0), Vec(0.0, 1.0, 0.0), Vec(0.2, 0.2, 0.2), 8.0);
+    var matFloor: mat = Phong(Vec(0.1, 0.1, 0.1), Vec(0.5, 0.5, 0.5), Vec(0.3, 0.3, 0.3), 16.0);
+    
+    // Define a clear glass material (IOR of 1.5 is standard for glass)
+    var matClearGlass: mat = Glass(Vec(1.0, 1.0, 1.0), 1.5);
+    
+    var complexGeometry: obj list = [ 
+        Sphere(Vec(-2.0, 0.0, 5.0), 1.0, matRed), 
+        Sphere(Vec(0.0, 0.0, 6.0), 1.0, matGreen), 
+        Sphere(Vec(2.0, 0.0, 5.0), 1.0, matClearGlass), // The blue sphere is now glass
+        
+        Triangle(Vec(0.0, 2.5, 5.5), Vec(-0.5, 1.5, 5.0), Vec(0.5, 1.5, 5.0), matRed),
+        Triangle(Vec(0.0, 2.5, 5.5), Vec(0.5, 1.5, 5.0), Vec(0.0, 1.5, 6.0), matGreen),
+        Triangle(Vec(0.0, 2.5, 5.5), Vec(0.0, 1.5, 6.0), Vec(-0.5, 1.5, 5.0), matClearGlass), // Panel replaced with glass
+        Triangle(Vec(-0.5, 1.5, 5.0), Vec(0.0, 1.5, 6.0), Vec(0.5, 1.5, 5.0), matFloor)
+    ];
+    
+    var bvhCluster: obj = createBVH(complexGeometry);
+    
+    Scene(
+        [Plane(Vec(0.0, -1.0, 0.0), Vec(0.0, 1.0, 0.0), matFloor), bvhCluster],
+        [Light(Vec(0.0, 10.0, -2.0), Vec(1.0, 1.0, 1.0))],
+        Vec(0.2, 0.2, 0.2)
+    )
+}

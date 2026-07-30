@@ -10,6 +10,190 @@
 #include "memory.h"
 #include "logger.h"
 
+static void* run_worker(void* arg) {
+    WorkerState* state = (WorkerState*)arg;
+    
+    current_arena = malloc(sizeof(ThreadArena));
+    current_arena->capacity = 1024 * 1024 * 1024; 
+    current_arena->base = malloc(current_arena->capacity);
+    current_arena->current = current_arena->base;
+    state->arena_ptr = current_arena;
+
+    VM local_vm;
+    local_vm.stack_top = local_vm.stack;
+    local_vm.frame_count = 0;
+    local_vm.active_module = state->active_module;
+    local_vm.open_upvalues = NULL;
+
+    ObjList* current_node = state->chunk_head;
+    
+    for (int i = 0; i < state->chunk_size; i++) {
+        if (current_node == NULL) break;
+        
+        CeraValue closure_val;
+        closure_val.tag = VAL_CLOSURE;
+        closure_val.as.obj = (Obj*)state->mapped_func;
+        
+        push(&local_vm, closure_val);
+        push(&local_vm, current_node->head);
+        
+        CallFrame* frame = &local_vm.frames[local_vm.frame_count++];
+        frame->closure = state->mapped_func;
+        frame->function_index = state->mapped_func->function_index;
+        
+        CompiledFunction* func = &state->active_module->functions[frame->function_index];
+        frame->ip = func->code;
+        frame->slots = local_vm.stack_top - 2; 
+        
+        runVM(&local_vm);
+        
+        CeraValue mapped_res = pop(&local_vm);
+        
+        ObjList* res_node = (ObjList*)allocateObject(sizeof(ObjList), VAL_LIST);
+        res_node->head = mapped_res;
+        res_node->tail.tag = VAL_LIST;
+        res_node->tail.as.obj = NULL;
+        
+        if (state->result_list.as.obj == NULL) {
+            state->result_list.tag = VAL_LIST;
+            state->result_list.as.obj = (Obj*)res_node;
+        } else {
+            state->result_tail->tag = VAL_LIST;
+            state->result_tail->as.obj = (Obj*)res_node;
+        }
+        state->result_tail = &res_node->tail;
+        
+        current_node = (ObjList*)current_node->tail.as.obj;
+    }
+    
+    return NULL;
+}
+
+static void pin_value(CeraValue val) {
+    if (!IS_OBJ(val) || val.as.obj == NULL) return;
+    
+    Obj* obj = val.as.obj;
+    if (obj->is_pinned) return; 
+    
+    obj->is_pinned = 1;
+    
+    switch(obj->type) {
+        case VAL_TUPLE:
+        case VAL_ARRAY: {
+            ObjTuple* seq = (ObjTuple*)obj;
+            for(int i = 0; i < seq->length; i++) pin_value(seq->elements[i]);
+            break;
+        }
+        case VAL_ADT: {
+            pin_value(((ObjADT*)obj)->payload);
+            break;
+        }
+        case VAL_LIST: {
+            pin_value(((ObjList*)obj)->head);
+            pin_value(((ObjList*)obj)->tail);
+            break;
+        }
+        case VAL_CLOSURE: {
+            ObjClosure* closure = (ObjClosure*)obj;
+            for (int i = 0; i < closure->upvalue_count; i++) {
+                pin_value(*(closure->upvalues[i]->location)); 
+            }
+            break;
+        }
+    }
+}
+
+static void unpin_value(CeraValue val) {
+    if (!IS_OBJ(val) || val.as.obj == NULL) return;
+    
+    Obj* obj = val.as.obj;
+    if (!obj->is_pinned) return; 
+    
+    obj->is_pinned = 0; 
+    
+    switch(obj->type) {
+        case VAL_TUPLE:
+        case VAL_ARRAY: {
+            ObjTuple* seq = (ObjTuple*)obj;
+            for(int i = 0; i < seq->length; i++) unpin_value(seq->elements[i]);
+            break;
+        }
+        case VAL_ADT: {
+            unpin_value(((ObjADT*)obj)->payload);
+            break;
+        }
+        case VAL_LIST: {
+            unpin_value(((ObjList*)obj)->head);
+            unpin_value(((ObjList*)obj)->tail);
+            break;
+        }
+        case VAL_CLOSURE: {
+            ObjClosure* closure = (ObjClosure*)obj;
+            for (int i = 0; i < closure->upvalue_count; i++) {
+                unpin_value(*(closure->upvalues[i]->location)); 
+            }
+            break;
+        }
+    }
+}
+
+static CeraValue migrate_value(CeraValue val) {
+    if (!IS_OBJ(val) || val.as.obj == NULL) return val;
+    
+    Obj* obj = val.as.obj;
+    
+    if (!obj->is_arena) {
+        retain(val);
+        return val;
+    }
+    
+    switch(obj->type) {
+        case VAL_STRING: {
+            ObjString* old_str = (ObjString*)obj;
+            ObjString* new_str = (ObjString*)allocateObject(sizeof(ObjString), VAL_STRING);
+            new_str->length = old_str->length;
+            new_str->chars = malloc(new_str->length + 1);
+            strcpy(new_str->chars, old_str->chars);
+            
+            CeraValue res; res.tag = VAL_STRING; res.as.obj = (Obj*)new_str;
+            return res;
+        }
+        case VAL_TUPLE:
+        case VAL_ARRAY: {
+            ObjTuple* old_seq = (ObjTuple*)obj;
+            ObjTuple* new_seq = (ObjTuple*)allocateObject(sizeof(ObjTuple), obj->type);
+            new_seq->length = old_seq->length;
+            new_seq->elements = malloc(sizeof(CeraValue) * new_seq->length);
+            
+            for(int i = 0; i < new_seq->length; i++) {
+                new_seq->elements[i] = migrate_value(old_seq->elements[i]);
+            }
+            
+            CeraValue res; res.tag = obj->type; res.as.obj = (Obj*)new_seq;
+            return res;
+        }
+        case VAL_ADT: {
+            ObjADT* old_adt = (ObjADT*)obj;
+            ObjADT* new_adt = (ObjADT*)allocateObject(sizeof(ObjADT), VAL_ADT);
+            new_adt->adt_tag = old_adt->adt_tag;
+            new_adt->payload = migrate_value(old_adt->payload);
+            
+            CeraValue res; res.tag = VAL_ADT; res.as.obj = (Obj*)new_adt;
+            return res;
+        }
+        case VAL_LIST: {
+            ObjList* old_lst = (ObjList*)obj;
+            ObjList* new_lst = (ObjList*)allocateObject(sizeof(ObjList), VAL_LIST);
+            new_lst->head = migrate_value(old_lst->head);
+            new_lst->tail = migrate_value(old_lst->tail);
+            
+            CeraValue res; res.tag = VAL_LIST; res.as.obj = (Obj*)new_lst;
+            return res;
+        }
+        default: return val; 
+    }
+}
+
 int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 {
     switch (intrinsic_id)
@@ -720,6 +904,96 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
         res.tag = VAL_FLOAT;
         res.as.float_val = pow(base_val.as.float_val, exp_val.as.float_val);
         push(vm, res);
+        return 0;
+    }
+    
+    case INTR_THREADED_MAP:
+    {
+        CeraValue closure_val = pop(vm);
+        CeraValue list_val = pop(vm);
+        
+        ObjClosure* mapped_func = (ObjClosure*)closure_val.as.obj;
+        ObjList* target_list = (ObjList*)list_val.as.obj;
+
+        int len = 0;
+        ObjList* curr = target_list;
+        while (curr != NULL) {
+            len++;
+            curr = (ObjList*)curr->tail.as.obj;
+        }
+
+        if (len == 0) {
+            push(vm, list_val);
+            release(closure_val);
+            return 0;
+        }
+
+        int num_threads = (len < 4) ? 1 : 4; 
+        int chunk_size = len / num_threads;
+        int remainder = len % num_threads;
+
+        pthread_t threads[num_threads];
+        WorkerState states[num_threads];
+
+        // 1. Deep pin the shared execution context
+        pin_value(closure_val);
+        pin_value(list_val);
+
+        ObjList* chunk_start = target_list;
+        for (int i = 0; i < num_threads; i++) {
+            states[i].mapped_func = mapped_func;
+            states[i].chunk_head = chunk_start;
+            states[i].chunk_size = chunk_size + (i < remainder ? 1 : 0);
+            states[i].active_module = vm->active_module;
+            states[i].result_list.tag = VAL_LIST;
+            states[i].result_list.as.obj = NULL;
+            states[i].result_tail = NULL;
+
+            pthread_create(&threads[i], NULL, run_worker, &states[i]);
+
+            for (int j = 0; j < states[i].chunk_size; j++) {
+                chunk_start = (ObjList*)chunk_start->tail.as.obj;
+            }
+        }
+
+        for (int i = 0; i < num_threads; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        CeraValue final_list;
+        final_list.tag = VAL_LIST;
+        final_list.as.obj = NULL;
+        CeraValue* master_tail = &final_list;
+
+        for (int i = 0; i < num_threads; i++) {
+            if (states[i].result_list.as.obj != NULL) {
+                *master_tail = states[i].result_list;
+                master_tail = states[i].result_tail;
+            }
+        }
+
+        // 2. Unpin BEFORE migration to restore normal ref_count behavior
+        unpin_value(closure_val);
+        unpin_value(list_val);
+
+        // 3. Migrate the volatile thread-local results into the permanent global heap
+        CeraValue migrated_list = migrate_value(final_list);
+
+        // 4. Safely drop the ref counts of the volatile wrapper nodes to free internal buffers
+        release(final_list); 
+
+        // 5. Instantly vaporize the thread-local arenas
+        for (int i = 0; i < num_threads; i++) {
+            free(states[i].arena_ptr->base); 
+            free(states[i].arena_ptr);       
+        }
+        
+        // 6. Cleanup initial arguments and push the final result
+        release(list_val);
+        release(closure_val);
+        
+        push(vm, migrated_list);
+        
         return 0;
     }
 

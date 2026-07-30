@@ -21,6 +21,8 @@ typedef enum {
 typedef struct sObj {
     int ref_count;
     uint8_t type;
+    uint8_t is_arena;
+    uint8_t is_pinned;
 } Obj;
 
 typedef struct {

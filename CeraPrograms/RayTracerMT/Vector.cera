@@ -1,0 +1,75 @@
+hidden import "Math.cera";
+
+type vec3 = Vec: (float * float * float); // x, y, z
+
+inline def vAdd(a: vec3, b: vec3) : vec3 = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    Vec(x1 + x2, y1 + y2, z1 + z2);
+}
+
+inline def vSub(a: vec3, b: vec3) : vec3 = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    Vec(x1 - x2, y1 - y2, z1 - z2);
+}
+
+inline def vMul(v: vec3, scalar: float) : vec3 = {
+    var Vec(x, y, z) = v;
+    Vec(x * scalar, y * scalar, z * scalar);
+}
+
+inline def vColorMul(a: vec3, b: vec3) : vec3 = {
+    var Vec(r1, g1, b1) = a;
+    var Vec(r2, g2, b2) = b;
+    Vec(r1 * r2, g1 * g2, b1 * b2);
+}
+
+inline def dot(a: vec3, b: vec3) : float = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    (x1 * x2) + (y1 * y2) + (z1 * z2);
+}
+
+inline def cross(a: vec3, b: vec3) : vec3 = {
+    var Vec(x1, y1, z1) = a;
+    var Vec(x2, y2, z2) = b;
+    Vec((y1 * z2) - (z1 * y2), (z1 * x2) - (x1 * z2), (x1 * y2) - (y1 * x2));
+}
+
+inline def mag(v: vec3) : float = {
+    sqrt(dot(v, v));
+}
+
+inline def normalize(v: vec3) : vec3 = {
+    var m: float = mag(v);    
+    (m == 0.0) ? v : vMul(v, 1.0 / m);
+}
+
+inline def reflect(incident: vec3, normal: vec3) : vec3 = {
+    var scaledNormal: vec3 = vMul(normal, 2.0 * dot(incident, normal));    
+    vSub(incident, scaledNormal);
+}
+
+inline def getD(v: vec3, i: int) : float = {
+    var Vec(x, y, z) = v;
+    switch (i) {
+        0 -> x,
+        1 -> y,
+        2 -> z,
+        _ -> 0.0
+    }
+}
+
+inline def refract(incident: vec3, normal: vec3, etaRatio: float) : option<vec3> = {
+    var cosTheta: float = min(1.0, dot(vMul(incident, -1.0), normal));
+    var rOutPerp: vec3 = vMul(vAdd(incident, vMul(normal, cosTheta)), etaRatio);
+    var rOutPerpMagSq: float = dot(rOutPerp, rOutPerp);
+    
+    if (rOutPerpMagSq > 1.0) {
+        None; // Total Internal Reflection
+    } else {
+        var rOutParallel: vec3 = vMul(normal, -sqrt(1.0 - rOutPerpMagSq));
+        Some(vAdd(rOutPerp, rOutParallel));
+    }
+}

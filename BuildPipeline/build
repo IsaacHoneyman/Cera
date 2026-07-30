@@ -44,10 +44,10 @@ rm -f ./$LINUX_DIR/bin/*.pdb
 echo "Compiling C virtual machine..."
 
 # Windows VM (Cross-compiled via MinGW)
-x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -lm -lpthread -o ./$WIN_DIR/bin/ceravm.exe
+x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -pthread -lm -o ./$WIN_DIR/bin/ceravm.exe
 
 # Linux VM (Native compilation)
-gcc $VM_SRC/*.c -O3 -lm -o ./$LINUX_DIR/bin/ceravm
+gcc $VM_SRC/*.c -O3 -pthread -lm -o ./$LINUX_DIR/bin/ceravm
 
 # =========================================================================
 # 4. Standard Library Assembly
