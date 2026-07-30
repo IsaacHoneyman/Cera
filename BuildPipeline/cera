@@ -67,6 +67,13 @@ if [ -z "$FILE" ]; then
     exit 1
 fi
 
+# Auto-append .cera for build and exec commands if the file doesn't exist
+if [ "$COMMAND" = "build" ] || [ "$COMMAND" = "exec" ]; then
+    if [ ! -f "$FILE" ] && [ -f "${FILE}.cera" ]; then
+        FILE="${FILE}.cera"
+    fi
+fi
+
 # Isolate the filename for pathing the bytecode output
 FILENAME=$(basename "$FILE")
 BASENAME="${FILENAME%.*}"
@@ -82,15 +89,24 @@ case $COMMAND in
         # Shift past 'run'
         shift 1
         
-        # Rebuild the arguments array to inject the Out/ByteCode path if necessary
+        # Rebuild the arguments array to inject extensions and Out/ByteCode path if necessary
         declare -a NEW_ARGS=()
         for arg in "$@"; do
-            # If the arg isn't a flag, doesn't exist locally, but DOES exist in Out/ByteCode/
-            if [[ "$arg" != -* ]] && [[ ! -f "$arg" ]] && [[ -f "Out/ByteCode/$arg" ]]; then
-                NEW_ARGS+=("Out/ByteCode/$arg")
-            else
-                NEW_ARGS+=("$arg")
+            # If the arg isn't a flag
+            if [[ "$arg" != -* ]]; then
+                # Check local file + extension
+                if [[ ! -f "$arg" ]] && [[ -f "${arg}.cerabc" ]]; then
+                    arg="${arg}.cerabc"
+                fi
+                
+                # Check Out/ByteCode path + extension
+                if [[ ! -f "$arg" ]] && [[ -f "Out/ByteCode/$arg" ]]; then
+                    arg="Out/ByteCode/$arg"
+                elif [[ ! -f "$arg" ]] && [[ -f "Out/ByteCode/${arg}.cerabc" ]]; then
+                    arg="Out/ByteCode/${arg}.cerabc"
+                fi
             fi
+            NEW_ARGS+=("$arg")
         done
         
         "$SCRIPT_DIR/ceravm" "${NEW_ARGS[@]}"

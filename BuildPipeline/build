@@ -18,8 +18,10 @@ echo "Initiating build sequence for Cera ${VERSION}..."
 # =========================================================================
 # 1. Directory Structure Initialization
 # =========================================================================
+echo "Cleaning up previous build artifacts..."
+rm -rf cera-*
+
 echo "Creating release directories..."
-rm -rf $WIN_DIR $LINUX_DIR
 mkdir -p $WIN_DIR/bin $WIN_DIR/lib
 mkdir -p $LINUX_DIR/bin $LINUX_DIR/lib
 

@@ -35,9 +35,7 @@ hidden def printMap(data: int arr, row: int): unit = {
     if (row < chunkHeight) {
         printRow(data, row * chunkWidth, 0);
         printMap(data, row + 1); // Implicit Tail Call Optimization
-    } else {
-        ();
-    }
+    } 
 }
 
 def entry(args: char list arr): int = {

@@ -165,6 +165,183 @@ static void *run_worker(void *arg)
     return NULL;
 }
 
+static void *run_pool_worker(void *arg)
+{
+    PoolWorkerState *state = (PoolWorkerState *)arg;
+    PoolSharedState *shared = state->shared;
+
+    current_arena = malloc(sizeof(ThreadArena));
+    current_arena->capacity = 256 * 1024 * 1024;
+    current_arena->base = malloc(current_arena->capacity);
+    current_arena->current = current_arena->base;
+    state->arena_ptr = current_arena;
+
+    VM local_vm;
+    local_vm.stack_top = local_vm.stack;
+    local_vm.frame_count = 0;
+    local_vm.active_module = shared->active_module;
+    local_vm.open_upvalues = NULL;
+
+    while (1)
+    {
+        int task_idx = atomic_fetch_add(&shared->task_counter, 1);
+        
+        if (task_idx >= shared->total_tasks) break;
+
+        CeraValue closure_val;
+        closure_val.tag = VAL_CLOSURE;
+        closure_val.as.obj = (Obj *)shared->mapped_func;
+
+        push(&local_vm, closure_val);
+        push(&local_vm, shared->input_array[task_idx]); 
+
+        CallFrame *frame = &local_vm.frames[local_vm.frame_count++];
+        frame->closure = shared->mapped_func;
+        frame->function_index = shared->mapped_func->function_index;
+
+        CompiledFunction *func = &shared->active_module->functions[frame->function_index];
+        frame->ip = func->code;
+        frame->slots = local_vm.stack_top - 2;
+
+        runVM(&local_vm);
+
+        CeraValue mapped_res = pop(&local_vm);
+
+        current_arena = NULL;
+        CeraValue permanent_res = migrate_value(mapped_res);
+        release(mapped_res);
+
+        shared->result_array[task_idx] = permanent_res; 
+
+        current_arena = state->arena_ptr;
+        current_arena->current = current_arena->base;
+    }
+
+    return NULL;
+}
+
+static void *run_invoke_worker(void *arg)
+{
+    InvokeWorkerState *state = (InvokeWorkerState *)arg;
+    current_arena = malloc(sizeof(ThreadArena));
+    current_arena->capacity = 256 * 1024 * 1024;
+    current_arena->base = malloc(current_arena->capacity);
+    current_arena->current = current_arena->base;
+    state->arena_ptr = current_arena;
+
+    VM local_vm;
+    local_vm.stack_top = local_vm.stack;
+    local_vm.frame_count = 0;
+    local_vm.active_module = state->active_module;
+    local_vm.open_upvalues = NULL;
+
+    CeraValue closure_val;
+    closure_val.tag = VAL_CLOSURE;
+    closure_val.as.obj = (Obj *)state->func;
+
+    CeraValue unit_val;
+    unit_val.tag = VAL_UNIT;
+    unit_val.as.int_val = 0;
+
+    push(&local_vm, closure_val);
+    push(&local_vm, unit_val);
+
+    CallFrame *frame = &local_vm.frames[local_vm.frame_count++];
+    frame->closure = state->func;
+    frame->function_index = state->func->function_index;
+    CompiledFunction *func = &state->active_module->functions[frame->function_index];
+    
+    frame->ip = func->code;
+    frame->slots = local_vm.stack_top - 2;
+
+    runVM(&local_vm);
+
+    CeraValue res = pop(&local_vm);
+    current_arena = NULL;
+    state->result = migrate_value(res);
+    release(res);
+
+    return NULL;
+}
+
+static void *run_fold_worker(void *arg)
+{
+    FoldWorkerState *state = (FoldWorkerState *)arg;
+    current_arena = malloc(sizeof(ThreadArena));
+    current_arena->capacity = 256 * 1024 * 1024;
+    current_arena->base = malloc(current_arena->capacity);
+    current_arena->current = current_arena->base;
+    state->arena_ptr = current_arena;
+
+    VM local_vm;
+    local_vm.stack_top = local_vm.stack;
+    local_vm.frame_count = 0;
+    local_vm.active_module = state->active_module;
+    local_vm.open_upvalues = NULL;
+
+    CeraValue acc = state->init_val;
+    retain(acc);
+
+    ObjList *current_node = state->chunk_head;
+
+    for (int i = 0; i < state->chunk_size; i++)
+    {
+        if (current_node == NULL) break;
+
+        CeraValue closure_val;
+        closure_val.tag = VAL_CLOSURE;
+        closure_val.as.obj = (Obj *)state->func;
+
+        push(&local_vm, closure_val);
+
+        ObjTuple *pair = (ObjTuple *)allocateObject(sizeof(ObjTuple), VAL_TUPLE);
+        pair->length = 2;
+        pair->elements = malloc(sizeof(CeraValue) * 2);
+        pair->elements[0] = acc;
+        pair->elements[1] = current_node->head;
+
+        retain(acc);
+        retain(current_node->head);
+
+        CeraValue tuple_val;
+        tuple_val.tag = VAL_TUPLE;
+        tuple_val.as.obj = (Obj *)pair;
+
+        push(&local_vm, tuple_val); 
+
+        CallFrame *frame = &local_vm.frames[local_vm.frame_count++];
+        frame->closure = state->func;
+        frame->function_index = state->func->function_index;
+
+        CompiledFunction *func = &state->active_module->functions[frame->function_index];
+        frame->ip = func->code;        
+        frame->slots = local_vm.stack_top - 2; 
+
+        runVM(&local_vm);
+
+        CeraValue raw_res = pop(&local_vm);
+
+        current_arena = NULL;
+        CeraValue permanent_res = migrate_value(raw_res);
+
+        release(acc);          
+        acc = permanent_res;   
+        retain(acc);           
+        release(raw_res);      
+
+        current_arena = state->arena_ptr;
+        current_arena->current = current_arena->base;
+
+        current_node = (ObjList *)current_node->tail.as.obj;
+    }
+
+    current_arena = NULL;
+    state->result = migrate_value(acc);
+    release(acc);
+
+    return NULL;
+}
+
 static void pin_value(CeraValue val)
 {
     if (!IS_OBJ(val) || val.as.obj == NULL)
@@ -1101,6 +1278,277 @@ int execute_intrinsic(VM *vm, uint8_t intrinsic_id)
 
         push(vm, final_list);
 
+        return 0;
+    }
+
+    case INTR_THREADED_MAP_POOLED:
+    {
+        CeraValue closure_val = pop(vm);
+        CeraValue threads_val = pop(vm);
+        CeraValue list_val = pop(vm);
+
+        ObjClosure *mapped_func = (ObjClosure *)closure_val.as.obj;
+        ObjList *target_list = (ObjList *)list_val.as.obj;
+        int requested_threads = (int)threads_val.as.int_val;
+
+        int len = 0;
+        ObjList *curr = target_list;
+        while (curr != NULL)
+        {
+            len++;
+            curr = (ObjList *)curr->tail.as.obj;
+        }
+
+        if (len == 0)
+        {
+            push(vm, list_val);
+            release(closure_val);
+            return 0;
+        }
+
+        int num_threads = 1; 
+        if (requested_threads > 1) {
+            if (requested_threads > max_system_threads) {
+                log_warning("Requested %d threads exceeds logical hardware limit (%d). Clamping allocation to prevent CPU thrashing.", 
+                    requested_threads, max_system_threads);
+            }
+
+            int active = atomic_load(&global_active_threads);
+            if (active < max_system_threads) {
+                num_threads = (len < requested_threads) ? len : requested_threads;
+                
+                if (active + num_threads > max_system_threads) {
+                    num_threads = max_system_threads - active;
+                }
+            }
+        }
+
+        atomic_fetch_add(&global_active_threads, num_threads);
+
+        CeraValue *input_array = malloc(sizeof(CeraValue) * len);
+        CeraValue *result_array = malloc(sizeof(CeraValue) * len);
+        
+        curr = target_list;
+        for (int i = 0; i < len; i++) {
+            input_array[i] = curr->head;
+            curr = (ObjList *)curr->tail.as.obj;
+        }
+
+        PoolSharedState shared;
+        shared.input_array = input_array;
+        shared.result_array = result_array;
+        atomic_init(&shared.task_counter, 0); // Start at index 0
+        shared.total_tasks = len;
+        shared.mapped_func = mapped_func;
+        shared.active_module = vm->active_module;
+
+        pthread_t threads[num_threads];
+        PoolWorkerState states[num_threads];
+
+        pin_value(closure_val);
+        pin_value(list_val);
+
+        for (int i = 0; i < num_threads; i++) {
+            states[i].shared = &shared;
+            pthread_create(&threads[i], NULL, run_pool_worker, &states[i]);
+        }
+
+        for (int i = 0; i < num_threads; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+        atomic_fetch_sub(&global_active_threads, num_threads);
+
+        CeraValue current_tail;
+        current_tail.tag = VAL_LIST;
+        current_tail.as.obj = NULL;
+
+        for (int i = len - 1; i >= 0; i--) {
+            ObjList *node = (ObjList *)allocateObject(sizeof(ObjList), VAL_LIST);
+            node->head = result_array[i];
+            node->tail = current_tail;
+            
+            current_tail.tag = VAL_LIST;
+            current_tail.as.obj = (Obj *)node;
+        }
+
+        unpin_value(closure_val);
+        unpin_value(list_val);
+
+        for (int i = 0; i < num_threads; i++) {
+            free(states[i].arena_ptr->base);
+            free(states[i].arena_ptr);
+        }
+        
+        free(input_array);
+        free(result_array);
+
+        release(list_val);
+        release(closure_val);
+
+        push(vm, current_tail);
+        return 0;
+    }
+
+    case INTR_THREADED_INVOKE:
+    {
+        CeraValue f2_val = pop(vm);
+        CeraValue f1_val = pop(vm);
+        
+        InvokeWorkerState state1 = { (ObjClosure *)f1_val.as.obj, vm->active_module, NULL, {0} };
+        InvokeWorkerState state2 = { (ObjClosure *)f2_val.as.obj, vm->active_module, NULL, {0} };
+
+        atomic_fetch_add(&global_active_threads, 2);
+        
+        pthread_t thread1, thread2;
+        pin_value(f1_val);
+        pin_value(f2_val);
+
+        pthread_create(&thread1, NULL, run_invoke_worker, &state1);
+        pthread_create(&thread2, NULL, run_invoke_worker, &state2);
+
+        pthread_join(thread1, NULL);
+        pthread_join(thread2, NULL);
+        
+        atomic_fetch_sub(&global_active_threads, 2);
+
+        ObjTuple *tuple = (ObjTuple *)allocateObject(sizeof(ObjTuple), VAL_TUPLE);
+        tuple->length = 2;
+        tuple->elements = malloc(sizeof(CeraValue) * 2);
+        tuple->elements[0] = state1.result;
+        tuple->elements[1] = state2.result;
+
+        unpin_value(f1_val);
+        unpin_value(f2_val);
+        release(f1_val);
+        release(f2_val);
+        
+        free(state1.arena_ptr->base); free(state1.arena_ptr);
+        free(state2.arena_ptr->base); free(state2.arena_ptr);
+
+        CeraValue res;
+        res.tag = VAL_TUPLE;
+        res.as.obj = (Obj *)tuple;
+        push(vm, res);
+        return 0;
+    }
+
+    case INTR_THREADED_FOLD:
+    {
+        CeraValue closure_val = pop(vm);
+        CeraValue init_val = pop(vm);
+        CeraValue threads_val = pop(vm);
+        CeraValue list_val = pop(vm);
+
+        ObjClosure *func = (ObjClosure *)closure_val.as.obj;
+        ObjList *target_list = (ObjList *)list_val.as.obj;
+        int requested_threads = (int)threads_val.as.int_val;
+
+        int len = 0;
+        ObjList *curr = target_list;
+        while (curr != NULL) { len++; curr = (ObjList *)curr->tail.as.obj; }
+
+        if (len == 0)
+        {
+            push(vm, init_val);
+            release(closure_val);
+            release(list_val);
+            return 0;
+        }
+
+        int num_threads = 1; 
+        if (requested_threads > 1) {
+            if (requested_threads > max_system_threads) {
+                log_warning("Requested %d threads exceeds logical hardware limit.", requested_threads);
+            }
+            int active = atomic_load(&global_active_threads);
+            if (active < max_system_threads) {
+                num_threads = (len < requested_threads) ? len : requested_threads;
+                if (active + num_threads > max_system_threads) {
+                    num_threads = max_system_threads - active;
+                }
+            }
+        }
+
+        atomic_fetch_add(&global_active_threads, num_threads);
+
+        int chunk_size = len / num_threads;
+        int remainder = len % num_threads;
+
+        pthread_t threads[num_threads];
+        FoldWorkerState states[num_threads];
+
+        pin_value(closure_val);
+        pin_value(list_val);
+        pin_value(init_val); 
+
+        ObjList *chunk_start = target_list;
+        for (int i = 0; i < num_threads; i++)
+        {
+            states[i].func = func;
+            states[i].active_module = vm->active_module;
+            states[i].chunk_head = chunk_start;
+            states[i].chunk_size = chunk_size + (i < remainder ? 1 : 0);
+            states[i].init_val = init_val;
+
+            pthread_create(&threads[i], NULL, run_fold_worker, &states[i]);
+
+            for (int j = 0; j < states[i].chunk_size; j++) {
+                if (chunk_start != NULL) chunk_start = (ObjList *)chunk_start->tail.as.obj;
+            }
+        }
+
+        for (int i = 0; i < num_threads; i++) {
+            pthread_join(threads[i], NULL);
+        }
+        
+        atomic_fetch_sub(&global_active_threads, num_threads);
+
+        ObjList *final_list = NULL;
+        for (int i = num_threads - 1; i >= 0; i--) {
+            ObjList *node = malloc(sizeof(ObjList)); 
+            node->head = states[i].result;
+            node->tail.tag = VAL_LIST;
+            node->tail.as.obj = (Obj*)final_list;
+            final_list = node;
+        }
+
+        FoldWorkerState master_state;
+        master_state.func = func;
+        master_state.active_module = vm->active_module;
+        master_state.chunk_head = final_list;
+        master_state.chunk_size = num_threads;
+        master_state.init_val = init_val;
+
+        pthread_t master_fold_thread;
+        pthread_create(&master_fold_thread, NULL, run_fold_worker, &master_state);
+        pthread_join(master_fold_thread, NULL);
+
+        ObjList *curr_cleanup = final_list;
+        while (curr_cleanup != NULL) {
+            ObjList *next = (ObjList*)curr_cleanup->tail.as.obj;
+            free(curr_cleanup);
+            curr_cleanup = next;
+        }
+
+        // Cleanup all worker arenas
+        for (int i = 0; i < num_threads; i++) {
+            free(states[i].arena_ptr->base);
+            free(states[i].arena_ptr);
+        }
+        
+        free(master_state.arena_ptr->base);
+        free(master_state.arena_ptr);
+
+        unpin_value(init_val);
+        unpin_value(closure_val);
+        unpin_value(list_val);
+
+        release(init_val);
+        release(closure_val);
+        release(list_val);
+
+        push(vm, master_state.result);
         return 0;
     }
 

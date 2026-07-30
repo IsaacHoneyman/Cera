@@ -32,7 +32,8 @@ public partial class Analyzer
             "rand", "randInt", "sqrt", "append",
             "time", "timeLocal", "uptime",
             "ln", "pow", "base", "exp",
-            "threadedMap", "threads"
+            "threadedMap", "threadedMapPooled", "threads",
+            "threadedInvoke", "f1", "f2", "threadedFold", "init"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
@@ -245,5 +246,38 @@ public partial class Analyzer
                 ]), 
                 new ListType(hType)),
             3, [gParamToken, hParamToken]);
+
+        // threadedMapInter<g, h>(lst: g list, threads: int, f: g -> h) : h list
+        DefineIntrinsic("threadedMapPooled", IntrinsicId.ThreadedMap,
+            new FuncType(
+                new TupleType([
+                    new ListType(gType), 
+                    new BaseType(intrT["int"]), 
+                    new FuncType(gType, hType)
+                ]), 
+                new ListType(hType)),
+            3, [gParamToken, hParamToken]);
+
+        // threadedInvoke<g, h>(f1: unit -> g, f2: unit -> h) : (g * h)
+        DefineIntrinsic("threadedInvoke", IntrinsicId.ThreadedInvoke,
+            new FuncType(
+                new TupleType([
+                    new FuncType(new BaseType(intrT["unit"]), gType), 
+                    new FuncType(new BaseType(intrT["unit"]), hType)
+                ]), 
+                new TupleType([gType, hType])),
+            2, [gParamToken, hParamToken]);
+
+        // threadedFold<g>(lst: g list, threads: int, init: g, f: (g * g) -> g) : g
+        DefineIntrinsic("threadedFold", IntrinsicId.ThreadedFold,
+            new FuncType(
+                new TupleType([
+                    new ListType(gType), 
+                    new BaseType(intrT["int"]), 
+                    gType, 
+                    new FuncType(new TupleType([gType, gType]), gType)
+                ]), 
+                gType),
+            4, [gParamToken]);
     }
 }

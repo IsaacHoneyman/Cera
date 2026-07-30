@@ -413,6 +413,14 @@ Finally, the list of built-in functions:
     \item \textbf{Write Binary:} \texttt{writeBin(path: char list, data: int arr) : result<unit, char list>} (writes an integer array as raw bytes).
     \item \textbf{Natural Logarithm:} \texttt{ln(x: float) : float} (computes $n$-dimensional natural logarithm $\ln(x)$ via FPU).
     \item \textbf{Floating-Point Power:} \texttt{pow(base: float, exp: float) : float} (computes floating-point exponentiation $\text{base}^{\text{exp}}$).
+    \item \textbf{Threaded Map:} \texttt{threadedMap<g, h>(lst: g list, threads: int, f: g -> h) : h list} 
+    (Elements are distributed in contiguous blocks across the specified number of threads).
+    \item \textbf{Pooled Threaded Map:} \texttt{threadedMapPooled<g, h>(lst: g list, threads: int, f: g -> h) : h list} 
+(Elements are processed dynamically via an atomic lock-free work queue, ensuring perfect $O(1)$ load balancing across active CPU cores).
+    \item \textbf{Threaded Invoke:} \texttt{threadedInvoke<g, h>(f1: unit -> g, f2: unit -> h) : (g * h)} 
+    (Executes two independent thunks concurrently via Task Parallelism, returning their results as a tuple).
+    \item \textbf{Threaded Fold:} \texttt{threadedFold<g>(lst: g list, threads: int, init: g, f: (g * g) -> g) : g} 
+    (Executes a parallel reduction across the list by statically chunking the data. The closure \texttt{f} must mathematically be an associative operator).
 \end{itemize}
 
 % =========================================================================
@@ -939,6 +947,19 @@ To preserve pure functional paradigms while allowing interaction with the host o
 \end{itemize}
 
 % =========================================================================
+\subsection{Concurrency and Dynamic Task Pooling}
+% =========================================================================
+\noindent
+To maximize hardware utilization for computationally expensive tasks, CeraVM introduces native multi-threading via high-level concurrency intrinsics. The architecture completely abstracts OS-level thread management away from the Cera programmer, operating on a strictly managed dynamic scheduling model.
+
+\begin{itemize}
+    \item \textbf{Hardware Abstraction:} To prevent Context-Switch thrashing and system resource exhaustion, CeraVM utilizes POSIX libraries to dynamically query the host operating system for available logical CPU cores during initialization. Thread allocations are strictly clamped to this hardware ceiling, ensuring optimal execution regardless of the host environment.
+    \item \textbf{Atomic Work Queues:} Instead of utilizing static data partitioning (which suffers from severe load-imbalance during asymmetric workloads), CeraVM implements a lock-free Dynamic Task Pool. Worker threads utilize hardware-level \texttt{atomic\_fetch\_add} instructions to dynamically ``steal'' execution indices from a shared array. This guarantees perfect load balancing and 100\% core utilization without the overhead of mutex locks.
+    \item \textbf{Thread-Local Memory Arenas:} Traditional multithreading introduces massive latency when multiple threads attempt to lock the shared operating system heap (e.g., via \texttt{malloc}). CeraVM bypasses this entirely by dynamically provisioning isolated 256MB bump-allocator arenas for every spawned worker thread. 
+    \item \textbf{Value Migration:} Because worker threads allocate data in their isolated memory arenas, these structures cannot safely outlive the thread's execution. Before a thread joins, its localized results undergo a deep-copy structural migration back to the primary VM heap. This enforces a strict separation of memory spaces, completely immunizing the VM against data races and segmentation faults.
+\end{itemize}
+
+% =========================================================================
 \section{Command Line Interface and Usage}
 % =========================================================================
 \noindent
@@ -1011,11 +1032,13 @@ The inital release of the Cera functional programming language.
 % =========================================================================
 \subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
 \begin{itemize}
-    \item \textbf{VM refactor: } Refactored virtual machine memory allocation and diagnostic tools, and small bug fixes. 
+    \item \textbf{Concurrency Integration:} Introduced native multithreading capabilities via the new \texttt{threaded} intrinsics. This architecture leverages thread-local memory arenas and automatic value migration to achieve $O(1)$ allocation speeds without locking the primary VM heap. Implemented an Atomic Work Queue (Dynamic Task Pool) to guarantee 100\% CPU utilization and perfect load balancing for complex, asymmetric compute tasks, eliminating the sequential allocation bottlenecks of static scheduling.
+    \item \textbf{Static Global Dispatch: } Implemented static routing for top-level named functions. By bypassing the dynamic allocation of \texttt{ObjClosure} objects on the heap, global calls now execute directly from the stack, drastically reducing fetch-decode overhead and eliminating garbage collection pressure.
+    \item \textbf{VM refactor: } Refactored virtual machine memory allocation and diagnostic tools. 
     \item \textbf{Instruction Fusion: } Replaced the legacy \texttt{MATCH\_TAG} pattern-matching pipeline with a singular \texttt{JUMP\_IF\_NOT\_TAG} superinstruction. Expanded this architecture to include \texttt{JUMP\_IF\_NOT\_LIST\_EMPTY} and \texttt{JUMP\_IF\_NOT\_ARRAY\_LENGTH}, eliminating redundant stack manipulations and accelerating structural traversals.
     \item \textbf{ALU Fast-Paths:} Implemented \texttt{OP\_ADD\_1} and \texttt{OP\_SUB\_1} to optimize iteration counters. Implemented Fused Relational Jumps (e.g., \texttt{OP\_JUMP\_IF\_FALSE\_LT}) to compute boolean expressions and branch control flow in a single, non-allocating instruction cycle.
-    \item \textbf{Static Global Dispatch: } Implemented static routing for top-level named functions. By bypassing the dynamic allocation of \texttt{ObjClosure} objects on the heap, global calls now execute directly from the stack, drastically reducing fetch-decode overhead and eliminating garbage collection pressure.
     \item \textbf{Memory Fast-Paths:} \texttt{OP\_JUMP\_IF\_LOCAL\_NOT\_EQ\_CONST}, comparing local slots directly against the constant pool without pushing them to the stack.
+    \item \textbf{VM \& Compiler Bug Fixes: } Bug fixes, including VM message colours, and lambda unit usage.
 \end{itemize}
 % =========================================================================
 
@@ -1052,7 +1075,6 @@ A similar section, instead covering attempts to improve the speed of Language.
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
     \item \textbf{Default Function Values:} Similar to C\#, with \texttt{param : type = value}.
-    \item \textbf{Concurrency:} As Cera is a functional language, a multithreaded model would fit the language perfectly, and shall come in a later version.
     \item \textbf{Record:} Simply an immutable tuple under the hood, but offers named fields for each part, allowing for syntax such as \texttt{coord.x} or \texttt{coord -> x} (to be decided).
     \item \textbf{FFI:} Expansion of intrinsics to allow for .so and .ddl files to be managed at runtime.
 \end{itemize}

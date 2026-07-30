@@ -20,6 +20,14 @@ if "%FILE%"=="" (
     exit /b 1
 )
 
+:: Auto-append .cera for build and exec commands if the file doesn't exist
+if "%COMMAND%"=="build" (
+    if not exist "%FILE%" if exist "%FILE%.cera" set FILE=%FILE%.cera
+)
+if "%COMMAND%"=="exec" (
+    if not exist "%FILE%" if exist "%FILE%.cera" set FILE=%FILE%.cera
+)
+
 :: Isolate the filename for pathing the bytecode output
 for %%F in ("%FILE%") do set BASENAME=%%~nF
 set BYTECODE_FILE=Out\ByteCode\%BASENAME%.cerabc
@@ -92,11 +100,15 @@ shift
 if "%~1"=="" goto RunExec
 set "ARG=%~1"
 
-:: If arg is not a flag, not a local file, but exists in Out\ByteCode\, map it
+:: If arg is not a flag, not a local file, try extensions and Out\ByteCode\
 if not "%ARG:~0,1%"=="-" (
     if not exist "%ARG%" (
-        if exist "Out\ByteCode\%ARG%" (
+        if exist "%ARG%.cerabc" (
+            set "ARG=%ARG%.cerabc"
+        ) else if exist "Out\ByteCode\%ARG%" (
             set "ARG=Out\ByteCode\%ARG%"
+        ) else if exist "Out\ByteCode\%ARG%.cerabc" (
+            set "ARG=Out\ByteCode\%ARG%.cerabc"
         )
     )
 )
@@ -108,6 +120,7 @@ goto RunLoop
 :RunExec
 "%SCRIPT_DIR%ceravm.exe" %RUN_ARGS%
 goto :EOF
+
 :Exec
 :: Build the source file
 "%SCRIPT_DIR%cerac.exe" "%FILE%"

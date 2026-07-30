@@ -192,6 +192,9 @@ typedef enum {
 
     // --- Multithreading ---
     INTR_THREADED_MAP = 0x40,
+    INTR_THREADED_MAP_POOLED = 0x41,
+    INTR_THREADED_INVOKE = 0x42,
+    INTR_THREADED_FOLD = 0x43,
 
 } IntrinsicId;
 

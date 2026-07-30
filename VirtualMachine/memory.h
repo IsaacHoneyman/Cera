@@ -3,6 +3,7 @@
 
 #include "value.h"
 #include <stddef.h>
+#include <stdatomic.h>
 
 #define IS_OBJ(value) ((value).tag >= VAL_STRING)
 #define AS_OBJ(value) ((value).as.obj)
@@ -12,6 +13,37 @@ typedef struct {
     uint8_t* current;
     size_t capacity;
 } ThreadArena;
+
+typedef struct {
+    CeraValue *input_array;
+    CeraValue *result_array;
+    atomic_int task_counter;
+    int total_tasks;
+    ObjClosure *mapped_func; 
+    Module *active_module;   
+} PoolSharedState;
+
+typedef struct {
+    PoolSharedState *shared;
+    ThreadArena *arena_ptr;
+} PoolWorkerState;
+
+typedef struct {
+    ObjClosure *func;
+    Module *active_module;
+    ThreadArena *arena_ptr;
+    CeraValue result;
+} InvokeWorkerState;
+
+typedef struct {
+    ObjClosure *func;
+    Module *active_module;
+    ThreadArena *arena_ptr;
+    ObjList *chunk_head;
+    int chunk_size;
+    CeraValue init_val;
+    CeraValue result;
+} FoldWorkerState;
 
 extern _Thread_local ThreadArena* current_arena;
 

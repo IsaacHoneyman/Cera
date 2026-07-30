@@ -180,19 +180,25 @@ hidden def renderRow(x: int, y: int, width: int, height: int, hWidth: float, hHe
     }
 }
 
-def renderScreen(width: int, height: int, hWidth: float, hHeight: float, depth: int, shadowSamples: int, aaSamples: int, scn: scene) : unit = {    
+def renderScreen(width: int, height: int, hWidth: float, hHeight: float, depth: int, shadowSamples: int, aaSamples: int, scn: scene, startTime: int) : unit = {    
     outN("Spawning worker threads for concurrent rendering...");
     
     var ys: int list = generateRange(height - 1, 0, []);
     
-    var rowPixels: char list list = threadedMap(ys, 12, func (y: int) : char list = {
+    var percentStep: int = height / 40;
+    
+    var rowPixels: char list list = threadedMapPooled(ys, 12, func (y: int) : char list = {        
         renderRow(0, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn, "");
     });
-    
+
+    var endTime = uptime();
+    outFN("Caculation completed in % seconds (%ms)", [intToChars((endTime - startTime) / 1000), intToChars(endTime - startTime)]);    
     outN("Threads joined. Stitching image data...");
     
-    var finalImage: char list = foldLeft(rowPixels, func (acc: char list, row: char list) : char list = {
-    concat(acc, row); }, "");
+    var finalImage: char list = threadedFold(rowPixels, 12, "", func (pair: (char list * char list)) : char list = {
+        var (acc, row) = pair;
+        concat(acc, row); 
+    });
     
     append("Out/image.ppm", finalImage);
     

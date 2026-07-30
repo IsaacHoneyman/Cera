@@ -41,5 +41,8 @@ public enum IntrinsicId : byte
     FloatPow = 0x37,
 
     // --- Multithreading ---
-    ThreadedMap = 0x40
+    ThreadedMap = 0x40,
+    ThreadedMapPooled = 0x41,
+    ThreadedInvoke = 0x42,
+    ThreadedFold = 0x43,
 }

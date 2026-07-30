@@ -37,7 +37,7 @@ def entry(args: char list arr) : int = {
             1; // Return failure code
         },
         Ok(u) -> {
-            renderScreen(width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn);
+            renderScreen(width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn, startTime);
             
             var endTime = uptime();
             outFN("Render completed in % seconds (%ms)", [intToChars((endTime - startTime) / 1000), intToChars(endTime - startTime)]);

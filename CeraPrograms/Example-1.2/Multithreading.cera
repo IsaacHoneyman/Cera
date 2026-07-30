@@ -1,0 +1,77 @@
+// A pure recursive helper function to output lists cleanly
+def printIntList(lst: int list) : unit = {
+    switch (lst) {
+        [] -> out("\n"),
+        (h::t) -> {
+            out(intToChars(h));
+            out(" ");
+            printIntList(t);
+        }
+    }
+}
+
+def entry(args: char list arr) : int = {
+    out("--- CeraVM Concurrent Execution Test Suite ---\n");
+    
+    // ---------------------------------------------------------
+    // 1. Task Parallelism (Asymmetric Execution)
+    // ---------------------------------------------------------
+    out("\n[1] Testing threadedInvoke (Task Parallelism)...\n");
+    
+    // Cera automatically evaluates 0-arity functions as taking a unit parameter.
+    // threaded1 evaluates to (unit -> int), threaded2 evaluates to (unit -> float).
+    var (x, y) = threadedInvoke(threaded1, threaded2);
+    
+    out("Thread 1 (int): "); out(intToChars(x)); out("\n");
+    out("Thread 2 (float): "); out(floatToChars(y)); out("\n");
+    
+    // ---------------------------------------------------------
+    // Setup Dataset for Data Parallelism
+    // ---------------------------------------------------------
+    var data: int list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    var threads: int = 4;
+    out("\nOriginal Dataset: "); printIntList(data);
+    
+    // ---------------------------------------------------------
+    // 2. Static Data Parallelism (Threaded Map)
+    // ---------------------------------------------------------
+    out("\n[2] Testing threadedMap (Static Chunk Scheduling)...\n");
+    var doubled: int list = threadedMap(data, threads, func(v: int) : int = v * 2);
+    out("Mapped (x2): "); printIntList(doubled);
+    
+    // ---------------------------------------------------------
+    // 3. Dynamic Data Parallelism (Threaded Map Pooled)
+    // ---------------------------------------------------------
+    out("\n[3] Testing threadedMapPooled (Atomic Work Queue)...\n");
+    var squared: int list = threadedMapPooled(data, threads, func(v: int) : int = v * v);
+    out("Pooled (x^2): "); printIntList(squared);
+    
+    // ---------------------------------------------------------
+    // 4. Parallel Reduction (Threaded Fold)
+    // ---------------------------------------------------------
+    out("\n[4] Testing threadedFold (Parallel Reduction)...\n");
+    
+    // The lambda strictly expects an explicitly typed tuple (g * g) 
+    // and unpacks it using Cera's native pattern bindings.
+    var sum: int = threadedFold(data, threads, 0, func(pair: (int * int)) : int = {
+        var (acc, val) = pair;
+        acc + val;
+    });
+    
+    out("Folded Sum: "); out(intToChars(sum)); out("\n");
+    
+    out("\nMultithreading suite completed successfully!\n");
+    0; // Return exit code 0 to the host OS
+}
+
+// ---------------------------------------------------------
+// Top-Level Task Functions
+// ---------------------------------------------------------
+
+def threaded1() : int = {
+    42;
+}
+
+def threaded2() : float = {
+    3.141592;
+}

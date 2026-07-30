@@ -163,10 +163,12 @@ public partial class Analyzer
 
         currentEnv = currentEnv.Parent;
 
-        return new FuncType(
-            paramTypes.Count == 1 ? paramTypes[0] : new TupleType(paramTypes),
-            lambda.ReturnType
-        );
+        ITypeAST expectedParamType;
+        if (paramTypes.Count == 0) expectedParamType = new BaseType(intrT["unit"]);
+        else if (paramTypes.Count == 1) expectedParamType = paramTypes[0];
+        else expectedParamType = new TupleType(paramTypes);
+
+        return new FuncType(expectedParamType, lambda.ReturnType);
     }
 
     private ITypeAST AnalyzeCall(CallExpr call)
