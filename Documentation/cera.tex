@@ -1011,7 +1011,7 @@ The inital release of the Cera functional programming language.
 % =========================================================================
 \subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
 \begin{itemize}
-    \item \textbf{VM refactor: } Refactored virtual machine memory allocation and diagnostic tools. 
+    \item \textbf{VM refactor: } Refactored virtual machine memory allocation and diagnostic tools, and small bug fixes. 
     \item \textbf{Instruction Fusion: } Replaced the legacy \texttt{MATCH\_TAG} pattern-matching pipeline with a singular \texttt{JUMP\_IF\_NOT\_TAG} superinstruction. Expanded this architecture to include \texttt{JUMP\_IF\_NOT\_LIST\_EMPTY} and \texttt{JUMP\_IF\_NOT\_ARRAY\_LENGTH}, eliminating redundant stack manipulations and accelerating structural traversals.
     \item \textbf{ALU Fast-Paths:} Implemented \texttt{OP\_ADD\_1} and \texttt{OP\_SUB\_1} to optimize iteration counters. Implemented Fused Relational Jumps (e.g., \texttt{OP\_JUMP\_IF\_FALSE\_LT}) to compute boolean expressions and branch control flow in a single, non-allocating instruction cycle.
     \item \textbf{Static Global Dispatch: } Implemented static routing for top-level named functions. By bypassing the dynamic allocation of \texttt{ObjClosure} objects on the heap, global calls now execute directly from the stack, drastically reducing fetch-decode overhead and eliminating garbage collection pressure.

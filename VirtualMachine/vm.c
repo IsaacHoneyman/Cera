@@ -1,18 +1,40 @@
+#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <ctype.h>
 #include "vm.h"
 #include "memory.h"
 #include "logger.h"
 #include "intrinsic.h"
+#ifdef _WIN32 
+#include <windows.h>
+#endif
 
 // #define DEBUG_TRACE_EXECUTION // to comment out for actual builds
 
 void initVM(VM *vm, Module *module, int argc, char **argv)
 {
     log_info("Initializing Virtual Machine execution state...");
+
+    extern int max_system_threads; 
+    if (max_system_threads == 0) {
+#ifdef _WIN32
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        max_system_threads = sysinfo.dwNumberOfProcessors;
+#elif defined(_SC_NPROCESSORS_ONLN)
+        max_system_threads = (int)sysconf(_SC_NPROCESSORS_ONLN);
+#else
+        max_system_threads = 4; // Safe universal fallback
+#endif
+        if (max_system_threads < 1) max_system_threads = 4; 
+    }
+    log_info("Hardware thread limit dynamically set to: %d", max_system_threads);
 
     srand((unsigned int)time(NULL));
 
@@ -351,8 +373,6 @@ int runVM(VM *vm)
 {
     CallFrame *frame = &vm->frames[vm->frame_count - 1];
     CompiledFunction *active_function = get_function(vm->active_module, frame->function_index);
-
-    log_info("--- Execution Started ---");
 
     for (;;)
     {

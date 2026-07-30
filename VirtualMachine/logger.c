@@ -23,7 +23,7 @@ void init_logger()
     dump_file = fopen(filepath, "w");
     if (dump_file == NULL)
     {
-        fprintf(stderr, ANSI_COLOR_RED "[Error] Could not create dump file: %s" ANSI_COLOR_RESET "\n", filepath);
+        fprintf(stderr, ANSI_COLOR_RED "[Error] Could not create dump file: %s" ANSI_COLOR_WHITE "\n", filepath);
     }
 }
 
@@ -58,7 +58,7 @@ void log_info(const char *format, ...)
 
     printf(ANSI_COLOR_WHITE);
     vprintf(format, args);
-    printf(ANSI_COLOR_RESET "\n");
+    printf(ANSI_COLOR_WHITE "\n");
 }
 
 void log_detail(const char *format, ...)
@@ -86,7 +86,7 @@ void log_detail(const char *format, ...)
 
     printf(ANSI_COLOR_WHITE);
     vprintf(format, args);
-    printf(ANSI_COLOR_RESET "\n");
+    printf(ANSI_COLOR_WHITE "\n");
 
     va_end(args);
 }
@@ -108,7 +108,7 @@ void log_warning(const char *format, ...)
 
     printf(ANSI_COLOR_YELLOW "[Warning] ");
     vprintf(format, args);
-    printf(ANSI_COLOR_RESET "\n");
+    printf(ANSI_COLOR_WHITE "\n");
 
     va_end(args);
 }
@@ -130,7 +130,7 @@ void log_error(const char *format, ...)
 
     fprintf(stderr, ANSI_COLOR_RED "[Error] ");
     vfprintf(stderr, format, args);
-    fprintf(stderr, ANSI_COLOR_RESET "\n");
+    fprintf(stderr, ANSI_COLOR_WHITE "\n");
 
     va_end(args);
 }
@@ -179,5 +179,5 @@ void dump_stack(CeraValue *stack, CeraValue *stack_top)
 
         printf(" ]");
     }
-    printf(ANSI_COLOR_RESET "\n");
+    printf(ANSI_COLOR_WHITE "\n");
 }

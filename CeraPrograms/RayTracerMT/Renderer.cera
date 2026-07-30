@@ -185,7 +185,7 @@ def renderScreen(width: int, height: int, hWidth: float, hHeight: float, depth: 
     
     var ys: int list = generateRange(height - 1, 0, []);
     
-    var rowPixels: char list list = threadedMap(ys, func (y: int) : char list = {
+    var rowPixels: char list list = threadedMap(ys, 12, func (y: int) : char list = {
         renderRow(0, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn, "");
     });
     

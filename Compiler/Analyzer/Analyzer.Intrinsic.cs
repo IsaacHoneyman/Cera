@@ -32,7 +32,7 @@ public partial class Analyzer
             "rand", "randInt", "sqrt", "append",
             "time", "timeLocal", "uptime",
             "ln", "pow", "base", "exp",
-            "threadedMap",
+            "threadedMap", "threads"
         })
         {
             intrT[key] = Token.BuiltIn(char.IsUpper(key[0]) ? TokenType.Constructor : TokenType.Identifier, key);
@@ -235,11 +235,15 @@ public partial class Analyzer
             new FuncType(new TupleType([new BaseType(intrT["float"]), new BaseType(intrT["float"])]), new BaseType(intrT["float"])),
             2);
 
-        // threadedMap<g, h>(lst: g list, f: g -> h) : h list
+        // threadedMap<g, h>(lst: g list, threads: int, f: g -> h) : h list
         DefineIntrinsic("threadedMap", IntrinsicId.ThreadedMap,
             new FuncType(
-                new TupleType([new ListType(gType), new FuncType(gType, hType)]), 
+                new TupleType([
+                    new ListType(gType), 
+                    new BaseType(intrT["int"]), 
+                    new FuncType(gType, hType)
+                ]), 
                 new ListType(hType)),
-            2, [gParamToken, hParamToken]);
+            3, [gParamToken, hParamToken]);
     }
 }
