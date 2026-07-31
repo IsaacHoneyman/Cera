@@ -27,3 +27,7 @@ public record ConstructorSymbol(Token DeclToken, ITypeAST ParentType, ITypeAST? 
 /// <summary> Represents a generic type parameter (like 'g') currently in scope. </summary>
 public record GenericParamSymbol(Token DeclToken) 
     : Symbol(DeclToken, null);
+
+/// <summary> Represents external FFI functions mapped to unmanaged shared libraries. </summary>
+public record ExternSymbol(Token DeclToken, ITypeAST Type, int Arity, List<ParamNode> Parameters, string LibraryPath) 
+    : Symbol(DeclToken, Type);

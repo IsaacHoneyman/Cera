@@ -434,6 +434,32 @@ public partial class Emitter
                 Locals.RemoveRange(Locals.Count - natTrackedArgs, natTrackedArgs);
                 return;
             }
+            else if (sym is ExternSymbol extSym)
+            {
+                int extTrackedArgs = 0;
+                foreach (var arg in call.Arguments)
+                {
+                    EmitExpression(arg);
+                    Locals.Add("<temp_ffi_arg>");
+                    extTrackedArgs++;
+                }
+
+                int line = idExpr.Identifier.Line;
+                int libPathIdx = CurrentChunk.AddConstant(CeraValue.String(extSym.LibraryPath));
+                int funcNameIdx = CurrentChunk.AddConstant(CeraValue.String(fName));
+
+                if (libPathIdx > ushort.MaxValue || funcNameIdx > ushort.MaxValue)
+                    FatalError("Constant pool limit exceeded for FFI strings.", idExpr.Identifier);
+
+                CurrentChunk.WriteByte(OpCode.CALL_FFI, line);
+                CurrentChunk.WriteByte((byte)call.Arguments.Count, line);
+                CurrentChunk.WriteByte((byte)(libPathIdx & 0xFF), line);
+                CurrentChunk.WriteByte((byte)((libPathIdx >> 8) & 0xFF), line);                
+                CurrentChunk.WriteByte((byte)(funcNameIdx & 0xFF), line);
+                CurrentChunk.WriteByte((byte)((funcNameIdx >> 8) & 0xFF), line);
+                Locals.RemoveRange(Locals.Count - extTrackedArgs, extTrackedArgs);
+                return;
+            }
 
             if (inlineFunctions.TryGetValue(fName, out FuncDeclNode? inlineFunc) && !curInlining.Contains(fName))
             {

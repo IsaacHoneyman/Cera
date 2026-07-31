@@ -131,6 +131,7 @@ typedef enum {
     OP_CALL_GLOBAL_LONG = 0x66, 
     OP_TAIL_CALL_GLOBAL = 0x67, 
     OP_TAIL_CALL_GLOBAL_LONG = 0x68,
+    OP_CALL_FFI = 0x69,
 
     // --- Memory & ADTs (0x70 - 0x7F) ---
     OP_ALLOC_CON = 0x70,     

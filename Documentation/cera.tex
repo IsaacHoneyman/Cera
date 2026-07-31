@@ -359,6 +359,29 @@ def entry(args: char list arr): int = {
 \end{lstlisting}
 
 % =========================================================================
+\subsection{Foreign Function Interface (FFI)}
+% =========================================================================
+\noindent
+To support real-time execution and interaction with unmanaged hardware APIs (such as graphics libraries), Cera implements a Foreign Function Interface. This architecture safely bridges Cera's pure functional memory model with unmanaged C-family shared libraries (\texttt{.so} or \texttt{.dll}).
+
+\begin{itemize}
+    \item \textbf{Declarations:} External functions are declared using the \texttt{extern} keyword. They require strict type annotations for parameters and return types, but replace the expression block with a string literal mapping to the target shared library.
+    \item \textbf{Monomorphization:} External functions cannot utilize generic type parameters. The C Application Binary Interface (ABI) requires static memory layouts, so Cera enforces strict monomorphic signatures at the FFI boundary.
+    \item \textbf{Encapsulation:} External declarations may be preceded by the \texttt{hidden} keyword to restrict the unmanaged binding to the defining file.
+\end{itemize}
+
+\begin{lstlisting}[title={FFI Binding Example}, basicstyle=\ttfamily]
+// Bind to a dynamically linked C function
+hidden extern def initWindow(w: int, h: int) : unit =
+     "cera_sdl.so";
+
+def entry(args: char list arr) : int = {
+    initWindow(800, 600);
+    0;
+}
+\end{lstlisting}
+
+% =========================================================================
 \subsection{Miscellaneous Syntax}
 % =========================================================================
 \noindent
@@ -374,7 +397,7 @@ def entry(args: char list arr): int = {
 To assist in the lexical analysis phase, the following is an exhaustive list of reserved keywords in the Cera language. These identifiers are strictly reserved by the grammar and cannot be used as variable, function, or custom type names.
 
 \begin{itemize}
-    \item \textbf{Declaration \& Binding:} \texttt{var}, \texttt{def}, \texttt{func}, \texttt{type}, \texttt{hidden}, \texttt{inline}
+    \item \textbf{Declaration \& Binding:} \texttt{var}, \texttt{def}, \texttt{func}, \texttt{type}, \texttt{hidden}, \texttt{inline}, \texttt{extern}
     \item \textbf{Control Flow:} \texttt{if}, \texttt{else}, \texttt{switch}, \texttt{import}
     \item \textbf{Primitive Types:} \texttt{int}, \texttt{float}, \texttt{bool}, \texttt{char}, \texttt{list}, \texttt{arr}, \texttt{unit}
     \item \textbf{Boolean Literals:} \texttt{true}, \texttt{false}
@@ -467,7 +490,7 @@ The DFA categorizes lexemes based on the following rules and regular expressions
 
 The following is a full list of tokens used within the lexer:
 \begin{itemize}
-    \item \textbf{Declaration: } \texttt{Var},  \texttt{Def},  \texttt{Func},  \texttt{Type} 
+    \item \textbf{Declaration: } \texttt{Var},  \texttt{Def},  \texttt{Func},  \texttt{Type}, \texttt{Extern}
     \item \textbf{Control Flow: } \texttt{If},  \texttt{Else},  \texttt{Switch},  \texttt{Import}
     \item \textbf{Primitive Types: } \texttt{Int},  \texttt{Float},  \texttt{Bool},  \texttt{Char},  \texttt{List},  \texttt{Arr},  \texttt{Unit}, \texttt{WildCard}
     \item \textbf{Literals: } \texttt{True},  \texttt{False},  \texttt{Identifier},  \texttt{Constructor},  \texttt{IntLiteral},\\\texttt{FloatLiteral},  \texttt{CharLiteral},  \texttt{StringLiteral}
@@ -531,10 +554,10 @@ The formal CFG for Cera is defined in Backus-Naur Form (BNF). To satisfy structu
 
 Are top level fundamental definitions:
 \begin{align*}
-\langle \text{File} \rangle &\Coloneqq ( \langle \text{ImportDecl} \rangle \mid \langle \text{FuncDecl} \rangle \mid \langle \text{TypeDecl} \rangle \mid \langle \text{TopVarDecl} \rangle )^* \\
-\langle \text{ImportDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \mathbf{import} \; \textbf{str\_lit} \textbf{;} \\
+\langle \text{File} \rangle &\Coloneqq ( \langle \text{ImportDecl} \rangle \mid \langle \text{FuncDecl} \rangle \mid \langle \text{ExternDecl} \rangle \mid \langle \text{TypeDecl} \rangle \mid \langle \text{TopVarDecl} \rangle )^* \\\langle \text{ImportDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \mathbf{import} \; \textbf{str\_lit} \textbf{;} \\
 \langle \text{TopVarDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \mathbf{var} \; \textbf{id} \; [ \textbf{:} \; \langle \text{Type} \rangle ] \; \mathbf{=} \; \langle \text{Literal} \rangle \textbf{;} \\
 \langle \text{FuncDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; [\mathbf{inline}] \; \mathbf{def} \; \textbf{id} \; [ \langle \text{GenericDecl} \rangle ] \; \textbf{(} [ \langle \text{Param} \rangle \: ( \textbf{,} \: \langle \text{Param} \rangle )^* ] \textbf{)} \; \textbf{:} \; \langle \text{Type} \rangle \; \mathbf{=} \; \langle \text{ExprBlock} \rangle \\
+\langle \text{ExternDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \mathbf{extern} \; \mathbf{def} \; \textbf{id} \; \textbf{(} [ \langle \text{Param} \rangle \: ( \textbf{,} \: \langle \text{Param} \rangle )^* ] \textbf{)} \; \textbf{:} \; \langle \text{Type} \rangle \; \mathbf{=} \; \textbf{str\_lit} \textbf{;} \\
 \langle \text{TypeDecl} \rangle &\Coloneqq [\mathbf{hidden}] \; \textbf{type} \; \textbf{id} \; [ \langle \text{GenericDecl} \rangle ] \; \textbf{=} \; \langle \text{ConDecl} \rangle \: ( \mathbf{|} \: \langle \text{ConDecl} \rangle )^* \textbf{;} \\
 \langle \text{GenericDecl} \rangle &\Coloneqq \mathbf{<} \textbf{id} \; (\textbf{,} \; \textbf{id})^* \mathbf{>} \\
 \langle \text{Type} \rangle &\Coloneqq \langle \text{SuffixType} \rangle \; [ \mathbf{-}\mathbf{>} \; \langle \text{Type} \rangle ] \\
@@ -851,6 +874,7 @@ The Cera Virtual Machine implements a specialized Stack-Machine ISA. Operands ar
     \item \texttt{CALL\_GLOBAL\_LONG (0x66)}: Consumes a 2-byte global index (Little-Endian) and a 1-byte argument count for static execution.
     \item \texttt{TAIL\_CALL\_GLOBAL (0x67)}: Consumes a 1-byte global index and a 1-byte argument count. Overwrites the current Call Frame for static recursion, maintaining $O(1)$ spatial complexity.
     \item \texttt{TAIL\_CALL\_GLOBAL\_LONG (0x68)}: Consumes a 2-byte global index (Little-Endian) and a 1-byte argument count for static recursion.
+    \item \texttt{CALL\_FFI (0x69)}: Consumes a 1-byte argument count, a 2-byte library path constant index, and a 2-byte function identifier constant index. Dynamically loads unmanaged shared libraries, marshals stack operands to the C ABI, executes the external pointer, and pushes the result.
 \end{itemize}
 
 \subsubsection*{Memory Allocation \& Data Structures}
@@ -954,6 +978,18 @@ To preserve pure functional paradigms while allowing interaction with the host o
 \end{itemize}
 
 % =========================================================================
+\subsection{Dynamic Linking and FFI}
+% =========================================================================
+\noindent
+To execute FFI calls, CeraVM dynamically links unmanaged machine code into its address space at runtime.
+
+\begin{itemize}
+    \item \textbf{Symbol Resolution:} When the VM evaluates \texttt{OP\_CALL\_FFI}, it leverages host OS APIs (e.g., \texttt{dlopen} and \texttt{dlsym}) to locate the physical memory address of the target C function.
+    \item \textbf{ABI Marshaling:} The VM temporarily intercepts Cera's heap-allocated objects (such as \texttt{char list}) and contiguous stack primitives, translating them into standard C Application Binary Interface (ABI) memory layouts before relinquishing the instruction pointer.
+    \item \textbf{System Reliability:} FFI deliberately bypasses Cera's strict type-safety. If a developer maps an incorrect memory layout across the FFI boundary (e.g., passing a 64-bit float to a C function expecting a pointer), the host operating system will generate a fatal Segmentation Fault, instantly terminating the VM to prevent unmanaged memory corruption.
+\end{itemize}
+
+% =========================================================================
 \subsection{Concurrency and Dynamic Task Pooling}
 % =========================================================================
 \noindent
@@ -979,10 +1015,12 @@ To abstract the complexity of the two-stage translation process—bridging the C
 The toolchain segregates the compilation and execution phases to allow for the deterministic distribution of binary object files (\texttt{.cerabc}). The CLI exposes the following core commands to interact with this pipeline:
 
 \begin{itemize}
-    \item \textbf{\texttt{cera build <file.cera> [flags]}:} Invokes the C\# frontend. The compiler performs lexical analysis, semantic type-checking, and bytecode emission, outputting a serialized \texttt{.cerabc} file to the local \texttt{Out/ByteCode/} directory.
-    \item \textbf{\texttt{cera run <file.cerabc> [args]}:} Invokes the CeraVM backend. The virtual machine loads the pre-compiled Intermediate Representation (IR) into memory and begins the fetch-decode-execute loop.
-    \item \textbf{\texttt{cera exec <file.cera> [args]}:} A sequential orchestration command. It automatically executes a \texttt{build} followed immediately by a \texttt{run}, providing a seamless execution experience during active software development.
+    \item \textbf{\texttt{cera build <file.cera> [compiler\_flags]}:} Invokes the C\# frontend. The compiler performs lexical analysis, semantic type-checking, and bytecode emission, outputting a serialized \texttt{.cerabc} file to the local \texttt{Out/ByteCode/} directory.
+    \item \textbf{\texttt{cera run [vm\_flags] <file.cerabc> [program\_args]}:} Invokes the CeraVM backend. The virtual machine loads the pre-compiled Intermediate Representation (IR) into memory and begins the fetch-decode-execute loop.
+    \item \textbf{\texttt{cera exec <file.cera>}:} A sequential orchestration command. It automatically executes a \texttt{build} followed immediately by a \texttt{run}, providing a seamless execution experience during active software development.
     \item \textbf{\texttt{cera clear}:} A workspace cleanup utility that forcefully deletes the \texttt{Out/} directory, flushing all legacy bytecode and diagnostic dumps.
+    \item \textbf{\texttt{cera version}:} Outputs the current installed Cera version.
+    \item \textbf{\texttt{cera help}:} Outputs list of cera commands and usage.
 \end{itemize}
 
 % =========================================================================
@@ -1039,6 +1077,7 @@ The inital release of the Cera functional programming language.
 % =========================================================================
 \subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
 \begin{itemize}
+    \item \textbf{Foreign Function Interface (FFI):} Introduced the \texttt{extern} keyword to facilitate dynamic runtime linking with unmanaged C-family shared libraries. By securely marshaling data across the Application Binary Interface (ABI), Cera can now execute real-time, hardware-level system calls (such as graphics rendering) while strictly quarantining impure state and unmanaged memory from the functional runtime.
     \item \textbf{Default Function Values:} Functions now accept default literal values in there syntax, allowing for optional parameters at the end of the function.
     \item \textbf{Concurrency Integration:} Introduced native multithreading capabilities via the new \texttt{threaded} intrinsics. This architecture leverages thread-local memory arenas and automatic value migration to achieve $O(1)$ allocation speeds without locking the primary VM heap. Implemented an Atomic Work Queue (Dynamic Task Pool) to guarantee 100\% CPU utilization and perfect load balancing for complex, asymmetric compute tasks, eliminating the sequential allocation bottlenecks of static scheduling.
     \item \textbf{Static Global Dispatch: } Implemented static routing for top-level named functions. By bypassing the dynamic allocation of \texttt{ObjClosure} objects on the heap, global calls now execute directly from the stack, drastically reducing fetch-decode overhead and eliminating garbage collection pressure.
@@ -1083,6 +1122,5 @@ A similar section, instead covering attempts to improve the speed of Language.
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
     \item \textbf{Record:} Simply an immutable tuple under the hood, but offers named fields for each part, allowing for syntax such as \texttt{coord.x} or \texttt{coord -> x} (to be decided).
-    \item \textbf{FFI:} Expansion of intrinsics to allow for .so and .ddl files to be managed at runtime.
 \end{itemize}
 \end{document}

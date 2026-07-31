@@ -79,6 +79,7 @@ public enum OpCode : byte
     CALL_GLOBAL_LONG = 0x66, 
     TAIL_CALL_GLOBAL = 0x67, 
     TAIL_CALL_GLOBAL_LONG = 0x68,
+    CALL_FFI = 0x69,
 
     // --- Memory & ADTs (0x70 - 0x7F) ---
     ALLOC_CON = 0x70,     // Allocate Constructor instance (ConExpr)

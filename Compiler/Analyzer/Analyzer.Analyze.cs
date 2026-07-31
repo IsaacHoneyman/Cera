@@ -147,6 +147,7 @@ public partial class Analyzer
                 fSym.Type ?? FatalErrorReturn($"Function '{name}' lacks a resolved type signature", id.Identifier),
                 fSym.GenericParams
             ),
+            ExternSymbol eSym => eSym.Type ?? FatalErrorReturn($"External function '{name}' lacks a resolved type signature", id.Identifier),
             _ => FatalErrorReturn($"Symbol '{name}' cannot be evaluated as an expression", id.Identifier)
         };
     }
@@ -178,6 +179,22 @@ public partial class Analyzer
         return new FuncType(expectedParamType, lambda.ReturnType);
     }
 
+    private void InjectDefaultArguments(List<ParamNode> parameters, List<IExprAST> arguments, string funcName, Token errorToken)
+    {
+        int expectedCount = parameters.Count;
+        int providedCount = arguments.Count;
+
+        if (providedCount < expectedCount)
+        {
+            for (int i = providedCount; i < expectedCount; i++)
+            {
+                var param = parameters[i];
+                if (param.Initializer != null) arguments.Add(param.Initializer);
+                else FatalError($"Missing required argument for parameter '{param.Identifier.Lexeme}' in call to '{funcName}'", errorToken);
+            }
+        }
+    }
+
     private ITypeAST AnalyzeCall(CallExpr call)
     {
         if (call.Callee is IdentifierExpr id)
@@ -188,18 +205,11 @@ public partial class Analyzer
 
             if (sym is FuncSymbol fSym && fSym.Parameters != null) // exclude intrinsics
             {
-                int expectedCount = fSym.Parameters.Count;
-                int providedCount = call.Arguments.Count;
-
-                if (providedCount < expectedCount)
-                {
-                    for (int i = providedCount; i < expectedCount; i++)
-                    {
-                        var param = fSym.Parameters[i];
-                        if (param.Initializer != null) call.Arguments.Add(param.Initializer);
-                        else FatalError($"Missing required argument for parameter '{param.Identifier.Lexeme}' in call to '{name}'", id.Identifier);
-                    }
-                }
+                InjectDefaultArguments(fSym.Parameters, call.Arguments, name, id.Identifier);
+            }
+            else if (sym is ExternSymbol eSym)
+            {
+                InjectDefaultArguments(eSym.Parameters, call.Arguments, name, id.Identifier);
             }
         }
 

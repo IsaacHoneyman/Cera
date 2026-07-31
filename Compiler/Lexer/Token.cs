@@ -8,7 +8,7 @@ public readonly struct Token(TokenType tag, string lexeme, int line, int column,
         {"if", TokenType.If}, {"else", TokenType.Else}, {"switch", TokenType.Switch}, {"import", TokenType.Import},
         {"int", TokenType.Int}, {"float", TokenType.Float}, {"bool", TokenType.Bool}, {"char", TokenType.Char},
         {"list", TokenType.List}, {"arr", TokenType.Arr}, {"unit", TokenType.Unit}, {"true", TokenType.True},
-        {"false", TokenType.False}, {"hidden", TokenType.Hidden}, {"inline", TokenType.Inline}
+        {"false", TokenType.False}, {"hidden", TokenType.Hidden}, {"inline", TokenType.Inline}, {"extern", TokenType.Extern}
     };
 
     public readonly TokenType Tag = tag;
@@ -37,7 +37,7 @@ public readonly struct Token(TokenType tag, string lexeme, int line, int column,
 public enum TokenType
 {
     // keywords
-    Var, Def, Func, Type, Hidden, Inline, // declaration  
+    Var, Def, Func, Type, Hidden, Inline, Extern, // declaration  
     If, Else, Switch, // control flow
     Int, Float, Bool, Char, List, Arr, Unit, // primitive types
     Import,

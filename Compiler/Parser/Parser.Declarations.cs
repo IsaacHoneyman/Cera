@@ -8,6 +8,7 @@ public partial class Parser
     {
         List<ImportNode> imports = [];
         List<FuncDeclNode> functions = [];
+        List<ExternDeclNode> externs = [];
         List<TypeDeclNode> types = [];
         List<TopVarDeclNode> topVars = [];
 
@@ -24,6 +25,11 @@ public partial class Parser
             }
             else if (Check(TokenType.Def)) 
                 functions.Add(ParseFuncDecl(isHidden, isInline));
+            else if (Check(TokenType.Extern))
+            {
+                if (isInline) FatalError("External functions cannot be marked 'inline'", Peek());
+                externs.Add(ParseExternDecl(isHidden));
+            }
             else if (Check(TokenType.Var)) 
             {
                 if (isInline) FatalError("Variables cannot be marked 'inline'", Peek());
@@ -38,10 +44,47 @@ public partial class Parser
                 FatalError("Expected 'import', 'def', 'type', or 'var' declaration at the top level", Peek());
         }
 
-        return new FileAST(filePath, imports, functions, types, topVars);
+        return new FileAST(filePath, imports, functions, types, topVars, externs);
     }
 
     // --- Decl ---
+
+    private ExternDeclNode ParseExternDecl(bool isHidden)
+    {
+        Consume(TokenType.Extern, "Expected 'extern' keyword");
+        Consume(TokenType.Def, "Expected 'def' keyword after 'extern'");
+        var id = Consume(TokenType.Identifier, "Expected external function name");
+
+        if (Check(TokenType.Lesser))
+            FatalError("External functions cannot be generic. The FFI boundary strictly requires monomorphized types.", Peek());
+        
+        Consume(TokenType.LPar, "Expected '(' after external function name");
+
+        // Parameter parsing (Identical to ParseFuncDecl to support default parameters)
+        List<ParamNode> parameters = [];
+        bool seenDefaultValue = false;
+        if (!Check(TokenType.RPar))
+        {
+            do
+            {
+                parameters.Add(ParseParamDecl());
+                if (parameters[^1].Initializer != null) seenDefaultValue = true;
+                else if (seenDefaultValue) FatalError("Required parameters cannot appear after optional parameters", parameters[^1].Identifier);
+            }
+            while (Match(TokenType.Comma));
+        }
+
+        Consume(TokenType.RPar, "Expected ')' after function parameters");
+        Consume(TokenType.Colon, "Expected ':'");
+        var returnType = ParseType();
+        
+        Consume(TokenType.Equal, "Expected '=' before external library path");
+        var pathLiteral = Consume(TokenType.StringLiteral, "Expected string literal for shared library path");
+        
+        Consume(TokenType.Semicolon, "Expected ';' after external function declaration");
+
+        return new ExternDeclNode(id, parameters, returnType, pathLiteral, isHidden);
+    }
 
     private ImportNode ParseImportDecl(bool isHidden)
     {

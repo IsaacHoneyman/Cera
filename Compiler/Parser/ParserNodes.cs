@@ -17,6 +17,8 @@ public record TopVarDeclNode(Token Identifier, ITypeAST? DeclaredType, IExprAST 
 public record FuncDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, List<ParamNode> Parameters,
 ITypeAST ReturnType, ExprBlock Body, bool IsHidden, bool IsInline) : INodeAST;
 
+public record ExternDeclNode(Token Identifier, List<ParamNode> Parameters, ITypeAST ReturnType, Token PathLiteral, bool IsHidden) : INodeAST;
+
 public record ParamNode(Token Identifier, ITypeAST DeclaredType, IExprAST? Initializer) : INodeAST;
 
 public record TypeDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, 
@@ -30,7 +32,7 @@ public record PatternMatchNode(IPatternAST Pattern, IExprAST? Guard, IExprAST Re
 
 public record ImportNode(Token PathLiteral, bool IsHidden) : INodeAST;
 
-public record FileAST(string FilePath, List<ImportNode> Imports, List<FuncDeclNode> Functions, List<TypeDeclNode> Types, List<TopVarDeclNode> TopVariables) : INodeAST;
+public record FileAST(string FilePath, List<ImportNode> Imports, List<FuncDeclNode> Functions, List<TypeDeclNode> Types, List<TopVarDeclNode> TopVariables, List<ExternDeclNode> ExternFunctions) : INodeAST;
 
 // --- Statements ---
 

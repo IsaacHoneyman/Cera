@@ -69,6 +69,7 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
 
         foreach (var t in fileAst.Types) RegisterType(t, exportEnv, localEnv);
         foreach (var f in fileAst.Functions) RegisterFunction(f, exportEnv, localEnv);
+        foreach (var e in fileAst.ExternFunctions) RegisterExtern(e, exportEnv, localEnv);
         foreach (var v in fileAst.TopVariables) RegisterTopVar(v, exportEnv, localEnv);
 
         foreach (var f in fileAst.Functions) AnalyzeFunction(f);
@@ -91,6 +92,49 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
         }
 
         return localPath;
+    }
+
+    private void RegisterExtern(ExternDeclNode ext, Environment exportEnv, Environment localEnv)
+    {
+        string fName = ext.Identifier.Lexeme;
+
+        if (ext.IsHidden) fName = $"_hidden_{ext.Identifier.File ?? "unknown"}_{fName}";
+        resolvedNames[ext] = fName;
+
+        if (currentEnv!.Resolve(fName) != null) FatalError($"External function '{fName}' is already defined", ext.Identifier);
+
+        if (!ext.IsHidden)
+        {
+            ValidatePublicVisibility(ext.ReturnType, ext.Identifier);
+            foreach (var param in ext.Parameters) ValidatePublicVisibility(param.DeclaredType, param.Identifier);
+        }
+
+        HashSet<string> emptyGens = [];
+        ValidateTypeExists(ext.ReturnType, emptyGens);
+
+        List<ITypeAST> paramTypes = [];
+        foreach (var param in ext.Parameters)
+        {
+            ValidateTypeExists(param.DeclaredType, emptyGens);
+            paramTypes.Add(param.DeclaredType);
+
+            if (param.Initializer != null)
+            {
+                ITypeAST initType = AnalyzeExpression(param.Initializer);
+                Unify(param.DeclaredType, initType, param.Identifier);
+            }
+        }
+
+        ITypeAST fullSignature;
+        if (paramTypes.Count == 0) fullSignature = new FuncType(new BaseType(intrT["unit"]), ext.ReturnType);
+        else if (paramTypes.Count == 1) fullSignature = new FuncType(paramTypes[0], ext.ReturnType);
+        else fullSignature = new FuncType(new TupleType(paramTypes), ext.ReturnType);
+
+        string libPath = ext.PathLiteral.Lexeme.Trim('"');
+        var sym = new ExternSymbol(ext.Identifier, fullSignature, ext.Parameters.Count, ext.Parameters, libPath);
+
+        if (ext.IsHidden) localEnv.Define(fName, sym);
+        else exportEnv.Define(fName, sym);
     }
 
     private void RegisterTopVar(TopVarDeclNode varDecl, Environment exportEnv, Environment localEnv)
