@@ -7,7 +7,6 @@ hidden import "Vector.cera";
 
 
 hidden def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float) : float = {
-    // Jitter the target position
     var jx: float = randRange(-radius, radius);
     var jy: float = randRange(-radius, radius);
     var jz: float = randRange(-radius, radius);
@@ -18,10 +17,8 @@ hidden def getShadowSample(p: vec3, n: vec3, lPos: vec3, objects: obj list, radi
     var dir: vec3 = vMul(lightVec, 1.0 / dist);
     var origin: vec3 = vAdd(p, vMul(n, 0.001));
     
-    switch (nearestHit(Ray(origin, dir), objects, dist, None)) {
-        Some(hit) -> 0.0, // Ray is occluded
-        None -> 1.0       // Ray has line-of-sight
-    }
+    if (anyHit(Ray(origin, dir), objects, dist)) { 0.0 }
+    else { 1.0 }
 }
 
 hidden def getShadowFactor(p: vec3, n: vec3, lPos: vec3, objects: obj list, radius: float, samples: int, current: int, acc: float) : float = {
@@ -36,7 +33,6 @@ hidden def getShadowFactor(p: vec3, n: vec3, lPos: vec3, objects: obj list, radi
 hidden def computeSingleLight(p: vec3, n: vec3, v: vec3, m: mat, l: light, objects: obj list, shadowSamples: int) : vec3 = {
     switch ((m, l)) {
         (Phong(amb, diff, spec, alpha), Light(lPos, lIntens)) -> {            
-            // Replaced the hardcoded '8' with the parameterized variable
             var shadowFactor: float = getShadowFactor(p, n, lPos, objects, 0.5, shadowSamples, 0, 0.0);
             
             if (shadowFactor == 0.0) {
@@ -80,7 +76,6 @@ hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec
                 switch (hitOpt) {
                     Some(Hit(t, p, n, v, m)) -> {
                         switch ((m, r)) {
-                            // --- Original Phong Path ---
                             (Phong(amb, diff, spec, alpha), Ray(origin, dir)) -> {
                                 var ambientBase: vec3 = vColorMul(amb, ambient);
                                 var directIllum: vec3 = foldLeft(lights, 
@@ -101,9 +96,7 @@ hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec
                                 vAdd(localColor, vColorMul(spec, attenuatedReflect));
                             },
                             
-                            // --- New Dielectric (Glass) Path ---
                             (Glass(attenuation, ior), Ray(origin, dir)) -> {
-                                // Determine if we are entering or exiting the medium
                                 var isFrontFace: bool = dot(dir, n) < 0.0;
                                 var refractionRatio: float = isFrontFace ? (1.0 / ior) : ior;
                                 var outwardNormal: vec3 = isFrontFace ? n : vMul(n, -1.0);
@@ -111,7 +104,6 @@ hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec
                                 var cosTheta: float = min(1.0, dot(vMul(dir, -1.0), outwardNormal));
                                 var reflectance: float = schlick(cosTheta, refractionRatio);
                                 
-                                // Stochastic Russian Roulette: Reflect or Refract
                                 if (reflectance > rand()) {
                                     var refDir: vec3 = normalize(reflect(dir, outwardNormal));
                                     var refOrigin: vec3 = vAdd(p, vMul(outwardNormal, 0.001));
@@ -120,12 +112,10 @@ hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec
                                 } else {
                                     switch (refract(dir, outwardNormal, refractionRatio)) {
                                         Some(refrDir) -> {
-                                            // Offset INWARD to prevent clipping against the exit boundary
                                             var refrOrigin: vec3 = vSub(p, vMul(outwardNormal, 0.001));
                                             vColorMul(attenuation, getRayColor(Ray(refrOrigin, normalize(refrDir)), scn, depth - 1, shadowSamples));
                                         },
                                         None -> {
-                                            // Fallback for Total Internal Reflection
                                             var refDir: vec3 = normalize(reflect(dir, outwardNormal));
                                             var refOrigin: vec3 = vAdd(p, vMul(outwardNormal, 0.001));
                                             
@@ -169,8 +159,6 @@ hidden def getAAPixelColor(x: int, y: int, width: int, height: int, hWidth: floa
     }
 }
 
-// --- Main Render Loop ---
-
 hidden def renderRow(x: int, y: int, width: int, height: int, hWidth: float, hHeight: float, depth: int, shadowSamples: int, aaSamples: int, scn: scene, acc: char list) : char list = {
     if (x >= width) {
         acc; 
@@ -184,8 +172,6 @@ def renderScreen(width: int, height: int, hWidth: float, hHeight: float, depth: 
     outN("Spawning worker threads for concurrent rendering...");
     
     var ys: int list = generateRange(height - 1, 0, []);
-    
-    var percentStep: int = height / 40;
     
     var rowPixels: char list list = threadedMapPooled(ys, 12, func (y: int) : char list = {        
         renderRow(0, y, width, height, hWidth, hHeight, depth, shadowSamples, aaSamples, scn, "");
@@ -216,8 +202,6 @@ hidden inline def colorToPPM(c: vec3) : char list = {
         concat(" ", concat(intToChars(ig), 
             concat(" ", concat(intToChars(ib), "\n")))))
 }
-
-// --- Multithreading Helpers ---
 
 hidden def generateRange(cur: int, min: int, acc: int list) : int list = {
     if (cur < min) { acc; }

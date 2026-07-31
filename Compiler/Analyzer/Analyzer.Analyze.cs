@@ -27,6 +27,13 @@ public partial class Analyzer
             if (!paramNames.Add(pName))
                 FatalError($"Duplicate parameter name '{pName}' in function '{func.Identifier.Lexeme}'", param.Identifier);
             ValidateTypeExists(param.DeclaredType, GetCurrentGenericScope());
+
+            if (param.Initializer != null)
+            {
+                ITypeAST initType = AnalyzeExpression(param.Initializer);
+                Unify(param.DeclaredType, initType, param.Identifier);
+            }
+
             currentEnv.Define(pName, new VarSymbol(param.Identifier, param.DeclaredType));
         }
 
@@ -173,6 +180,29 @@ public partial class Analyzer
 
     private ITypeAST AnalyzeCall(CallExpr call)
     {
+        if (call.Callee is IdentifierExpr id)
+        {
+            string name = id.Identifier.Lexeme;
+            string mangledName = $"_hidden_{id.Identifier.File ?? "unknown"}_{name}";
+            Symbol? sym = currentEnv?.Resolve(mangledName) ?? currentEnv?.Resolve(name);
+
+            if (sym is FuncSymbol fSym && fSym.Parameters != null) // exclude intrinsics
+            {
+                int expectedCount = fSym.Parameters.Count;
+                int providedCount = call.Arguments.Count;
+
+                if (providedCount < expectedCount)
+                {
+                    for (int i = providedCount; i < expectedCount; i++)
+                    {
+                        var param = fSym.Parameters[i];
+                        if (param.Initializer != null) call.Arguments.Add(param.Initializer);
+                        else FatalError($"Missing required argument for parameter '{param.Identifier.Lexeme}' in call to '{name}'", id.Identifier);
+                    }
+                }
+            }
+        }
+
         ITypeAST calleeType = AnalyzeExpression(call.Callee);
 
         List<ITypeAST> argTypes = [];

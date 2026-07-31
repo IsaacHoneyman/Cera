@@ -34,15 +34,11 @@ def nth<g>(lst: g list, index: int) : option<g> = {
     }
 }
 
-hidden def revAux<g>(lst: g list, acc: g list) : g list = {
-    switch(lst) {
+def rev<g>(lst: g list, acc: g list = []) : g list = {
+    switch (lst) {
         [] -> acc,
-        (h::tl) -> revAux(tl, h::acc)
+        (h::tl) -> rev(tl, h::acc)
     }
-}
-
-def rev<g>(lst: g list) : g list = {
-    revAux(lst, [])
 }
 
 def mem<g>(lst: g list, elm: g) : bool = {
@@ -93,18 +89,14 @@ def find<g>(lst: g list, p: g -> bool) : option<g> = {
     }
 }
 
-hidden def findIndexAux<g>(lst: g list, p: g -> bool, i: int) : option<int> = {
+def findIndex<g>(lst: g list, p: g -> bool, i: int = 0) : option<int> = { 
     switch (lst) {
         [] -> None,
         (h::tl) -> {
             if (p(h)) { Some(i); }
-            else { findIndexAux(tl, p, i + 1); }
+            else { findIndex(tl, p, i + 1) }
         }
     }
-}
-
-def findIndex<g>(lst: g list, p: g -> bool) : option<int> = { 
-    findIndexAux(lst, p, 0); 
 }
 
 def foldLeft<g, h>(lst: g list, f: (h * g) -> h, acc: h) : h = {
@@ -121,28 +113,20 @@ def foldRight<g, h>(lst: g list, f: (g * h) -> h, acc: h) : h = {
     }
 }
 
-hidden def takeAux<g>(lst: g list, num: int, i: int, acc: g list) : g list = {
+def take<g>(lst: g list, num: int, i: int = 0, acc: g list = []) : g list = { 
     switch(lst) {
-        [] -> acc,
-        _ if (i >= num) -> acc,
-        (h::tl) -> takeAux(tl, num, i + 1, (h::acc))
+        [] -> rev(acc),
+        _ if (i >= num) -> rev(acc),
+        (h::tl) -> take(tl, num, i + 1, (h::acc))
     }
 }
 
-def take<g>(lst: g list, num: int) : g list = { 
-    rev(takeAux(lst, num, 0, [])); 
-}
-
-hidden def skipAux<g>(lst: g list, num: int, i: int) : g list = {
-    switch(lst) {
+def skip<g>(lst: g list, num: int, i : int = 0) : g list = { 
+    switch (lst) {
         [] -> [],
         _ if (i >= num) -> lst,
-        (_::tl) -> skipAux(tl, num, i + 1) 
+        (_::tl) -> skip(tl, num, i + 1)
     }
-}
-
-def skip<g>(lst: g list, num: int) : g list = { 
-    skipAux(lst, num, 0); 
 }
 
 hidden def buildAux<g>(index: int, acc: g list, f: int -> g) : g list = {

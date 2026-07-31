@@ -17,39 +17,101 @@ type scene = Scene: (obj list * light list * vec3);
 type ray = Ray: (vec3 * vec3); 
 type hit = Hit: (float * vec3 * vec3 * vec3 * mat); 
 
-// Dynamically calculates a bounding sphere to encapsulate an arbitrary list of geometry
+hidden def getCentroid(o: obj) : vec3 = {
+    switch (o) {
+        Sphere(c, r, m) -> c,
+        Triangle(v0, v1, v2, m) -> vMul(vAdd(vAdd(v0, v1), v2), 1.0 / 3.0),
+        BoundGroup(c, r, children) -> c,
+        Plane(p0, n, m) -> p0
+    }
+}
+
+hidden def splitListAlternating(objs: obj list, left: obj list, right: obj list, toggle: bool) : (obj list * obj list) = {
+    switch (objs) {
+        (h::tl) -> {
+            if (toggle) { splitListAlternating(tl, (h::left), right, false) }
+            else { splitListAlternating(tl, left, (h::right), true) }
+        },
+        [] -> (left, right)
+    }
+}
+
+hidden def partitionSpatially(objs: obj list, axis: int, splitPos: float, left: obj list, right: obj list) : (obj list * obj list) = {
+    switch (objs) {
+        [] -> (left, right),
+        (h::tl) -> {
+            var c: vec3 = getCentroid(h);            
+            if (getD(c, axis) < splitPos) {
+                partitionSpatially(tl, axis, splitPos, (h::left), right)
+            } else {
+                partitionSpatially(tl, axis, splitPos, left, (h::right))
+            }
+        }
+    }
+}
+
 def createBVH(objs: obj list) : obj = {
-    var centers: vec3 list = map(objs, func(o: obj): vec3 = {
-        switch (o) {
-            Sphere(c, r, m) -> c,
-            Triangle(v0, v1, v2, m) -> vMul(vAdd(vAdd(v0, v1), v2), 1.0 / 3.0),
-            BoundGroup(c, r, children) -> c,
-            Plane(p0, n, m) -> p0 // Planes are technically infinite and should be excluded from BVH logic if possible
+    switch (objs) {
+        [] -> BoundGroup(Vec(0.0, 0.0, 0.0), 0.0, []),
+        
+        (h::tl) -> {
+            switch (tl) {
+                [] -> h,
+                _ -> {
+                    var centers: vec3 list = map(objs, getCentroid);
+
+                    var count: float = intToFloat(length(objs));
+                    var totalCenter: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = vAdd(acc, c), Vec(0.0, 0.0, 0.0));
+                    var globalCenter: vec3 = (count == 0.0) ? Vec(0.0, 0.0, 0.0) : vMul(totalCenter, 1.0 / count);
+
+                    var radii: float list = map(objs, func(o: obj): float = {
+                        switch (o) {
+                            Sphere(c, r, m) -> mag(vSub(c, globalCenter)) + r,
+                            Triangle(v0, v1, v2, m) -> {
+                                var d0: float = mag(vSub(v0, globalCenter));
+                                var d1: float = mag(vSub(v1, globalCenter));
+                                var d2: float = mag(vSub(v2, globalCenter));
+                                max(d0, max(d1, d2)); },
+                            BoundGroup(c, r, children) -> mag(vSub(c, globalCenter)) + r,
+                            Plane(p0, n, m) -> 99999.0 
+                        }
+                    });
+
+                    var maxRadius: float = foldLeft(radii, func(acc: float, r: float): float = max(acc, r), 0.0);
+
+                    var minBound: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = 
+                        Vec(min(getD(acc, 0), getD(c, 0)), min(getD(acc, 1), getD(c, 1)), min(getD(acc, 2), getD(c, 2))), 
+                        Vec(99999.0, 99999.0, 99999.0));
+                        
+                    var maxBound: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = 
+                        Vec(max(getD(acc, 0), getD(c, 0)), max(getD(acc, 1), getD(c, 1)), max(getD(acc, 2), getD(c, 2))), 
+                        Vec(-99999.0, -99999.0, -99999.0));
+
+                    var extentX: float = getD(maxBound, 0) - getD(minBound, 0);
+                    var extentY: float = getD(maxBound, 1) - getD(minBound, 1);
+                    var extentZ: float = getD(maxBound, 2) - getD(minBound, 2);
+
+                    var axis: int = (extentX > extentY) ? ((extentX > extentZ) ? 0 : 2) : ((extentY > extentZ) ? 1 : 2);
+                    var splitPos: float = getD(minBound, axis) + ((getD(maxBound, axis) - getD(minBound, axis)) / 2.0);
+
+                    var (leftObjs, rightObjs) = partitionSpatially(objs, axis, splitPos, [], []);
+                    
+                    var (finalLeft, finalRight) = 
+                        if ((length(leftObjs) == 0) || (length(rightObjs) == 0)) {
+                            splitListAlternating(objs, [], [], true);
+                        } else {
+                            (leftObjs, rightObjs);
+                        };
+
+                    // 7. Recurse
+                    var leftNode: obj = createBVH(finalLeft);
+                    var rightNode: obj = createBVH(finalRight);
+                    
+                    BoundGroup(globalCenter, maxRadius + 0.1, [leftNode, rightNode]);
+                }
+            }
         }
-    });
-    
-    var totalCenter: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = vAdd(acc, c), Vec(0.0, 0.0, 0.0));
-    var count: float = intToFloat(length(objs));
-    var globalCenter: vec3 = (count == 0.0) ? Vec(0.0, 0.0, 0.0) : vMul(totalCenter, 1.0 / count);
-    
-    var radii: float list = map(objs, func(o: obj): float = {
-        switch (o) {
-            Sphere(c, r, m) -> mag(vSub(c, globalCenter)) + r,
-            Triangle(v0, v1, v2, m) -> {
-                var d0: float = mag(vSub(v0, globalCenter));
-                var d1: float = mag(vSub(v1, globalCenter));
-                var d2: float = mag(vSub(v2, globalCenter));
-                max(d0, max(d1, d2));
-            },
-            BoundGroup(c, r, children) -> mag(vSub(c, globalCenter)) + r,
-            Plane(p0, n, m) -> 99999.0 
-        }
-    });
-    
-    var maxRadius: float = foldLeft(radii, func(acc: float, r: float): float = max(acc, r), 0.0);
-    
-    // Assemble the node with a slight padding factor
-    BoundGroup(globalCenter, maxRadius + 0.1, objs);
+    }
 }
 
 def getScene() : scene = {
@@ -57,17 +119,16 @@ def getScene() : scene = {
     var matGreen: mat = Phong(Vec(0.0, 0.1, 0.0), Vec(0.0, 1.0, 0.0), Vec(0.2, 0.2, 0.2), 8.0);
     var matFloor: mat = Phong(Vec(0.1, 0.1, 0.1), Vec(0.5, 0.5, 0.5), Vec(0.3, 0.3, 0.3), 16.0);
     
-    // Define a clear glass material (IOR of 1.5 is standard for glass)
     var matClearGlass: mat = Glass(Vec(1.0, 1.0, 1.0), 1.5);
     
     var complexGeometry: obj list = [ 
         Sphere(Vec(-2.0, 0.0, 5.0), 1.0, matRed), 
         Sphere(Vec(0.0, 0.0, 6.0), 1.0, matGreen), 
-        Sphere(Vec(2.0, 0.0, 5.0), 1.0, matClearGlass), // The blue sphere is now glass
+        Sphere(Vec(2.0, 0.0, 5.0), 1.0, matClearGlass), 
         
         Triangle(Vec(0.0, 2.5, 5.5), Vec(-0.5, 1.5, 5.0), Vec(0.5, 1.5, 5.0), matRed),
         Triangle(Vec(0.0, 2.5, 5.5), Vec(0.5, 1.5, 5.0), Vec(0.0, 1.5, 6.0), matGreen),
-        Triangle(Vec(0.0, 2.5, 5.5), Vec(0.0, 1.5, 6.0), Vec(-0.5, 1.5, 5.0), matClearGlass), // Panel replaced with glass
+        Triangle(Vec(0.0, 2.5, 5.5), Vec(0.0, 1.5, 6.0), Vec(-0.5, 1.5, 5.0), matClearGlass), 
         Triangle(Vec(-0.5, 1.5, 5.0), Vec(0.0, 1.5, 6.0), Vec(0.5, 1.5, 5.0), matFloor)
     ];
     

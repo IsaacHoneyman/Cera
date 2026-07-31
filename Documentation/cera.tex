@@ -232,6 +232,7 @@ Functions in Cera are first-class citizens. Because the language enforces zero m
     \item \textbf{Scoping and Shadowing:} All named functions (declared via \texttt{def}) must reside in the global scope and possess strictly unique identifiers. Function shadowing is not permitted, and named inner functions are forbidden to maintain a flat AST. Localized closures must be handled via anonymous lambda functions.
     \item \textbf{Function Application:} Cera does not support automatic partial function application (currying). A function call must supply the exact number of arguments specified in its signature. Developers requiring partially applied functions must explicitly construct them using lambdas.
     \item \textbf{Modifiers:} Named functions declarations can be preceded by either or both the \texttt{hidden} and \texttt{inline} keywords, which restrict the scope of the function to the current file, and optimise the bytecode emission of the function respectively. 
+    \item \textbf{Default Parameters:} Function signatures may specify default values for their parameters using the \texttt{=} operator (e.g., \texttt{acc : int = 0}). To maintain deterministic evaluation and functional purity, default values are strictly constrained to literal expressions. Furthermore, all parameters with default values must trail any required parameters in the function signature.
 \end{itemize}
 
 \begin{lstlisting}[title={Higher-Order Data Pipelines \& Modifiers}, basicstyle=\ttfamily]
@@ -254,6 +255,11 @@ def sumOfSquares(a: int, b: int) : int = {
     // The compiler intercepts the calls, generating:
     // (a * a) + (b * b)
     square(a) + square(b);
+}
+
+hidden inline def tripleConcat<g>
+(lst1: g list, lst2: g list = [], lst3: g list = []) : g list = {
+    concat(concat(lst1, lst2), lst3)
 }
 \end{lstlisting}
 
@@ -540,7 +546,7 @@ Are top level fundamental definitions:
 \langle \text{ConDecl} \rangle &\Coloneqq \textbf{con} \; [ \textbf{:} \; \langle \text{Type} \rangle ] \\
 \langle \text{ExprBlock} \rangle &\Coloneqq \textbf{\{} \langle \text{Stmt} \rangle^* \; \langle \text{Expr} \rangle [\textbf{;}] \textbf{\}} \\
 \langle \text{Stmt} \rangle &\Coloneqq \langle \text{VarDecl} \rangle \mid \langle \text{Expr} \rangle \textbf{;} \\ 
-\langle \text{Param} \rangle &\Coloneqq \textbf{id} \; \textbf{:} \; \langle \text{Type} \rangle
+\langle \text{Param} \rangle &\Coloneqq \textbf{id} \; \textbf{:} \; \langle \text{Type} \rangle \; [ \mathbf{=} \; \langle \text{Literal} \rangle ]
 \end{align*}
 
 Following are the expression definitions:
@@ -667,6 +673,7 @@ Cera employs a robust Hindley-Milner (HM) type inference engine based on Damas a
     \item \textbf{Structural Unification:} The \texttt{Unify} function mathematically equates expected and actual types. When unifying composite types, the algorithm recursively unpacks the structures. For example, unifying \texttt{(int * $T_1$)} with \texttt{($T_2$ * float)} successfully resolves $T_1$ to \texttt{float} and $T_2$ to \texttt{int} through parallel structural traversal.
     \item \textbf{Recursive Protection:} This is a crucial safety mechanism. If a user writes an unbounded recursive function, the unification engine might attempt to equate a type variable $T_1$ with a function signature containing itself (e.g., $T_1 \rightarrow \texttt{int}$). The explicit ``occurs check'' halts this process, preventing the compiler from falling into an infinite loop attempting to construct an infinitely sized type graph.
     \item \textbf{Arity and Unit Matching:} Zero-arity functions mathematically evaluate as taking a single \texttt{unit} parameter. The syntax \texttt{()} evaluates to the structural type \texttt{unit}, ensuring complete parity between explicit thunks (\texttt{func(u: unit)}) and standard zero-argument functions.
+    \item \textbf{Default Parameter Injection:} To support default arguments without modifying the strict arity constraints of the C Virtual Machine, the semantic analyzer utilizes Caller-Side Injection. When a function call omits trailing default arguments, the analyzer statically evaluates the parameter's default literal and injects its AST node directly into the caller's argument list prior to bytecode emission. To the virtual machine, all function applications remain perfectly saturated.
 \end{itemize}
 
 \subsection{Generic Instantiation and Polymorphism}
@@ -1032,6 +1039,7 @@ The inital release of the Cera functional programming language.
 % =========================================================================
 \subsection*{22/06/26 - 1.2 (The Optimisation Update)} 
 \begin{itemize}
+    \item \textbf{Default Function Values:} Functions now accept default literal values in there syntax, allowing for optional parameters at the end of the function.
     \item \textbf{Concurrency Integration:} Introduced native multithreading capabilities via the new \texttt{threaded} intrinsics. This architecture leverages thread-local memory arenas and automatic value migration to achieve $O(1)$ allocation speeds without locking the primary VM heap. Implemented an Atomic Work Queue (Dynamic Task Pool) to guarantee 100\% CPU utilization and perfect load balancing for complex, asymmetric compute tasks, eliminating the sequential allocation bottlenecks of static scheduling.
     \item \textbf{Static Global Dispatch: } Implemented static routing for top-level named functions. By bypassing the dynamic allocation of \texttt{ObjClosure} objects on the heap, global calls now execute directly from the stack, drastically reducing fetch-decode overhead and eliminating garbage collection pressure.
     \item \textbf{VM refactor: } Refactored virtual machine memory allocation and diagnostic tools. 
@@ -1074,7 +1082,6 @@ A similar section, instead covering attempts to improve the speed of Language.
 % =========================================================================
 Now we may take an optimistic look into the future of the language:
 \begin{itemize}
-    \item \textbf{Default Function Values:} Similar to C\#, with \texttt{param : type = value}.
     \item \textbf{Record:} Simply an immutable tuple under the hood, but offers named fields for each part, allowing for syntax such as \texttt{coord.x} or \texttt{coord -> x} (to be decided).
     \item \textbf{FFI:} Expansion of intrinsics to allow for .so and .ddl files to be managed at runtime.
 \end{itemize}

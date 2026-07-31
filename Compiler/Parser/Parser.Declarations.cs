@@ -82,9 +82,15 @@ public partial class Parser
         Consume(TokenType.LPar, "Expected '(' after function name");
 
         List<ParamNode> parameters = [];
+        bool seenDefaultValue = false;
         if (!Check(TokenType.RPar))
         {
-            do parameters.Add(ParseParamDecl());
+            do
+            {
+                parameters.Add(ParseParamDecl());
+                if (parameters[^1].Initializer != null) seenDefaultValue = true;
+                else if (seenDefaultValue) FatalError("Required parameters cannot appear after optional parameters", parameters[^1].Identifier);
+            }
             while (Match(TokenType.Comma));
         }
 
@@ -116,7 +122,18 @@ public partial class Parser
         Consume(TokenType.Colon, "Expected ':'");
         var type = ParseType();
 
-        return new ParamNode(id, type);
+        if (Match(TokenType.Equal)) // optional param
+        {
+            var init = ParseExpression();
+
+            if (init is not LiteralExpr && init is not ListLitExpr && init is not ArrLitExpr && init is not TupleLitExpr)
+            {
+                FatalError("Default values must be a literal value", Peek());
+            }
+            return new ParamNode(id, type, init);
+        }
+
+        return new ParamNode(id, type, null);
     }
 
     private TypeDeclNode ParseTypeDecl(bool isHidden)

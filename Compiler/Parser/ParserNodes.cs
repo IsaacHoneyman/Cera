@@ -17,7 +17,7 @@ public record TopVarDeclNode(Token Identifier, ITypeAST? DeclaredType, IExprAST 
 public record FuncDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, List<ParamNode> Parameters,
 ITypeAST ReturnType, ExprBlock Body, bool IsHidden, bool IsInline) : INodeAST;
 
-public record ParamNode(Token Identifier, ITypeAST DeclaredType) : INodeAST;
+public record ParamNode(Token Identifier, ITypeAST DeclaredType, IExprAST? Initializer) : INodeAST;
 
 public record TypeDeclNode(Token Identifier, GenericDeclNode? GenericTypeParams, 
 List<ConDeclNode> Constructors, bool IsHidden) : INodeAST;

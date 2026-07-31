@@ -76,7 +76,7 @@ public partial class Analyzer
         void DefineIntrinsic(string name, IntrinsicId nativeId, ITypeAST type, int arity, List<Token>? generics = null)
         {
             generics ??= [];
-            globalEnv.Define(name, new FuncSymbol(intrT[name], type, arity, generics, nativeId));
+            globalEnv.Define(name, new FuncSymbol(intrT[name], type, arity, generics, null, nativeId)); // params dont matter
         }
 
         DefineIntrinsic("get", IntrinsicId.Get,

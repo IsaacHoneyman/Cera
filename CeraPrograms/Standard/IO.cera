@@ -38,15 +38,12 @@ inline def substring(str: char list, start: int, len: int) : char list = {
     take(skip(str, start), len)
 }
 
-def split(str: char list, delimiter: char) : char list list = {
-    var aux = func(rem: char list, currentWord: char list, acc: char list list) : char list list = { 
-        switch (rem) {
-            [] -> rev(rev(currentWord)::acc),
-            (h::tl) if (h == delimiter) -> aux(tl, [], (rev(currentWord) :: acc)),
-            (h::tl) -> aux(tl, (h::currentWord), acc)
-        }
-    };
-    aux(str, [], []);
+def split(str: char list, delimiter: char, currentWord: char list = [], acc: char list list = []) : char list list = {
+    switch (str) {
+        [] -> rev(rev(currentWord)::acc),
+        (h::tl) if (h == delimiter) -> split(tl, delimiter, [], (rev(currentWord) :: acc)),
+        (h::tl) -> split(tl, delimiter, (h::currentWord), acc)
+    }
 }
 
 // --- Output ---
@@ -63,11 +60,11 @@ hidden def padLeft(val: int, targetLen: int, padChar: char) : char list = {
     }
 }
 
-inline def outN(output: char list) : unit = { out(output); out("\n"); }
+inline def outN(output: char list = "") : unit = { out(output); out("\n"); }
 
 inline def outF(output: char list, insert: char list list) : unit = { out(strF(output, insert)); }
 
-inline def outFN(output: char list, insert: char list list) : unit = { outF(output, insert); outN(""); }
+inline def outFN(output: char list, insert: char list list) : unit = { outF(output, insert); outN(); }
 
 inline def outC() : unit = {
     out("\x1b[2J\x1b[H");
@@ -78,14 +75,14 @@ inline def outT(t: timeOnly) : unit = {
     outF("%:%:%.%", [padLeft(h, 2, '0'), padLeft(m, 2, '0'), padLeft(s, 2, '0'), intToChars(ms)]);
 }
 
-inline def outTN(t: timeOnly) : unit = { outT(t); outN(""); }
+inline def outTN(t: timeOnly) : unit = { outT(t); outN(); }
 
 inline def outD(d: dateOnly) : unit = {
     var DateOnly(y, m, d) = d;
     outF("%-%-%", [padLeft(d, 2, '0'), padLeft(m, 2, '0'), intToChars(y)]);
 }
 
-inline def outDN(d: dateOnly) : unit = { outD(d); outN(""); }
+inline def outDN(d: dateOnly) : unit = { outD(d); outN(); }
 
 inline def outDT(dt: dateTime) : unit = {
     var DateTime(d, t) = dt;
@@ -94,7 +91,7 @@ inline def outDT(dt: dateTime) : unit = {
     outT(t); 
 }
 
-inline def outDTN(dt: dateTime) : unit = { outDT(dt); outN(""); }
+inline def outDTN(dt: dateTime) : unit = { outDT(dt); outN(); }
 
 
 // --- File ---

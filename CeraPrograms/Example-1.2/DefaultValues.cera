@@ -1,0 +1,40 @@
+hidden import "IO.cera";
+
+def entry(args: char list arr) : int = {
+    out("Hello Cera\n");
+
+    var v = createVec(1, 2, 3);
+    outVec(v);
+    var v = createVec(1, 2);
+    outVec(v);
+
+    outIntLst(tripleConcat());
+    outIntLst(tripleConcat([1]));
+    outIntLst(tripleConcat([1], [2]));
+    outIntLst(tripleConcat([1], [2], [3]));
+
+    0
+}
+
+hidden type vec = Vec: (int * int * int);
+hidden inline def createVec(x: int, y: int, z: int = 0) : vec = { Vec(x, y, z) }
+
+hidden inline def tripleConcat<g>(lst1: g list = [], lst2: g list = [], lst3: g list = []) : g list = {
+    concat(concat(lst1, lst2), lst3)
+}
+
+hidden inline def outVec(v : vec) : unit = {
+    var Vec(x, y, z) = v;
+    outFN("(%, %, %)", [intToChars(x), intToChars(y), intToChars(z)])
+}
+
+hidden def outIntLst(lst: int list) : unit = { 
+    switch (lst) {
+        [] -> outN(""),
+        [x] -> outN(intToChars(x)),
+        (h::tl) -> {
+            out(intToChars(h));
+            outIntLst(tl)
+        }
+    }
+}

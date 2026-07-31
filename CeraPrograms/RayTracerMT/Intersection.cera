@@ -15,6 +15,100 @@ inline def hitBound(r: ray, center: vec3, radius: float) : bool = {
     discriminant >= 0.0;
 }
 
+// --- Zero-Allocation Shadow Intersections ---
+
+inline def testTriangle(r: ray, v0: vec3, v1: vec3, v2: vec3, maxDist: float) : bool = {
+    var Ray(origin, dir) = r;
+    var edge1: vec3 = vSub(v1, v0);
+    var edge2: vec3 = vSub(v2, v0);
+    var h: vec3 = cross(dir, edge2);
+    var a: float = dot(edge1, h);
+    
+    if ((a > -0.0001) && (a < 0.0001)) {
+        false;
+    } else {
+        var f: float = 1.0 / a;
+        var s: vec3 = vSub(origin, v0);
+        var u: float = f * dot(s, h);
+        
+        if ((u < 0.0) || (u > 1.0)) {
+            false;
+        } else {
+            var q: vec3 = cross(s, edge1);
+            var v: float = f * dot(dir, q);
+            
+            if ((v < 0.0) || ((u + v) > 1.0)) {
+                false;
+            } else {
+                var t: float = f * dot(edge2, q);
+                (t > shadowBias) && (t < maxDist);
+            }
+        }
+    }
+}
+
+inline def testSphere(r: ray, center: vec3, radius: float, maxDist: float) : bool = {
+    var Ray(origin, dir) = r;
+    var oc: vec3 = vSub(origin, center);
+    var a: float = dot(dir, dir);
+    var b: float = 2.0 * dot(oc, dir);
+    var c: float = dot(oc, oc) - (radius * radius);
+    var discriminant: float = (b * b) - (4.0 * a * c);
+
+    if (discriminant < 0.0) {
+        false;
+    } else {
+        var t1: float = (-b - sqrt(discriminant)) / (2.0 * a);
+        var t2: float = (-b + sqrt(discriminant)) / (2.0 * a);
+        
+        var t: float = (t1 > shadowBias) ? t1 : t2;
+        (t > shadowBias) && (t < maxDist);
+    }
+}
+
+inline def testPlane(r: ray, p0: vec3, normal: vec3, maxDist: float) : bool = {
+    var Ray(origin, dir) = r;
+    var denom: float = dot(dir, normal);
+    
+    if ((denom > 0.0001) || (denom < -0.0001)) {
+        var t: float = dot(vSub(p0, origin), normal) / denom;
+        (t > shadowBias) && (t < maxDist);
+    } else {
+        false; 
+    }
+}
+
+def anyHitObj(r: ray, o: obj, maxDist: float) : bool = {
+    switch (o) {
+        Sphere(center, radius, m) -> testSphere(r, center, radius, maxDist),
+        Plane(p0, normal, m) -> testPlane(r, p0, normal, maxDist),
+        Triangle(v0, v1, v2, m) -> testTriangle(r, v0, v1, v2, maxDist),
+        
+        BoundGroup(center, radius, children) -> {
+            if (hitBound(r, center, radius)) {
+                anyHit(r, children, maxDist);
+            } else {
+                false; 
+            }
+        }
+    }
+}
+
+def anyHit(r: ray, objs: obj list, maxDist: float) : bool = {
+    switch (objs) {
+        (h::tl) -> {
+            if (anyHitObj(r, h, maxDist)) {
+                true;
+            } else {
+                anyHit(r, tl, maxDist);
+            }
+        },
+        [] -> false
+    }
+}
+
+// --- Standard Intersections (Preserved for Ray Color Tracing) ---
+
 inline def intersectTriangle(r: ray, v0: vec3, v1: vec3, v2: vec3, m: mat) : option<hit> = {
     var Ray(origin, dir) = r;
     var edge1: vec3 = vSub(v1, v0);

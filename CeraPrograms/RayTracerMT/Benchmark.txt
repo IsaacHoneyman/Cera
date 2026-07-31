@@ -1,5 +1,5 @@
 Default image completion:
-Start 9.25 seconds
+Start 9.25 seconds (1045 long)
 Fully optimised with 1.1 Changes 7.7 - 7.8 seconds
 Removed debug flag 7.4-7.5
 With new jump_tag optimisation 7.3-7.4 (864 Long)
@@ -10,3 +10,5 @@ First multithreaded 3 (389 Long)
 Full threaded 1.6 (199 Long)
 Full threaded pooled (1.4) (191 Long)
 Full threaded pooled and conact (1.25) (178 Long)
+With Cera Optimisations (1.2) (164 Long)
+With futher optimisations (1) (130 Long)

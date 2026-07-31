@@ -54,7 +54,6 @@ hidden def getMonth(daysList: int list, currentMonth: int, day: int) : (int * in
 type timeOnly = TimeOnly: (int * int * int * int); // hour, minute, second, millisecond
 type dateOnly = DateOnly: (int * int * int); // year, month, day 
 type dateTime = DateTime: (dateOnly * timeOnly);
-// type dateTime = DateTime: (Date * Time); // date, time
 
 def buildTime(ms: int) : timeOnly = {
     var hours = msInHours(ms);

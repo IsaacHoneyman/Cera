@@ -19,7 +19,7 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
     {
         diag.DetailLog("Analyzing AST DAG");
 
-        InitializeIntrinsics(); 
+        InitializeIntrinsics();
 
         HashSet<string> visited = [];
         HashSet<string> visiting = [];
@@ -27,7 +27,7 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
         foreach (var fileAst in parsedFiles.Values)
             if (!visited.Contains(fileAst.FilePath))
                 AnalyzeFileRecursive(fileAst, visited, visiting);
-        
+
 
         return (localEnvs, resolvedNames);
     }
@@ -40,8 +40,8 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
 
         visiting.Add(path);
 
-        Environment exportEnv = new(globalEnv); 
-        Environment localEnv = new(exportEnv);  
+        Environment exportEnv = new(globalEnv);
+        Environment localEnv = new(exportEnv);
 
         exportEnvs[path] = exportEnv;
         localEnvs[path] = localEnv;
@@ -49,23 +49,23 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
         foreach (var import in fileAst.Imports)
         {
             string resolved = ResolveImportPath(path, import.PathLiteral.Lexeme.Trim('"'));
-            
+
             if (!parsedFiles.TryGetValue(resolved, out FileAST? depAst))
                 FatalError($"Could not resolve import '{import.PathLiteral.Lexeme}'", import.PathLiteral);
 
             AnalyzeFileRecursive(depAst, visited, visiting);
 
             Environment depExport = exportEnvs[resolved];
-            
-            localEnv.MergeFrom(depExport); 
-            
-            if (!import.IsHidden) 
+
+            localEnv.MergeFrom(depExport);
+
+            if (!import.IsHidden)
             {
                 exportEnv.MergeFrom(depExport); // export if public
             }
         }
 
-        currentEnv = localEnv; 
+        currentEnv = localEnv;
 
         foreach (var t in fileAst.Types) RegisterType(t, exportEnv, localEnv);
         foreach (var f in fileAst.Functions) RegisterFunction(f, exportEnv, localEnv);
@@ -98,9 +98,9 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
         string vName = varDecl.Identifier.Lexeme;
 
         if (varDecl.IsHidden) vName = $"_hidden_{varDecl.Identifier.File ?? "unknown"}_{vName}";
-        resolvedNames[varDecl] = vName; 
+        resolvedNames[varDecl] = vName;
 
-        if (currentEnv!.Resolve(vName) != null) 
+        if (currentEnv!.Resolve(vName) != null)
             FatalError($"Global variable '{vName}' is already defined", varDecl.Identifier);
 
         ITypeAST initType = AnalyzeExpression(varDecl.Initializer);
@@ -120,7 +120,7 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
     {
         string tName = type.Identifier.Lexeme;
         if (type.IsHidden) tName = $"_hidden_{type.Identifier.File ?? "unknown"}_{tName}";
-            
+
         resolvedNames[type] = tName;
 
         if (currentEnv!.Resolve(tName) != null) FatalError($"Type '{tName}' is already defined", type.Identifier);
@@ -161,7 +161,7 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
         {
             if (func.IsHidden) FatalError("The program entry point cannot be marked 'hidden'", func.Identifier);
             if (func.IsInline) FatalError("The program entry point cannot be marked 'inline'", func.Identifier);
-            if (func.GenericTypeParams?.Identifiers.Count > 0) FatalError("The program entry point cannot have generic type parameters", func.Identifier); 
+            if (func.GenericTypeParams?.Identifiers.Count > 0) FatalError("The program entry point cannot have generic type parameters", func.Identifier);
         }
 
         if (func.IsHidden) fName = $"_hidden_{func.Identifier.File ?? "unknown"}_{fName}";
@@ -201,8 +201,10 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
             Unify(expectedEntryType, fullSignature, func.Identifier);
         }
 
-        if (func.IsHidden) localEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens));
-        else exportEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens));
+        if (func.IsHidden)
+            localEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens, func.Parameters));
+        else
+            exportEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens, func.Parameters));
     }
 
     private void ValidatePublicVisibility(ITypeAST typeNode, Token errorToken)
