@@ -53,8 +53,8 @@ public class Chunk(Diagnostics diag)
             FatalError("Too much code to jump over, (Max 65535 bytes)", null);
         }
 
-        Code[offset] = (byte)((jump >> 8) & 0xff);
-        Code[offset + 1] = (byte)(jump & 0xff);
+        Code[offset] = (byte)(jump & 0xff);
+        Code[offset + 1] = (byte)((jump >> 8) & 0xff);
     }
 
     [DoesNotReturn]

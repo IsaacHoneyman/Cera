@@ -446,7 +446,7 @@ public partial class Emitter
 
                 int line = idExpr.Identifier.Line;
                 int libPathIdx = CurrentChunk.AddConstant(CeraValue.String(extSym.LibraryPath));
-                int funcNameIdx = CurrentChunk.AddConstant(CeraValue.String(fName));
+                int funcNameIdx = CurrentChunk.AddConstant(CeraValue.String(idExpr.Identifier.Lexeme));
 
                 if (libPathIdx > ushort.MaxValue || funcNameIdx > ushort.MaxValue)
                     FatalError("Constant pool limit exceeded for FFI strings.", idExpr.Identifier);

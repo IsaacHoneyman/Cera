@@ -4,6 +4,7 @@
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 CERA_ROOT="$(dirname "$SCRIPT_DIR")"
 export CERA_LIB_PATH="$CERA_ROOT/lib"
+export LD_LIBRARY_PATH="$CERA_LIB_PATH:$LD_LIBRARY_PATH"
 
 COMMAND=$1
 FILE=$2

@@ -49,17 +49,15 @@ echo "Compiling C virtual machine..."
 x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -pthread -lm -o ./$WIN_DIR/bin/ceravm.exe
 
 # Linux VM (Native compilation)
-gcc $VM_SRC/*.c -O3 -pthread -lm -o ./$LINUX_DIR/bin/ceravm
+gcc $VM_SRC/*.c -O3 -pthread -lm -ldl -o ./$LINUX_DIR/bin/ceravm
 
 # =========================================================================
 # 4. Standard Library Assembly
 # =========================================================================
 echo "Copying standard libraries..."
 for DIR in $WIN_DIR $LINUX_DIR; do
-    cp $LIB_SRC/Collection.cera ./$DIR/lib/ 2>/dev/null || true
-    cp $LIB_SRC/IO.cera ./$DIR/lib/ 2>/dev/null || true
-    cp $LIB_SRC/Math.cera ./$DIR/lib/ 2>/dev/null || true
-    cp $LIB_SRC/Time.cera ./$DIR/lib/ 2>/dev/null || true
+    # The wildcard (*) recursively grabs all .cera files AND your unmanaged .so/.dll binaries
+    cp -r $LIB_SRC/* ./$DIR/lib/ 2>/dev/null || true
 done
 
 # =========================================================================

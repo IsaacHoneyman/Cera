@@ -5,6 +5,7 @@ setlocal
 set SCRIPT_DIR=%~dp0
 set CERA_ROOT=%SCRIPT_DIR%..
 set CERA_LIB_PATH=%CERA_ROOT%\lib
+set PATH=%CERA_LIB_PATH%;%PATH%
 
 set COMMAND=%~1
 set FILE=%~2

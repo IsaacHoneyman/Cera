@@ -6,13 +6,29 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <ctype.h>
 #include "vm.h"
 #include "memory.h"
 #include "logger.h"
 #include "intrinsic.h"
+
 #ifdef _WIN32 
 #include <windows.h>
+#define dlopen(filename, flags) LoadLibraryA(filename)
+#define dlsym(handle, symbol) (void*)GetProcAddress((HMODULE)handle, symbol)
+#define RTLD_NOW 0
+#define RTLD_GLOBAL 0
+
+static char dlerror_buf[256];
+static char* dlerror(void) {
+    DWORD err = GetLastError();
+    if (err == 0) return "No error";
+    FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                   NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                   dlerror_buf, sizeof(dlerror_buf), NULL);
+    return dlerror_buf;
+}
+#else
+#include <dlfcn.h>
 #endif
 
 // #define DEBUG_TRACE_EXECUTION // to comment out for actual builds
@@ -167,7 +183,7 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
     } while (false)
 
 #define READ_BYTE() (*frame->ip++)
-#define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
+#define READ_SHORT() (frame->ip += 2, (uint16_t)(frame->ip[-2] | (frame->ip[-1] << 8)))
 #define READ_CONSTANT() (active_function->constants[READ_BYTE()])
 #define READ_CONSTANT_LONG() (active_function->constants[READ_SHORT()])
 #define PEEK(distance) (vm->stack_top[-1 - (distance)])
@@ -1241,6 +1257,72 @@ int runVM(VM *vm)
             {
                 frame->ip += offset;
             }
+            break;
+        }
+
+        case OP_CALL_FFI:
+        {
+            uint8_t arg_count = READ_BYTE();
+            uint16_t lib_idx = READ_SHORT();
+            uint16_t func_idx = READ_SHORT();
+
+            CeraValue lib_val = active_function->constants[lib_idx];
+            CeraValue func_val = active_function->constants[func_idx];
+
+            ObjString *lib_str = (ObjString *)lib_val.as.obj;
+            ObjString *func_str = (ObjString *)func_val.as.obj;
+
+            void* handle = dlopen(lib_str->chars, RTLD_NOW | RTLD_GLOBAL);
+            if (!handle) {
+                RUNTIME_ERROR(vm, "FFI Fatal: Failed to load library '%s'. OS Error: %s", lib_str->chars, dlerror());
+            }
+
+            void* func_ptr = dlsym(handle, func_str->chars);
+            if (!func_ptr) {
+                RUNTIME_ERROR(vm, "FFI Fatal: Failed to locate symbol '%s' in '%s'.", func_str->chars, lib_str->chars);
+            }
+
+            uint64_t args[4] = {0}; 
+            void* allocs_to_free[4];
+            int alloc_count = 0;
+
+            for (int i = 0; i < arg_count; i++) {
+                CeraValue val = PEEK(arg_count - 1 - i); 
+                
+                if (val.tag == VAL_STRING || val.tag == VAL_LIST) {
+                    char* c_str = flatten_char_list(val);
+                    args[i] = (uint64_t)(uintptr_t)c_str;
+                    allocs_to_free[alloc_count++] = c_str;
+                } else if (val.tag == VAL_FLOAT) {
+                    union { double d; uint64_t u; } cast;
+                    cast.d = val.as.float_val;
+                    args[i] = cast.u;
+                } else if (IS_OBJ(val)) {
+                    args[i] = (uint64_t)(uintptr_t)val.as.obj;
+                } else {
+                    args[i] = (uint64_t)val.as.int_val;
+                }
+            }
+
+            for (int i = 0; i < arg_count; i++) release(pop(vm));
+
+            uint64_t result = 0;
+            switch (arg_count) {
+                case 0: result = ((uint64_t (*)())func_ptr)(); break;
+                case 1: result = ((uint64_t (*)(uint64_t))func_ptr)(args[0]); break;
+                case 2: result = ((uint64_t (*)(uint64_t, uint64_t))func_ptr)(args[0], args[1]); break;
+                case 3: result = ((uint64_t (*)(uint64_t, uint64_t, uint64_t))func_ptr)(args[0], args[1], args[2]); break;
+                case 4: result = ((uint64_t (*)(uint64_t, uint64_t, uint64_t, uint64_t))func_ptr)(args[0], args[1], args[2], args[3]); break;
+                default: RUNTIME_ERROR(vm, "FFI Error: Maximum supported arity for unmanaged dispatch is 4. Received: %d", arg_count);
+            }
+
+            for (int i = 0; i < alloc_count; i++) free(allocs_to_free[i]);
+
+            CeraValue res_val;
+            res_val.tag = VAL_INT; 
+            res_val.as.int_val = result;
+            push(vm, res_val);
+
             break;
         }
 
