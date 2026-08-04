@@ -46,6 +46,14 @@ def split(str: char list, delimiter: char, currentWord: char list = [], acc: cha
     }
 }
 
+def join(strList: char list list, delimiter: char) : char list = {
+    switch (strList) {
+        [] -> [],
+        [word] -> word,        
+        (word::tl) -> concat(word, (delimiter :: join(tl, delimiter)))
+    }
+}
+
 // --- Output ---
 
 hidden def padLeft(val: int, targetLen: int, padChar: char) : char list = {
@@ -93,6 +101,40 @@ inline def outDT(dt: dateTime) : unit = {
 
 inline def outDTN(dt: dateTime) : unit = { outDT(dt); outN(); }
 
+// --- Character Boundaries ---
+
+inline def isLower(c: char) : bool = {
+    var code = charToInt(c);
+    (code >= 97) && (code <= 122);
+}
+
+inline def isUpper(c: char) : bool = {
+    var code = charToInt(c);
+    (code >= 65) && (code <= 90);
+}
+
+inline def isDigit(c: char) : bool = {
+    var code = charToInt(c);
+    (code >= 48) && (code <= 57);
+}
+
+// --- Character Manipulation ---
+
+inline def toUpper(c: char) : char = {
+    if (isLower(c)) {
+        intToChar(charToInt(c) - 32);
+    } else {
+        c;
+    }
+}
+
+inline def toLower(c: char) : char = {
+    if (isUpper(c)) {
+        intToChar(charToInt(c) + 32);
+    } else {
+        c;
+    }
+}
 
 // --- File ---
 

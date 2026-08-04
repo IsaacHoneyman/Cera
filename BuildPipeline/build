@@ -46,10 +46,10 @@ rm -f ./$LINUX_DIR/bin/*.pdb
 echo "Compiling C virtual machine..."
 
 # Windows VM (Cross-compiled via MinGW)
-x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -pthread -lm -o ./$WIN_DIR/bin/ceravm.exe
+# x86_64-w64-mingw32-gcc $VM_SRC/*.c -O3 -pthread $(x86_64-w64-mingw32-pkg-config --cflags --libs libffi 2>/dev/null || echo "-lffi") -lm -o ./$WIN_DIR/bin/ceravm.exe
 
 # Linux VM (Native compilation)
-gcc $VM_SRC/*.c -O3 -pthread -lm -ldl -o ./$LINUX_DIR/bin/ceravm
+gcc $VM_SRC/*.c -O3 -pthread -lm $(pkg-config --cflags --libs libffi) -ldl -o ./$LINUX_DIR/bin/ceravm
 
 # =========================================================================
 # 4. Standard Library Assembly

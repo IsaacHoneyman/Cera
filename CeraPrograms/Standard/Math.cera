@@ -94,6 +94,17 @@ hidden def sinTaylor(x: float, termIndex: int, sign: float, iterations: int) : f
     }
 }
 
+hidden def atanTaylor(x: float, n: int, iterations: int) : float = {
+    if (iterations == 0) { 
+        0.0; 
+    } else {
+        var power = intToFloat((2 * n) + 1);
+        var sign = (n % 2 == 0) ? 1.0 : -1.0;
+        var term = sign * (pow(x, power) / power);
+        term + atanTaylor(x, n + 1, iterations - 1);
+    }
+}
+
 hidden inline def normalizeRadians(x: float) : float = {
     var twoPi = pi * 2.0;
     var wrapped = x - (twoPi * floor(x / twoPi));
@@ -103,3 +114,78 @@ hidden inline def normalizeRadians(x: float) : float = {
 inline def sin(x: float) : float = { sinTaylor(normalizeRadians(x), 1, 1.0, 10); }
 inline def cos(x: float) : float = { sin(x + (pi / 2.0)); }
 inline def tan(x: float) : float = { sin(x) / cos(x); }
+
+inline def sinh(x: float) : float = { (pow(e, x) - pow(e, -x)) / 2.0 }
+inline def cosh(x: float) : float = { (pow(e, x) + pow(e, -x)) / 2.0 }
+inline def tanh(x : float) : float = {
+    var ex = pow(e, x);
+    var emx = pow(e, -x);
+    (ex - emx) / (ex + emx);
+}
+
+inline def asinh(x: float) : float = { ln(x + sqrt((x * x) + 1.0)); }
+inline def acosh(x: float) : float = { ln(x + sqrt((x * x) - 1.0)); }
+inline def atanh(x: float) : float = { 0.5 * ln((1.0 + x) / (1.0 - x)); }
+
+def atan(x: float) : float = {
+    if (x > 1.0) {
+        (pi / 2.0) - atanTaylor(1.0 / x, 0, 15);
+    } else if (x < -1.0) {
+        -(pi / 2.0) - atanTaylor(1.0 / x, 0, 15);
+    } else {
+        atanTaylor(x, 0, 15);
+    }
+}
+inline def asin(x: float) : float = { atan(x / sqrt(1.0 - (x * x))); }
+inline def acos(x: float) : float = { (pi / 2.0) - asin(x); }
+
+// --- Discrete ---
+
+def gcd(a: int, b: int) : int = {
+    (b == 0) ? absInt(a) : gcd(b, a % b);
+}
+
+inline def lcm(a: int, b: int) : int = {
+    (a == 0 || b == 0) ? 0 : absInt(a * b) / gcd(a, b);
+}
+
+// --- Statistics ---
+
+hidden def arrSumAux(array: float arr, i: int, acc: float, len: int) : float = {
+    if (i >= len) { 
+        acc; 
+    } else {
+        var Some(val) = get(array, i);
+        arrSumAux(array, i + 1, acc + val, len);
+    }
+}
+
+def sum(array: float arr) : float = {
+    arrSumAux(array, 0, 0.0, arrLength(array));
+}
+
+def mean(array: float arr) : float = {
+    var len = arrLength(array);
+    len == 0 ? 0.0 : sum(array) / intToFloat(len); 
+}
+
+hidden def arrVarianceAux(array: float arr, i: int, acc: float, len: int, m: float) : float = {
+    if (i >= len) { 
+        acc; 
+    } else {
+        var Some(val) = get(array, i);
+        var diff = val - m;
+        arrVarianceAux(array, i + 1, acc + (diff * diff), len, m);
+    }
+}
+
+def variance(array: float arr) : float = {
+    var len = arrLength(array);
+    if (len <= 1) { 
+        0.0; 
+    } else {
+        var m = mean(array);
+        var sumSq = arrVarianceAux(array, 0, 0.0, len, m);
+        sumSq / intToFloat(len);
+    }
+}

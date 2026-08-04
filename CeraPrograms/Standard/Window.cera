@@ -1,0 +1,53 @@
+/*
+    The offical libary for windowing in Cera.
+    Offers suport for window manipulation and 
+    drawing to window.
+*/
+
+type window = Window : int; // encapsulate
+
+hidden extern def extCreateWindow(title: char list, winW: int, winH: int, texW: int, texH: int) : int = "cera_window";
+hidden extern def extDestroyWindow(winPtr: int) : int = "cera_window";
+hidden extern def extClearContext(winPtr: int, r: float, g: float, b: float) : int = "cera_window";
+hidden extern def extSwapBuffers(winPtr: int) : int = "cera_window";
+hidden extern def extWindowShouldClose(winPtr: int) : int = "cera_window";
+hidden extern def extPollEvents(winPtr: int) : int = "cera_window";
+hidden extern def extDrawPixels(winPtr: int, pixels: int arr, w: int, h: int) : int = "cera_window";
+
+def createWindow(title: char list, winWidth: int, winHeight: int, texWidth: int, texHeight: int) : window = {
+    Window(extCreateWindow(title, winWidth, winHeight, texWidth, texHeight));
+}
+
+def closeWindow(win: window) : unit = {
+    var Window(ptr) = win;
+    extDestroyWindow(ptr);
+    ();
+}
+
+def clearWindow(win: window, r: float, g: float, b: float) : unit = {
+    var Window(ptr) = win;
+    extClearContext(ptr, r, g, b);
+    ();
+}
+
+def drawWindow(win: window) : unit = {
+    var Window(ptr) = win;
+    extSwapBuffers(ptr); 
+    ();
+}
+
+def windowShouldClose(win: window) : bool = {
+    var Window(ptr) = win;
+    extWindowShouldClose(ptr) == 1;
+}
+
+def pollEvents(win: window) : bool = {
+    var Window(ptr) = win;
+    extPollEvents(ptr) == 1; // Returns true if the user clicked the 'X'
+}
+
+def drawPixels(win: window, pixels: int arr, width: int, height: int) : unit = {
+    var Window(ptr) = win;
+    extDrawPixels(ptr, pixels, width, height);
+    ();
+}

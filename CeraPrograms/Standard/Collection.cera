@@ -154,10 +154,32 @@ def qs<g>(lst: g list, cmp: (g * g) -> int) : g list = {
     }
 }
 
+def zip<g, h>(lst1: g list, lst2: h list, acc: (g * h) list = []) : (g * h) list = {
+    switch ((lst1, lst2)) {
+        ([], _) -> rev(acc),
+        (_, []) -> rev(acc), 
+        ((h1::tl1), (h2::tl2)) -> 
+            zip(tl1, tl2, (h1, h2)::acc)
+    }
+}
+
+def unzip<g, h>(lst: (g * h) list, acc: (g list * h list) = ([], [])) : (g list * h list) = {
+    switch (lst) {
+        [] -> {
+            var (accg, acch) = acc;
+            (rev(accg), rev(acch))
+        },
+        ((hdg, hdh)::tl) -> {
+            var (accg, acch) = acc;
+            unzip(tl, (hdg::accg, hdh::acch))
+        }
+    }
+}
+
 // --- Arrays ---
 
 // unsafe array grab, fall back value used upon out of bounds failure
-def arrGetD<g>(array: g arr, index: int, fallback: g) : g = {
+def getD<g>(array: g arr, index: int, fallback: g) : g = {
     switch (get(array, index)) {
         Some(val) -> val,
         None -> fallback
@@ -214,6 +236,10 @@ inline def arrRev<g>(array: g arr) : g arr = {
 
 inline def arrExists<g>(array: g arr, p: g -> bool) : bool = {
     exists(arrToList(array), p);
+}
+
+inline def arrQs<g>(array: g arr, cmp: (g * g) -> int) : g arr = {
+    listToArr(qs(arrToList(array), cmp));
 }
 
 // --- Streams ---

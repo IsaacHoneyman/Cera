@@ -22,6 +22,22 @@ inline def hoursInMs(hours : int) : int = { hours * msPerHour }
 inline def minutesInMs(minutes : int) : int = { minutes * msPerMinute }
 inline def secondsInMs(seconds: int) : int = { seconds * msPerSecond } 
 
+inline def timeInMs(t: timeOnly) : int = {
+    var TimeOnly(h, m, s, ms) = t;
+    hoursInMs(h) + minutesInMs(m) + secondsInMs(s) + ms;
+}
+
+inline def dateInMs(d: dateOnly) : int = {
+    var DateOnly(y, m, dNum) = d;
+    var totalDays = daysFrom1970(y) + daysInMonths(daysInMonth(y), m) + (dNum - 1);
+    daysInMs(totalDays);
+}
+
+inline def dateTimeInMs(dt: dateTime) : int = {
+    var DateTime(d, t) = dt;
+    dateInMs(d) + timeInMs(t);
+}
+
 inline def msInDays(ms: int) : int = { ms / msPerDay }
 inline def msInHours(ms: int) : int = { ms / msPerHour }
 inline def msInMinutes(ms: int) : int = { ms / msPerMinute }
@@ -46,6 +62,27 @@ hidden def getMonth(daysList: int list, currentMonth: int, day: int) : (int * in
         [] -> (currentMonth, day + 1),
         (days::tail) if (day >= days) -> getMonth(tail, currentMonth + 1, day - days),
         _ -> (currentMonth, day + 1)
+    }
+}
+
+hidden def daysFrom1970(year: int, currentYear: int = 1970, acc: int = 0) : int = {
+    if (currentYear >= year) { 
+        acc; 
+    } else {
+        var days = isLeapYear(currentYear) ? 366 : 365;
+        daysFrom1970(year, currentYear + 1, acc + days);
+    }
+}
+
+hidden def daysInMonths(months: int list, targetMonth: int, currentMonth: int = 1, acc: int = 0) : int = {
+    switch (months) {
+        [] -> acc,
+        (days::tl) ->
+            if (currentMonth >= targetMonth) { 
+                acc; 
+            } else { 
+                daysInMonths(tl, targetMonth, currentMonth + 1, acc + days) 
+            }
     }
 }
 
@@ -74,4 +111,30 @@ def buildDate(ms: int) : dateOnly = {
 
 inline def buildDateTime(ms: int) : dateTime = {
     DateTime(buildDate(ms), buildTime(ms));
+}
+
+// --- Arithmetic ---
+
+inline def diffTime(t1: timeOnly, t2: timeOnly) : int = {
+    timeInMs(t1) - timeInMs(t2);
+}
+
+inline def diffDate(d1: dateOnly, d2: dateOnly) : int = {
+    dateInMs(d1) - dateInMs(d2);
+}
+
+inline def diffDateTime(dt1: dateTime, dt2: dateTime) : int = {
+    dateTimeInMs(dt1) - dateTimeInMs(dt2);
+}
+
+inline def addDays(d: dateOnly, days: int) : dateOnly = {
+    buildDate(dateInMs(d) + daysInMs(days));
+}
+
+inline def addHours(dt: dateTime, hours: int) : dateTime = {
+    buildDateTime(dateTimeInMs(dt) + hoursInMs(hours));
+}
+
+inline def addMinutes(dt: dateTime, mins: int) : dateTime = {
+    buildDateTime(dateTimeInMs(dt) + minutesInMs(mins));
 }

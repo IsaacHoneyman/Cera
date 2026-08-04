@@ -1,14 +1,14 @@
 using Cera.Compiler.Parser;
 using Cera.Compiler.Logging;
-using System.Diagnostics.CodeAnalysis;
 using Cera.Compiler.Lexer;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Cera.Compiler.Backend;
 
 public partial class Emitter(
-    Dictionary<string, FileAST> parsedFiles, 
-    Dictionary<string, Analyzer.Environment> localEnvs, 
-    Dictionary<INodeAST, string> res, 
+    Dictionary<string, FileAST> parsedFiles,
+    Dictionary<string, Analyzer.Environment> localEnvs,
+    Dictionary<INodeAST, string> res,
     Diagnostics diag)
 {
     private readonly Module module = new("CeraModule");
@@ -21,6 +21,7 @@ public partial class Emitter(
     private readonly HashSet<string> curInlining = [];
 
     private readonly Dictionary<string, IExprAST> globalVariables = [];
+    private readonly Dictionary<string, ExternDeclNode> globalExterns = [];
 
     private readonly Dictionary<string, byte> constructorTags = new()
     {
@@ -67,30 +68,35 @@ public partial class Emitter(
                 string vName = res.TryGetValue(topVar, out string? r) ? r : topVar.Identifier.Lexeme;
                 globalVariables[vName] = topVar.Initializer;
             }
-            
+
             foreach (var typeDecl in file.Types)
             {
-                foreach (var constructor in typeDecl.Constructors) 
+                foreach (var constructor in typeDecl.Constructors)
                 {
                     string cName = constructor.ConstructorName.Lexeme;
                     if (typeDecl.IsHidden) cName = $"_hidden_{constructor.ConstructorName.File ?? "unknown"}_{cName}";
-                    
+
                     if (!constructorTags.ContainsKey(cName))
                     {
                         if (nextConstructorTag == byte.MaxValue)
                             FatalError("Too many ADT constructors across the module. Limit is 255", typeDecl.Identifier);
-                            
+
                         constructorTags[cName] = nextConstructorTag++;
                     }
                 }
             }
+
+            foreach (var ext in file.ExternFunctions) 
+            {
+                string eName = res.TryGetValue(ext, out string? r) ? r : ext.Identifier.Lexeme;
+                globalExterns[eName] = ext;
+            }
         }
 
-        // 2. Flat Pass: Compile all functions within their specific local environments
         foreach (var file in parsedFiles.Values)
         {
             currentEnv = localEnvs[file.FilePath];
-            foreach (var func in file.Functions) 
+            foreach (var func in file.Functions)
             {
                 CompileFunction(func);
             }
@@ -115,7 +121,7 @@ public partial class Emitter(
 
         string fName = res.TryGetValue(func, out string? r) ? r : func.Identifier.Lexeme;
         int reservedIndex = globalFunctionIndices[fName];
-        
+
         module.DefineFunction(new CompiledFunction(func.Identifier.Lexeme, func.Parameters.Count, CurrentChunk, reservedIndex));
     }
 
@@ -148,12 +154,12 @@ public partial class Emitter(
         currentState.Upvalues.Add((name, isLocal, index));
         return currentState.Upvalues.Count - 1;
     }
-    
+
     private int GetGlobalFunctionIndex(string fName, Token errorToken)
     {
         if (globalFunctionIndices.TryGetValue(fName, out int index))
             return index;
-            
+
         FatalError($"Global function '{fName}' has no assigned index", errorToken);
         return -1;
     }
@@ -162,10 +168,10 @@ public partial class Emitter(
     {
         string cName = identifier.Lexeme;
         string mangledName = $"_hidden_{identifier.File ?? "unknown"}_{cName}";
-        
+
         if (constructorTags.TryGetValue(mangledName, out byte tagIdMangled)) return tagIdMangled;
         if (constructorTags.TryGetValue(cName, out byte tagId)) return tagId;
-        
+
         throw ThrowableFatalError($"Emitter Error: Unknown ADT constructor '{identifier.Lexeme}' encountered during emission", identifier);
     }
 
@@ -174,7 +180,7 @@ public partial class Emitter(
     {
         throw ThrowableFatalError(message, token);
     }
-    
+
     private EmitterException ThrowableFatalError(string message, Token? token)
     {
         EmitterException e = new(message, token ?? Token.None());

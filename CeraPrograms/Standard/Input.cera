@@ -1,0 +1,159 @@
+/*
+    The offical libary for input in Cera.
+    Offers suport for realtime mouse and 
+    keyboard input.
+*/
+
+hidden extern def extGetKey(code: int) : int = "cera_window";
+hidden extern def extGetKeyDown(code: int) : int = "cera_window";
+hidden extern def extGetKeyUp(code: int) : int = "cera_window";
+
+hidden extern def extGetMouseX() : int = "cera_window";
+hidden extern def extGetMouseY() : int = "cera_window";
+hidden extern def extGetMouseButton(btn: int) : int = "cera_window";
+hidden extern def extGetMouseButtonDown(btn: int) : int = "cera_window";
+
+// --- Keyboard API ---
+
+// True as long as the key is held down
+inline def getKey(code: int) : bool = { extGetKey(code) == 1 }
+
+// True ONLY on the exact frame the key was pressed
+inline def getKeyDown(code: int) : bool = { extGetKeyDown(code) == 1 }
+
+// True ONLY on the exact frame the key was released
+inline def getKeyUp(code: int) : bool = { extGetKeyUp(code) == 1 }
+
+inline def getMouseX() : int = { extGetMouseX() }
+inline def getMouseY() : int = { extGetMouseY() }
+inline def getMouseBtn(btn: int) : bool = { extGetMouseButton(btn) == 1 }
+inline def getMouseBtnDown(btn: int) : bool = { extGetMouseButtonDown(btn) == 1 }
+
+// ==========================================
+// --- Key Constants (SDL Scancodes) ---
+// ==========================================
+
+// --- Alphabet ---
+var keyA: int = 4;
+var keyB: int = 5;
+var keyC: int = 6;
+var keyD: int = 7;
+var keyE: int = 8;
+var keyF: int = 9;
+var keyG: int = 10;
+var keyH: int = 11;
+var keyI: int = 12;
+var keyJ: int = 13;
+var keyK: int = 14;
+var keyL: int = 15;
+var keyM: int = 16;
+var keyN: int = 17;
+var keyO: int = 18;
+var keyP: int = 19;
+var keyQ: int = 20;
+var keyR: int = 21;
+var keyS: int = 22;
+var keyT: int = 23;
+var keyU: int = 24;
+var keyV: int = 25;
+var keyW: int = 26;
+var keyX: int = 27;
+var keyY: int = 28;
+var keyZ: int = 29;
+
+// --- Numbers (Top Row) ---
+var key1: int = 30;
+var key2: int = 31;
+var key3: int = 32;
+var key4: int = 33;
+var key5: int = 34;
+var key6: int = 35;
+var key7: int = 36;
+var key8: int = 37;
+var key9: int = 38;
+var key0: int = 39;
+
+// --- Control & Navigation ---
+var keyReturn: int = 40;     // Enter
+var keyEsc: int = 41;        // Escape
+var keyBackspace: int = 42;
+var keyTab: int = 43;
+var keySpace: int = 44;
+
+// --- Symbols & Punctuation ---
+var keyMinus: int = 45;      // -
+var keyEquals: int = 46;     // =
+var keyLBracket: int = 47;   // [
+var keyRBracket: int = 48;   // ]
+var keyBackslash: int = 49;  // \
+var keySemicolon: int = 51;  // ;
+var keyApostrophe: int = 52; // '
+var keyGrave: int = 53;      // `
+var keyComma: int = 54;      // ,
+var keyPeriod: int = 55;     // .
+var keySlash: int = 56;      // /
+
+// --- Function Keys ---
+var keyF1: int = 58;
+var keyF2: int = 59;
+var keyF3: int = 60;
+var keyF4: int = 61;
+var keyF5: int = 62;
+var keyF6: int = 63;
+var keyF7: int = 64;
+var keyF8: int = 65;
+var keyF9: int = 66;
+var keyF10: int = 67;
+var keyF11: int = 68;
+var keyF12: int = 69;
+
+// --- Editing & Page Navigation ---
+var keyInsert: int = 73;
+var keyHome: int = 74;
+var keyPageUp: int = 75;
+var keyDelete: int = 76;
+var keyEnd: int = 77;
+var keyPageDown: int = 78;
+
+// --- Directional Arrows ---
+var keyRight: int = 79;
+var keyLeft: int = 80;
+var keyDown: int = 81;
+var keyUp: int = 82;
+
+// --- Keypad (Numpad) ---
+var keyKpDivide: int = 84;
+var keyKpMultiply: int = 85;
+var keyKpMinus: int = 86;
+var keyKpPlus: int = 87;
+var keyKpEnter: int = 88;
+var keyKp1: int = 89;
+var keyKp2: int = 90;
+var keyKp3: int = 91;
+var keyKp4: int = 92;
+var keyKp5: int = 93;
+var keyKp6: int = 94;
+var keyKp7: int = 95;
+var keyKp8: int = 96;
+var keyKp9: int = 97;
+var keyKp0: int = 98;
+var keyKpPeriod: int = 99;
+
+// --- Modifiers ---
+var keyLCtrl: int = 224;
+var keyLShift: int = 225;
+var keyLAlt: int = 226;      // Left Alt
+var keyLGui: int = 227;      // Left Windows/Command
+var keyRCtrl: int = 228;
+var keyRShift: int = 229;
+var keyRAlt: int = 230;      // Right Alt / AltGr
+var keyRGui: int = 231;      // Right Windows/Command
+
+// ==========================================
+// --- Mouse Constants (SDL Buttons) ---
+// ==========================================
+var mouseLeft: int = 1;
+var mouseMiddle: int = 2;
+var mouseRight: int = 3;
+var mouseX1: int = 4;        // Back button (usually)
+var mouseX2: int = 5;        // Forward button (usually)

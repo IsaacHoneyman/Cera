@@ -1,7 +1,0 @@
-hidden extern def ceraResponse() : unit = "cera_sdl.so"; 
-
-def entry(args: char list arr) : int = {
-    out("Hello C, are you there?\n");
-    ceraResponse();
-    0
-}

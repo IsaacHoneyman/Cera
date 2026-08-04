@@ -1,6 +1,6 @@
+using Cera.Compiler.Analyzer;
 using Cera.Compiler.Parser;
 using Cera.Compiler.Lexer;
-using Cera.Compiler.Analyzer;
 using static Cera.Compiler.Logging.Diagnostics;
 
 namespace Cera.Compiler.Backend;
@@ -434,7 +434,7 @@ public partial class Emitter
                 Locals.RemoveRange(Locals.Count - natTrackedArgs, natTrackedArgs);
                 return;
             }
-            else if (sym is ExternSymbol extSym)
+            else if (globalExterns.TryGetValue(fName, out var extDecl))
             {
                 int extTrackedArgs = 0;
                 foreach (var arg in call.Arguments)
@@ -445,7 +445,12 @@ public partial class Emitter
                 }
 
                 int line = idExpr.Identifier.Line;
-                int libPathIdx = CurrentChunk.AddConstant(CeraValue.String(extSym.LibraryPath));
+
+                // Extract the library path from the AST (trimming the quotes from the string literal)
+                string libPath = extDecl.PathLiteral.Lexeme.Trim('"');
+                int libPathIdx = CurrentChunk.AddConstant(CeraValue.String(libPath));
+
+                // Use idExpr.Identifier.Lexeme to get the UNMANGLED C-function name for dlsym
                 int funcNameIdx = CurrentChunk.AddConstant(CeraValue.String(idExpr.Identifier.Lexeme));
 
                 if (libPathIdx > ushort.MaxValue || funcNameIdx > ushort.MaxValue)
@@ -454,7 +459,7 @@ public partial class Emitter
                 CurrentChunk.WriteByte(OpCode.CALL_FFI, line);
                 CurrentChunk.WriteByte((byte)call.Arguments.Count, line);
                 CurrentChunk.WriteByte((byte)(libPathIdx & 0xFF), line);
-                CurrentChunk.WriteByte((byte)((libPathIdx >> 8) & 0xFF), line);                
+                CurrentChunk.WriteByte((byte)((libPathIdx >> 8) & 0xFF), line);
                 CurrentChunk.WriteByte((byte)(funcNameIdx & 0xFF), line);
                 CurrentChunk.WriteByte((byte)((funcNameIdx >> 8) & 0xFF), line);
                 Locals.RemoveRange(Locals.Count - extTrackedArgs, extTrackedArgs);
@@ -536,7 +541,10 @@ public partial class Emitter
 
             EmitExpression(arguments[i], false);
 
-            Locals[^1] = func.Parameters[i].Identifier.Lexeme;
+            var paramId = func.Parameters[i].Identifier;
+            string paramName = paramId.Lexeme;
+
+            Locals[^1] = paramName;
 
             CurrentChunk.WriteByte(OpCode.STORE_LOCAL, line);
             CurrentChunk.WriteByte((byte)(Locals.Count - 1), line);
