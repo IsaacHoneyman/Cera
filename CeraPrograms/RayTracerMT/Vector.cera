@@ -51,7 +51,7 @@ inline def reflect(incident: vec3, normal: vec3) : vec3 = {
     vSub(incident, scaledNormal);
 }
 
-inline def getD(v: vec3, i: int) : float = {
+inline def getDi(v: vec3, i: int) : float = {
     var Vec(x, y, z) = v;
     switch (i) {
         0 -> x,

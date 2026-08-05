@@ -41,7 +41,7 @@ hidden def partitionSpatially(objs: obj list, axis: int, splitPos: float, left: 
         [] -> (left, right),
         (h::tl) -> {
             var c: vec3 = getCentroid(h);            
-            if (getD(c, axis) < splitPos) {
+            if (getDi(c, axis) < splitPos) {
                 partitionSpatially(tl, axis, splitPos, (h::left), right)
             } else {
                 partitionSpatially(tl, axis, splitPos, left, (h::right))
@@ -80,19 +80,19 @@ def createBVH(objs: obj list) : obj = {
                     var maxRadius: float = foldLeft(radii, func(acc: float, r: float): float = max(acc, r), 0.0);
 
                     var minBound: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = 
-                        Vec(min(getD(acc, 0), getD(c, 0)), min(getD(acc, 1), getD(c, 1)), min(getD(acc, 2), getD(c, 2))), 
+                        Vec(min(getDi(acc, 0), getDi(c, 0)), min(getDi(acc, 1), getDi(c, 1)), min(getDi(acc, 2), getDi(c, 2))), 
                         Vec(99999.0, 99999.0, 99999.0));
                         
                     var maxBound: vec3 = foldLeft(centers, func(acc: vec3, c: vec3): vec3 = 
-                        Vec(max(getD(acc, 0), getD(c, 0)), max(getD(acc, 1), getD(c, 1)), max(getD(acc, 2), getD(c, 2))), 
+                        Vec(max(getDi(acc, 0), getDi(c, 0)), max(getDi(acc, 1), getDi(c, 1)), max(getDi(acc, 2), getDi(c, 2))), 
                         Vec(-99999.0, -99999.0, -99999.0));
 
-                    var extentX: float = getD(maxBound, 0) - getD(minBound, 0);
-                    var extentY: float = getD(maxBound, 1) - getD(minBound, 1);
-                    var extentZ: float = getD(maxBound, 2) - getD(minBound, 2);
+                    var extentX: float = getDi(maxBound, 0) - getDi(minBound, 0);
+                    var extentY: float = getDi(maxBound, 1) - getDi(minBound, 1);
+                    var extentZ: float = getDi(maxBound, 2) - getDi(minBound, 2);
 
                     var axis: int = (extentX > extentY) ? ((extentX > extentZ) ? 0 : 2) : ((extentY > extentZ) ? 1 : 2);
-                    var splitPos: float = getD(minBound, axis) + ((getD(maxBound, axis) - getD(minBound, axis)) / 2.0);
+                    var splitPos: float = getDi(minBound, axis) + ((getDi(maxBound, axis) - getDi(minBound, axis)) / 2.0);
 
                     var (leftObjs, rightObjs) = partitionSpatially(objs, axis, splitPos, [], []);
                     

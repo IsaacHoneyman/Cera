@@ -1,0 +1,54 @@
+hidden import "Input.cera";
+hidden import "Collection.cera";
+
+var simWidth = 80;
+var simHeight = 80;
+
+type gameState = Build | Play;
+
+def genNextCycle(map: int arr, state: gameState, renderScale: int, tick: int) : (int arr * gameState) = {
+    switch ((state, getKeyDown(keyP))) {
+        (Build, true) -> (map, Play),
+        (Play, true) -> (arrBuild(simWidth * simHeight, func(i: int) : int = 0), Build),
+        (Build, _) -> {
+            var (lc, rc) = (getMouseBtn(mouseLeft), getMouseBtn(mouseRight));
+            if (lc || rc) {
+                var w: int = (getMouseY() / renderScale) * simWidth + getMouseX() / renderScale;
+                var nextMap = func(i: int) : int = {
+                    var v = getD(map, i, 0);
+                    i == w ? (lc ? 1 : 0) : v;
+                };
+                (arrBuild(simWidth * simHeight, nextMap), state); 
+            }
+            else { (map, state) }
+        },
+        (Play, _) -> {
+            (tick % 4 == 0) ? (runCycle(map), state) : (map, state)
+        }
+    } 
+}
+
+hidden inline def isAlive(map: int arr, x: int, y : int) : int = {
+    (getD(map, ((y + simHeight) % simHeight) * simHeight + ((x + simWidth) % simWidth), 0) == 1) ? 1 : 0;
+}
+
+hidden inline def neigCount(map: int arr, x: int, y: int) : int = {
+    isAlive(map, x - 1, y) + isAlive(map, x + 1, y) +
+    isAlive(map, x, y - 1) + isAlive(map, x, y + 1) + 
+    isAlive(map, x - 1, y - 1) + isAlive(map, x + 1, y - 1) + 
+    isAlive(map, x - 1, y + 1) + isAlive(map, x + 1, y + 1);
+}
+
+hidden def runCycle(map: int arr) : int arr = {
+    var f = func(i: int) : int = {
+        var m = getD(map, i, 0);
+        var c = neigCount(map, i % simWidth, i / simWidth);
+        if (m == 1) { // alive
+            (c < 2 || c > 3) ? 0 : 1;
+        }
+        else {
+            (c == 3) ? 1 : 0;
+        }
+    };
+    arrBuild(simWidth * simHeight, f);
+}

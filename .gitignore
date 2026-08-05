@@ -61,6 +61,8 @@ Out/
 BuildPipeline/cera-*
 
 .VSCodeCounter
+SDL2_mingw
+run_all.sh
 
 # Benchmark Results
 BenchmarkDotNet.Artifacts/

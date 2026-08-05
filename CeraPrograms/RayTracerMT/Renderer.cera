@@ -129,7 +129,7 @@ hidden def getRayColor(r: ray, scn: scene, depth: int, shadowSamples: int) : vec
                     None -> {
                         switch (r) {
                             Ray(origin, dir) -> {
-                                var t: float = 0.5 * (getD(dir, 1) + 1.0);
+                                var t: float = 0.5 * (getDi(dir, 1) + 1.0);
                                 var white: vec3 = Vec(1.0, 1.0, 1.0);
                                 var blue: vec3 = Vec(0.5, 0.7, 1.0);
                                 vAdd(vMul(white, 1.0 - t), vMul(blue, t));

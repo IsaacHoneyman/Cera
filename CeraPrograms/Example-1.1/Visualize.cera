@@ -20,7 +20,7 @@ hidden def getTileChar(val: int): char list = {
 hidden def printRow(data: int arr, rowStart: int, col: int): unit = {
     if (col < chunkWidth) {
         // Defensive data fetching using the Collection library's fallback array grab
-        var val: int = arrGetD(data, rowStart + col, 0);
+        var val: int = getD(data, rowStart + col, 0);
         
         out(getTileChar(val));
         

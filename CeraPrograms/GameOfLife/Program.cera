@@ -1,0 +1,46 @@
+hidden import "Window.cera";
+hidden import "Collection.cera";
+hidden import "Sim.cera";
+
+hidden var renderScale = 12;
+
+hidden inline def colour(r: int, g: int, b: int) : int = {
+    (255 << 24) | (r << 16) | (g << 8) | b;
+}
+
+hidden inline def draw(win: window, map: int arr, state: gameState) : unit = {
+    var pixels = arrBuild(simWidth * (simHeight + 1), 
+        func(i: int) : int = {
+            switch (getD(map, i, 2)) {
+                0 -> ((i % 2 + (i / simWidth)) % 2 == 0) ? colour(30, 30, 30) : colour(38, 38, 38),
+                1 -> colour(200, 200, 200),
+                2 -> {
+                    switch (state) {
+                        Build -> colour(200, 40, 40),
+                        Play -> colour(40, 200, 40)
+                    }
+                }
+            }
+        }    
+    );
+    drawPixels(win, pixels, simWidth, simHeight + 1);
+} 
+
+hidden def gameLoop(win: window, map: int arr, state: gameState, tick: int) : unit = {
+    if (!pollEvents(win)) {
+        var (nextMap, nextState) = genNextCycle(map, state, renderScale, tick);        
+        
+        draw(win, nextMap, nextState);
+        gameLoop(win, nextMap, nextState, tick + 1);
+    }
+}
+
+def entry(args: char list arr) : int = {
+    out("Hello, Cera!\n");
+    var initMap = arrBuild(simWidth * simHeight, func(i: int) : int = { 0 });
+    var win = createWindow("Cera Game Of Life", 
+        simWidth * renderScale, (simHeight + 1) * renderScale, simWidth, simHeight + 1);
+    gameLoop(win, initMap, Build, 0);
+    0;
+    
+}

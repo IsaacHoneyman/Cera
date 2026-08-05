@@ -671,7 +671,6 @@ public partial class Emitter
         {
             CurrentChunk.PatchJump(nextBranchJump);
 
-            EmitExpression(Condition, false);
             nextBranchJump = EmitConditionAndJump(Condition, ifExpr.Operator.Line);
 
             EmitExpressionBlock(Block, isTail);
