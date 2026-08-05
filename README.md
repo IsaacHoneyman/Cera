@@ -1,10 +1,10 @@
-# Cera Functional Language - v1.1-0
+# Cera Functional Language - v1.2-0
 
 **By Isaac Honeyman**
 
 Cera is a strictly pure functional programming language featuring a Hindley-Milner type inference engine, built with a C# compiler frontend and a high-performance, deterministic C virtual machine backend (CeraVM). 
 
-Designed to merge mathematical purity with modern readability, Cera replaces traditional functional syntax with an accessible C-family/OOP surface syntax. Version 1.1 introduces a highly optimized Directed Acyclic Graph (DAG) module system, FPU mathematics, and advanced structural pattern matching.
+Designed to merge mathematical purity with modern readability, Cera replaces traditional functional syntax with an accessible C-family/OOP surface syntax. Version 1.1 introduced a highly optimised Directed Acyclic Graph (DAG) module system, FPU mathematics, and advanced structural pattern matching. 1.2 came with default values, multithreading a full FFI ecosystem, and more!
 
 ## Core Features
 * **Purely Functional:** Zero mutable state and zero side effects (excluding isolated compiler intrinsics for I/O and hardware math).
@@ -14,7 +14,7 @@ Designed to merge mathematical purity with modern readability, Cera replaces tra
 * **Switch Guard Clauses:** Memory-safe "test-then-bind" pattern evaluation using `if (condition)` guards.
 * **Tail Call Optimization (TCO):** $O(1)$ spatial complexity for unbounded recursive loops, preventing stack overflow exceptions during iterative algorithms.
 * **Standalone Bytecode:** The C# compiler lowers `.cera` source files into a highly dense `.cerabc` Intermediate Representation, executed deterministically by the C-based CeraVM.
-
+* 
 ## Installation & Setup
 
 The Cera toolchain is distributed as pre-compiled, self-contained binaries to ensure predictable deployment across diverse host operating systems.
