@@ -1,0 +1,41 @@
+hidden import "IO.cera";
+hidden import "Lexer.cera";
+hidden import "Test.cera";
+
+def entry(args: char list arr) : int = { 
+    outC();
+    outN("--- Cera Compiler Example ---");
+    runCompiler();
+    
+    0
+}
+
+hidden def runCompiler() : unit = {
+    var input = getInput();
+    
+    if (input == "q") { () } 
+    else if (input == "t") {
+        runLexerTests();
+        runCompiler();
+    }
+    else {
+        var tokens = lex(input);
+
+        switch (tokens) {
+            Error(e) -> {
+                outN(e);
+                runCompiler();
+            },
+            Ok(t) -> {
+                outN("Lexer complete.");
+                outLex(t);
+                runCompiler();
+            }
+        }
+    }
+}
+
+hidden inline def getInput() : char list = {
+    out("\nInput string to be lexed and parsed: ");
+    in()
+}

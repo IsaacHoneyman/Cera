@@ -1,0 +1,145 @@
+hidden import "Collection.cera";
+hidden import "IO.cera";
+
+// --- Types ---
+
+type tokenType = 
+    Num: (float * char list) | 
+    Plus | Minus | Pow | 
+    Fact | Cos | EOF;
+
+type token = Token: (tokenType * int); // type, column
+
+// --- Debug ---
+
+def outLex(input: token list) : unit = {
+    switch (input) {
+        [] -> (),
+        (h::tl) -> {
+            var Token(tType, c) = h;
+            outF("Column %: ", [intToChars(c)]);
+            outTType(tType);
+            outN();
+            outLex(tl)
+        }
+    }
+}
+
+inline def outTType(t: tokenType) : unit = {
+    switch (t) {
+        Num(value, raw) -> outF("Number, Raw '%', Value '%'", [raw, floatToChars(value)]),
+        Plus -> out("Plus, Raw '+'"),
+        Minus -> out("Minus, Raw '-'"),
+        Pow -> out("Pow, Raw '^'"),
+        Fact -> out("Fact, Raw '!'"),
+        Cos -> out("Cos, Raw 'cos'"),
+        EOF -> out("EOF"),
+        _ -> ()
+    }
+}
+
+// --- Public Interface ---
+
+def lex(input: char list, col: int = 0, acc: token list = []) : result<token list, char list> = { 
+    var gt = func(tType: tokenType) : token = { Token(tType, col) };
+
+    switch (input) {
+        [] -> Ok(rev(gt(EOF)::acc)),
+        (' '::tl) -> lex(tl, col + 1, acc), // we just ignore white space
+
+        ('+'::tl) -> lex(tl, col + 1, gt(Plus)::acc),
+        ('-'::tl) -> lex(tl, col + 1, gt(Minus)::acc),
+        ('^'::tl) -> lex(tl, col + 1, gt(Pow)::acc),
+        ('!'::tl) -> lex(tl, col + 1, gt(Fact)::acc), 
+        ('c'::('o'::('s'::tl))) -> lex(tl, col + 3, gt(Cos)::acc),
+
+        (h::tl) if (isDigit(h) || h == '.') -> switch (lexNumber(input, col)) {
+            Ok((tok, rest, newCol)) -> lex(rest, newCol, tok::acc),
+            Error(e) -> Error(e)
+        },
+
+        _ -> Error(strF("Invalid Token at column %", [intToChars(col)]))
+    }
+}
+
+hidden def lexNumber(input: char list, col: int) : result<(token * char list * int), char list> = {
+    var (run, rest) = takeNum(input);
+    var (mant, expPart) = splitAtE(run);
+
+    var expOk = switch (expPart) {
+        None -> true,
+        Some(e) -> validExponent(e)
+    };
+
+    if (validMantissa(mant) && expOk) {
+        switch (charsToFloat(run)) {
+            Some(f) -> Ok((Token(Num(f, run), col), rest, col + length(run))),
+            None -> Error(strF("Malformed number at column %", [intToChars(col)]))
+        }
+    }
+    else {
+        Error(strF("Invalid numeric literal at column %", [intToChars(col)]))
+    }
+}
+
+// --- Helpers --- 
+
+// returns number and remaining input
+hidden def takeNum(input: char list, acc: char list = [], afterE: bool = false) : (char list * char list) = {
+    switch (input) {
+        [] -> (rev(acc), []),
+        (h::tl) ->
+            if (isDigit(h) || h == '.' || h == 'e') { takeNum(tl, h::acc, h == 'e') }
+            else if (afterE && (h == '+' || h == '-')) { takeNum(tl, h::acc) }
+            else { (rev(acc), input) }
+    }
+}
+
+// option for no exponent vs empty
+hidden def splitAtE(cs: char list, acc: char list = []) : (char list * option<char list>) = {
+    switch (cs) {
+        [] -> (rev(acc), None),
+        ('e'::tl) -> (rev(acc), Some(tl)),
+        (h::tl) -> splitAtE(tl, h::acc)
+    }
+}
+
+// 0 by itself is assumed okay by the program
+hidden def noLeadingZero(m: char list) : bool = {
+    switch (m) {
+        ('0'::('.'::_)) -> true,
+        ('0'::[]) -> true,
+        ('0'::_) -> false,
+        _ -> true
+    }
+}
+
+hidden def shapeOk(m: char list, seenDot: bool, seenDigit: bool) : bool = {
+    switch (m) {
+        [] -> seenDigit,
+        ('.'::tl) -> !seenDot && shapeOk(tl, true, seenDigit),
+        (h::tl) -> isDigit(h) && shapeOk(tl, seenDot, true),
+        _ -> false
+    }
+}
+
+hidden def validMantissa(m: char list) : bool = {
+    shapeOk(m, false, false) && noLeadingZero(m);
+}
+
+hidden def validExponent(e: char list) : bool = {
+    var digits = switch (e) {
+        ('+'::tl) -> tl,
+        ('-'::tl) -> tl,
+        _ -> e
+    };
+    allDigits(digits, false) && noLeadingZero(digits);
+}
+
+hidden def allDigits(cs: char list, seen: bool) : bool = {
+    switch (cs) {
+        [] -> seen,
+        (h::tl) -> isDigit(h) && allDigits(tl, true),
+        _ -> false
+    }
+}

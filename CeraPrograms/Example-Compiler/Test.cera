@@ -1,0 +1,77 @@
+hidden import "Lexer.cera";
+hidden import "IO.cera";
+
+/*  Test suite for the lexer and parser */
+
+def runLexerTests() : unit = {
+    runTest("5", [Num(5.0, "5"), EOF]);
+} 
+
+hidden def runTest(input: char list, expected: tokenType list = []) : unit = {
+    var (outPass, outFail) = (
+        func() : unit = outFN("Test passed, input '%'", [input]), 
+        func(lexed: result<token list, char list>) : unit = {
+            outFN("Test failed, input '%'", [input]);
+            switch (lexed) {
+                Error(e) -> outFN("Got %", [e]),
+                Ok(found) -> outTestComparision(found, expected)
+            }
+        }
+    );
+    
+    var lexed = lex(input);
+    switch (lexed) {
+        Error(_) if (expected == []) -> outPass(),
+        Error(_) -> outFail(lexed),
+        Ok(_) if (expected == []) -> outFail(lexed),
+        Ok(found) -> {
+            if (verifyTestResults(found, expected)) { outPass(); }
+            else { outFail(lexed); } 
+        }
+    }
+}
+
+hidden def outTestComparision(found: token list, expected: tokenType list) : unit = {    
+    switch ((found, expected)) {
+        ([], []) -> (),
+        ([], (h::tl)) -> {
+            out("None vs ");
+            outTType(h);
+            outN();
+            outTestComparision([], tl);
+        },
+        ((h::tl), []) -> {
+            var Token(tType, _) = h;
+            outTType(tType);
+            out(" vs None\n");
+            outTestComparision(tl, []);
+        },
+        ((h1::tl1), (h2::tl2)) -> {
+            var Token(tType, _) = h1;
+            outTType(tType);
+            out(" vs ");
+            outTType(h2);
+            outN();
+            outTestComparision(tl1, tl2);
+        }
+    }
+}
+
+
+hidden def verifyTestResults(found: token list, expected: tokenType list) : bool = {
+    switch ((found, expected)) {
+        ([], []) -> true,
+        ([], _) -> false,
+        (_, []) -> false,
+        ((h1::tl1), (h2::tl2)) -> {
+            var Token(tType1, _) = h1;
+            if (tType1 == h2) { verifyTestResults(tl1, tl2) }
+            else { false; }
+        }
+    }
+}
+
+
+
+
+

@@ -153,6 +153,20 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
         push(vm, res);                                                                                               \
     } while (false)
 
+#define EQUALITY_OP(negate)                              \
+    do                                                   \
+    {                                                    \
+        CeraValue b = pop(vm);                           \
+        CeraValue a = pop(vm);                           \
+        CeraValue res;                                   \
+        res.tag = VAL_BOOL;                              \
+        bool eq = values_equal(a, b);                    \
+        res.as.int_val = ((negate) ? !eq : eq) ? 1 : 0;  \
+        release(a);                                      \
+        release(b);                                      \
+        push(vm, res);                                   \
+    } while (false)
+
 #define BINARY_NUM_OP(op)                                        \
     do                                                           \
     {                                                            \
@@ -199,6 +213,20 @@ void initVM(VM *vm, Module *module, int argc, char **argv)
         release(b);                                    \
         if (!cond)                                     \
             frame->ip += offset;                       \
+    } while (false)
+
+#define FUSED_EQUALITY_JUMP(negate)          \
+    do                                       \
+    {                                        \
+        uint16_t offset = READ_SHORT();      \
+        CeraValue b = pop(vm);               \
+        CeraValue a = pop(vm);               \
+        bool eq = values_equal(a, b);        \
+        bool cond = (negate) ? !eq : eq;     \
+        release(a);                          \
+        release(b);                          \
+        if (!cond)                           \
+            frame->ip += offset;             \
     } while (false)
 
 #define READ_BYTE() (*frame->ip++)
@@ -298,6 +326,139 @@ char *flatten_char_list(CeraValue val)
     char *buf = malloc(1);
     buf[0] = '\0';
     return buf;
+}
+
+typedef struct
+{
+    CeraValue val;
+    uint32_t idx;
+} SeqCursor;
+
+static bool seq_cursor_empty(SeqCursor *c)
+{
+    if (c->val.tag == VAL_STRING)
+    {
+        ObjString *s = (ObjString *)c->val.as.obj;
+        return s == NULL || c->idx >= s->length;
+    }
+    return c->val.as.obj == NULL;
+}
+
+static CeraValue seq_cursor_head(SeqCursor *c)
+{
+    if (c->val.tag == VAL_STRING)
+    {
+        ObjString *s = (ObjString *)c->val.as.obj;
+        CeraValue h;
+        h.tag = VAL_CHAR;
+        h.as.int_val = (uint32_t)(unsigned char)s->chars[c->idx];
+        return h;
+    }
+    return ((ObjList *)c->val.as.obj)->head;
+}
+
+static void seq_cursor_advance(SeqCursor *c)
+{
+    if (c->val.tag == VAL_STRING)
+    {
+        c->idx++;
+        return;
+    }
+    c->val = ((ObjList *)c->val.as.obj)->tail;
+    c->idx = 0;
+}
+
+static bool values_equal(CeraValue a, CeraValue b);
+
+static bool sequences_equal(CeraValue a, CeraValue b)
+{
+    SeqCursor ca = {a, 0};
+    SeqCursor cb = {b, 0};
+
+    while (!seq_cursor_empty(&ca) && !seq_cursor_empty(&cb))
+    {
+        if (!values_equal(seq_cursor_head(&ca), seq_cursor_head(&cb)))
+            return false;
+
+        seq_cursor_advance(&ca);
+        seq_cursor_advance(&cb);
+    }
+
+    return seq_cursor_empty(&ca) && seq_cursor_empty(&cb);
+}
+
+static bool values_equal(CeraValue a, CeraValue b)
+{
+    bool a_seq = (a.tag == VAL_STRING || a.tag == VAL_LIST);
+    bool b_seq = (b.tag == VAL_STRING || b.tag == VAL_LIST);
+
+    if (a_seq && b_seq)
+        return sequences_equal(a, b);
+
+    if (a.tag != b.tag)
+        return false;
+
+    switch (a.tag)
+    {
+    case VAL_INT:
+    case VAL_BOOL:
+    case VAL_CHAR:
+    case VAL_UNIT:
+        return a.as.int_val == b.as.int_val;
+
+    case VAL_FLOAT:
+        return a.as.float_val == b.as.float_val;
+
+    case VAL_ADT:
+    {
+        ObjADT *x = (ObjADT *)a.as.obj;
+        ObjADT *y = (ObjADT *)b.as.obj;
+
+        if (x == NULL || y == NULL)
+            return x == y;
+        if (x->adt_tag != y->adt_tag)
+            return false;
+
+        return values_equal(x->payload, y->payload);
+    }
+
+    case VAL_TUPLE:
+    {
+        ObjTuple *x = (ObjTuple *)a.as.obj;
+        ObjTuple *y = (ObjTuple *)b.as.obj;
+
+        if (x == NULL || y == NULL)
+            return x == y;
+        if (x->length != y->length)
+            return false;
+
+        for (int i = 0; i < x->length; i++)
+            if (!values_equal(x->elements[i], y->elements[i]))
+                return false;
+
+        return true;
+    }
+
+    case VAL_ARRAY:
+    {
+        ObjArray *x = (ObjArray *)a.as.obj;
+        ObjArray *y = (ObjArray *)b.as.obj;
+
+        if (x == NULL || y == NULL)
+            return x == y;
+        if (x->length != y->length)
+            return false;
+
+        for (int i = 0; i < x->length; i++)
+            if (!values_equal(x->elements[i], y->elements[i]))
+                return false;
+
+        return true;
+    }
+
+    default:
+        return a.as.obj == b.as.obj;
+    }
 }
 
 static void close_upvalues(VM *vm, CeraValue *last)
@@ -641,10 +802,10 @@ int runVM(VM *vm)
         }
 
         case OP_EQ:
-            BINARY_BOOL_OP(==);
+            EQUALITY_OP(false);
             break;
         case OP_NEQ:
-            BINARY_BOOL_OP(!=);
+            EQUALITY_OP(true);
             break;
         case OP_LT:
             BINARY_BOOL_OP(<);
@@ -693,10 +854,10 @@ int runVM(VM *vm)
         }
 
         case OP_JUMP_IF_FALSE_EQ:
-            FUSED_RELATIONAL_JUMP(==);
+            FUSED_EQUALITY_JUMP(false);
             break;
         case OP_JUMP_IF_FALSE_NEQ:
-            FUSED_RELATIONAL_JUMP(!=);
+            FUSED_EQUALITY_JUMP(true);
             break;
         case OP_JUMP_IF_FALSE_LT:
             FUSED_RELATIONAL_JUMP(<);
@@ -735,24 +896,7 @@ int runVM(VM *vm)
 
             CeraValue a = frame->slots[local_slot];
             CeraValue b = active_function->constants[const_idx];
-            bool matches = false;
-
-            if (a.tag == VAL_STRING || a.tag == VAL_LIST)
-            {
-                char *strA = flatten_char_list(a);
-                char *strB = flatten_char_list(b);
-                matches = (strcmp(strA, strB) == 0);
-                free(strA);
-                free(strB);
-            }
-            else if (a.tag == VAL_FLOAT)
-            {
-                matches = (a.as.float_val == b.as.float_val);
-            }
-            else
-            {
-                matches = (a.as.int_val == b.as.int_val);
-            }
+            bool matches = values_equal(a, b);
 
             if (!matches)
                 frame->ip += offset;
@@ -1500,4 +1644,6 @@ int runVM(VM *vm)
 #undef PEEK
 #undef BINARY_INT_OP
 #undef BINARY_BOOL_OP
+#undef EQUALITY_OP
+#undef FUSED_EQUALITY_JUMP
 #undef BINARY_NUM_OP
