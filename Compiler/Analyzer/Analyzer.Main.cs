@@ -1,4 +1,3 @@
-// In Analyzer.Main.cs
 using System.Diagnostics.CodeAnalysis;
 using Cera.Compiler.Logging;
 using Cera.Compiler.Parser;
@@ -13,6 +12,7 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
     private readonly Dictionary<string, Environment> localEnvs = [];
 
     public Environment? currentEnv = Environment.None();
+    private Environment? currentExportEnv;
     public readonly Dictionary<INodeAST, string> resolvedNames = [];
 
     public (Dictionary<string, Environment>, Dictionary<INodeAST, string>) Analyze()
@@ -66,8 +66,12 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
         }
 
         currentEnv = localEnv;
+        currentExportEnv = exportEnv;
 
         foreach (var t in fileAst.Types) RegisterType(t, exportEnv, localEnv);
+
+        foreach (var t in fileAst.Types) ValidateTypeDecl(t);
+
         foreach (var f in fileAst.Functions) RegisterFunction(f, exportEnv, localEnv);
         foreach (var e in fileAst.ExternFunctions) RegisterExtern(e, exportEnv, localEnv);
         foreach (var v in fileAst.TopVariables) RegisterTopVar(v, exportEnv, localEnv);
@@ -103,13 +107,15 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
 
         if (currentEnv!.Resolve(fName) != null) FatalError($"External function '{fName}' is already defined", ext.Identifier);
 
+        HashSet<string> emptyGens = [];
+
         if (!ext.IsHidden)
         {
-            ValidatePublicVisibility(ext.ReturnType, ext.Identifier);
-            foreach (var param in ext.Parameters) ValidatePublicVisibility(param.DeclaredType, param.Identifier);
+            ValidatePublicVisibility(ext.ReturnType, ext.Identifier, "a public extern signature", emptyGens);
+            foreach (var param in ext.Parameters)
+                ValidatePublicVisibility(param.DeclaredType, param.Identifier, "a public extern signature", emptyGens);
         }
 
-        HashSet<string> emptyGens = [];
         ValidateTypeExists(ext.ReturnType, emptyGens);
 
         List<ITypeAST> paramTypes = [];
@@ -155,6 +161,9 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
             Unify(varDecl.DeclaredType, initType, varDecl.Identifier);
             initType = varDecl.DeclaredType;
         }
+
+        if (!varDecl.IsHidden)
+            ValidatePublicVisibility(ApplySubstitutions(initType), varDecl.Identifier, "a public global variable", []);
 
         if (varDecl.IsHidden) localEnv.Define(vName, new VarSymbol(varDecl.Identifier, initType));
         else exportEnv.Define(vName, new VarSymbol(varDecl.Identifier, initType));
@@ -221,8 +230,9 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
 
         if (!func.IsHidden)
         {
-            ValidatePublicVisibility(func.ReturnType, func.Identifier);
-            foreach (var param in func.Parameters) ValidatePublicVisibility(param.DeclaredType, param.Identifier);
+            ValidatePublicVisibility(func.ReturnType, func.Identifier, "a public function signature", seenGen);
+            foreach (var param in func.Parameters)
+                ValidatePublicVisibility(param.DeclaredType, param.Identifier, "a public function signature", seenGen);
         }
 
         ValidateTypeExists(func.ReturnType, seenGen);
@@ -251,33 +261,57 @@ public partial class Analyzer(Dictionary<string, FileAST> parsedFiles, Diagnosti
             exportEnv.Define(fName, new FuncSymbol(func.Identifier, fullSignature, func.Parameters.Count, gens, func.Parameters));
     }
 
-    private void ValidatePublicVisibility(ITypeAST typeNode, Token errorToken)
+    private void ValidateTypeDecl(TypeDeclNode type)
+    {
+        HashSet<string> gens = [.. (type.GenericTypeParams?.Identifiers ?? []).Select(g => g.Lexeme)];
+
+        foreach (var con in type.Constructors)
+        {
+            if (con.PayloadType == null) continue;
+
+            ValidateTypeExists(con.PayloadType, gens);
+
+            if (!type.IsHidden)
+                ValidatePublicVisibility(con.PayloadType, con.ConstructorName, "a public constructor payload", gens);
+        }
+    }
+
+    private bool IsPubliclyVisible(string typeName)
+    {
+        return currentExportEnv!.Resolve(typeName) is TypeSymbol;
+    }
+
+    private void ValidatePublicVisibility(ITypeAST typeNode, Token errorToken, string context, HashSet<string> generics)
     {
         switch (typeNode)
         {
             case BaseType b:
                 string rawName = b.TypeName.Lexeme;
-                string mangledName = $"_hidden_{b.TypeName.File ?? "unknown"}_{rawName}";
+                if (generics.Contains(rawName)) break;
 
-                // Change: Check currentEnv instead of globalEnv
-                if (currentEnv!.Resolve(mangledName) is TypeSymbol)
-                    FatalError($"Cannot expose hidden type '{rawName}' in a non-hidden function signature.", errorToken);
+                if (!IsPubliclyVisible(rawName))
+                {
+                    string reason = currentEnv!.Resolve(rawName) is TypeSymbol
+                        ? $"'{rawName}' is only visible locally because it was brought in by a hidden import"
+                        : $"'{rawName}' is declared hidden";
+                    FatalError($"Cannot expose {rawName} in {context}: {reason}.", errorToken);
+                }
                 break;
-            case ListType l: ValidatePublicVisibility(l.InnerType, errorToken); break;
-            case ArrType a: ValidatePublicVisibility(a.InnerType, errorToken); break;
+            case ListType l: ValidatePublicVisibility(l.InnerType, errorToken, context, generics); break;
+            case ArrType a: ValidatePublicVisibility(a.InnerType, errorToken, context, generics); break;
             case FuncType f:
-                ValidatePublicVisibility(f.ParameterType, errorToken);
-                ValidatePublicVisibility(f.ReturnType, errorToken);
+                ValidatePublicVisibility(f.ParameterType, errorToken, context, generics);
+                ValidatePublicVisibility(f.ReturnType, errorToken, context, generics);
                 break;
             case TupleType t:
-                foreach (var inner in t.Types) ValidatePublicVisibility(inner, errorToken);
+                foreach (var inner in t.Types) ValidatePublicVisibility(inner, errorToken, context, generics);
                 break;
             case GenericType gt:
                 string gBaseName = gt.BaseName.Lexeme;
-                string gMangledName = $"_hidden_{gt.BaseName.File ?? "unknown"}_{gBaseName}";
-                if (currentEnv!.Resolve(gMangledName) is TypeSymbol)
-                    FatalError($"Cannot expose hidden generic type '{gBaseName}' in a non-hidden function signature.", errorToken);
-                foreach (var arg in gt.TypeArguments) ValidatePublicVisibility(arg, errorToken);
+                if (!generics.Contains(gBaseName) && !IsPubliclyVisible(gBaseName))
+                    FatalError($"Cannot expose non-public generic type '{gBaseName}' in {context}.", errorToken);
+
+                foreach (var arg in gt.TypeArguments) ValidatePublicVisibility(arg, errorToken, context, generics);
                 break;
         }
     }
