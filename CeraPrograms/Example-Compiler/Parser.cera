@@ -1,0 +1,234 @@
+hidden import "Collection.cera";
+hidden import "IO.cera";
+import "Lexer.cera";
+
+// --- Types ---
+
+type nonTerminal = ExprNT | SubNT | PowNT | PrefixNT | PostfixNT | LitNT;
+type parseTree = Leaf: token | Node : (nonTerminal * parseTree list); 
+type action = Shift : int | Reduce : int | Accept | Err;
+
+// --- Debug ---
+
+def outTree(t: parseTree, depth: int = 0) : unit = {
+    pad(depth);
+    switch (t) {
+        Leaf(tok) -> {
+            var Token(tType, _) = tok;
+            outN(strTType(tType))
+        },
+        Node(nt, kids) -> {
+            outN(ntName(nt));
+            outChildren(kids, depth + 1)
+        }
+    }
+}
+
+hidden def outChildren(kids: parseTree list, depth: int) : unit = {
+    switch (kids) {
+        [] -> (),
+        (h::tl) -> {
+            outTree(h, depth);
+            outChildren(tl, depth)
+        }
+    }
+}
+
+hidden def pad(n: int) : unit = {
+    if (n <= 0) { () }
+    else {
+        out("  ");
+        pad(n - 1)
+    }
+}
+
+hidden def ntName(n: nonTerminal) : char list = {
+    switch (n) {
+        ExprNT -> "Expr",
+        SubNT -> "Sub",
+        PowNT -> "Pow",
+        PrefixNT -> "Prefix",
+        PostfixNT -> "Postfix",
+        LitNT -> "Lit"
+    }
+}
+
+hidden def tTypeName(t: tokenType) : char list = {
+    switch (t) {
+        Num(_, raw) -> raw,
+        Plus -> "+",
+        Minus -> "-",
+        Pow -> "^",
+        Cos -> "cos",
+        Fact -> "!",
+        EOF -> "end of input"
+    }
+}
+
+// --- Public Interface ---
+
+def parse(input: token list) : result<parseTree, char list> = {
+    loop(actionRows, gotoRows, [0], [], input)
+}
+
+hidden def loop(act: action arr, gt: int arr, sts: int list,
+                syms: parseTree list, input: token list)
+    : result<parseTree, char list> = {
+    switch (input) {
+        [] -> Error("Unexpected end of token stream (no EOF token)"),
+        (h::rest) -> {
+            var Token(tType, col) = h;
+            var st = head(sts, 0);
+
+            switch (lookupAction(act, st, tType)) {
+                Shift(n) -> loop(act, gt, n::sts, Leaf(h)::syms, rest),
+
+                Reduce(p) -> {
+                    var n    = prodLen(p);
+                    var kids = rev(take(syms, n));
+                    var syms2 = skip(syms, n);
+                    var sts2  = skip(sts, n);
+                    var nt   = prodLhs(p);
+                    var g    = lookupGoto(gt, head(sts2, 0), nt);
+
+                    if (g < 0) { Error(strF("Parser table error: no goto from state % at column %",
+                                            [intToChars(head(sts2, 0)), intToChars(col)])) }
+                    else { loop(act, gt, g::sts2, Node(nt, kids)::syms2, input) }
+                },
+
+                Accept -> switch (syms) {
+                    (t::_) -> Ok(t),
+                    _ -> Error("Accepted with an empty symbol stack")
+                },
+
+                Err -> Error(strF("Syntax error at column %: unexpected %",
+                                  [intToChars(col), tTypeName(tType)]))
+            }
+        }
+    }
+}
+
+// --- Table lookup ---
+
+hidden inline def lookupAction(act: action arr, state: int, t: tokenType) : action = {
+    switch (get(act, state * 7 + termIndex(t))) {
+        Some(a) -> a,
+        None -> Err
+    }
+}
+
+hidden inline def lookupGoto(gt: int arr, state: int, n: nonTerminal) : int = {
+    switch (get(gt, state * 6 + nonTermIndex(n))) {
+        Some(g) -> g,
+        None -> -1
+    }
+}
+
+hidden inline def termIndex(t: tokenType) : int = {
+    switch (t) {
+        Num(_, _) -> 0,
+        Plus -> 1,
+        Minus -> 2,
+        Pow -> 3,
+        Cos -> 4,
+        Fact -> 5,
+        EOF -> 6
+    }
+}
+
+hidden inline def nonTermIndex(n: nonTerminal) : int = {
+    switch (n) {
+        ExprNT -> 0,
+        SubNT -> 1,
+        PowNT -> 2,
+        PrefixNT -> 3,
+        PostfixNT -> 4,
+        LitNT -> 5
+    }
+}
+
+// --- Production metadata ---
+// 0.  Calc    -> Expr EOF        7.  Prefix  -> cos Prefix
+// 1.  Expr    -> Expr + Sub      8.  Prefix  -> Postfix
+// 2.  Expr    -> Sub             9.  Postfix -> Postfix !
+// 3.  Sub     -> Sub - Pow      10.  Postfix -> Lit
+// 4.  Sub     -> Pow            11.  Lit     -> num
+// 5.  Pow     -> Prefix ^ Pow   12.  Lit     -> + num
+// 6.  Pow     -> Prefix         13.  Lit     -> - num
+
+hidden var pl = arr [ 0, 3, 1, 3, 1, 3, 1, 2, 1, 2, 1, 1, 2, 2 ];
+hidden var ps = arr [ ExprNT, ExprNT, ExprNT, SubNT, SubNT, PowNT, PowNT, PrefixNT, PrefixNT, PostfixNT, PostfixNT, LitNT, LitNT, LitNT];
+
+hidden inline def prodLen(p: int) : int = {
+    switch (get(pl, p)) {
+        Some(x) -> x,
+        None -> 0
+    }
+}
+
+hidden inline def prodLhs(p: int) : nonTerminal = {
+    switch (get(ps, p)) {
+        Some(x) -> x,
+        None -> ExprNT
+    }
+}
+
+
+
+// --- Tables ---
+//   num, +, -, ^, cos, !, EOF
+
+hidden var actionRows = arr [
+    Shift(7), Shift(8), Shift(9), Err, Shift(10), Err, Err,   // I0
+    Err, Shift(11), Err, Err, Err, Err, Accept,   // I1
+    Err, Reduce(2), Shift(12), Err, Err, Err, Reduce(2),   // I2
+        Err, Reduce(4), Reduce(4), Err, Err, Err, Reduce(4),   // I3
+        Err, Reduce(6), Reduce(6), Shift(13), Err, Err, Reduce(6),   // I4
+        Err, Reduce(8), Reduce(8), Reduce(8), Err, Shift(14), Reduce(8),   // I5
+        Err, Reduce(10), Reduce(10), Reduce(10), Err, Reduce(10), Reduce(10),   // I6
+        Err, Reduce(11), Reduce(11), Reduce(11), Err, Reduce(11), Reduce(11),   // I7
+        Shift(15), Err, Err, Err, Err, Err, Err,   // I8
+        Shift(16), Err, Err, Err, Err, Err, Err,   // I9
+        Shift(7), Shift(8), Shift(9), Err, Shift(10), Err, Err,   // I10
+        Shift(7), Shift(8), Shift(9), Err, Shift(10), Err, Err,   // I11
+        Shift(7), Shift(8), Shift(9), Err, Shift(10), Err, Err,   // I12
+        Shift(7), Shift(8), Shift(9), Err, Shift(10), Err, Err,   // I13
+        Err, Reduce(9), Reduce(9), Reduce(9), Err, Reduce(9), Reduce(9),   // I14
+        Err, Reduce(12), Reduce(12), Reduce(12), Err, Reduce(12), Reduce(12),   // I15
+        Err, Reduce(13), Reduce(13), Reduce(13), Err, Reduce(13), Reduce(13),   // I16
+        Err, Reduce(7), Reduce(7), Reduce(7), Err, Err, Reduce(7),   // I17
+        Err, Reduce(1), Shift(12), Err, Err, Err, Reduce(1),   // I18
+        Err, Reduce(3), Reduce(3), Err, Err, Err, Reduce(3),   // I19
+        Err, Reduce(5), Reduce(5), Err, Err, Err, Reduce(5)    // I20
+];
+
+// GOTO is 21 states by 6 non-terminals, in the order
+//   Expr, Sub, Pow, Prefix, Postfix, Lit
+// with -1 standing for no entry.
+
+hidden var gotoRows = arr [
+    
+    1, 2, 3, 4, 5, 6,   // I0
+    -1, -1, -1, -1, -1, -1,   // I1
+    -1, -1, -1, -1, -1, -1,   // I2
+    -1, -1, -1, -1, -1, -1,   // I3
+    -1, -1, -1, -1, -1, -1,   // I4
+    -1, -1, -1, -1, -1, -1,   // I5
+    -1, -1, -1, -1, -1, -1,   // I6
+    -1, -1, -1, -1, -1, -1,   // I7
+    -1, -1, -1, -1, -1, -1,   // I8
+    -1, -1, -1, -1, -1, -1,   // I9
+    -1, -1, -1, 17, 5, 6,   // I10
+    -1, 18, 3, 4, 5, 6,   // I11
+    -1, -1, 19, 4, 5, 6,   // I12
+    -1, -1, 20, 4, 5, 6,   // I13
+    -1, -1, -1, -1, -1, -1,   // I14
+    -1, -1, -1, -1, -1, -1,   // I15
+    -1, -1, -1, -1, -1, -1,   // I16
+    -1, -1, -1, -1, -1, -1,   // I17
+    -1, -1, -1, -1, -1, -1,   // I18
+    -1, -1, -1, -1, -1, -1,   // I19
+    -1, -1, -1, -1, -1, -1    // I20
+];
+
+

@@ -10,7 +10,7 @@
 \usepackage{parskip}
 \usepackage{listings}
 \usepackage{mathtools}
-\usepackage{color} % Optional: if you want to define custom colors for keywords
+\usepackage{xcolor} % Optional: if you want to define custom colors for keywords
 
 % --- Hyperref Setup ---
 \hypersetup{
@@ -20,11 +20,27 @@
     urlcolor=cyan,
 }
 
-\lstset{
-    basicstyle=\ttfamily,
-    keywordstyle=\bfseries\color{blue}, % Optional: makes keywords pop
-    showstringspaces=false              % Optional: hides the weird underscores in strings
+\lstdefinelanguage{Cera}{
+    morekeywords={def, var, type, extern, import, hidden, inline, func,
+                  switch, if, else, true, false, int, float, char, bool,
+                  unit, list, arr, option, result, entry},
+    morecomment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    morestring=[b]",
+    sensitive=true,
 }
+
+\lstset{
+    language=Cera,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\bfseries\color{blue},
+    commentstyle=\itshape\color{gray},
+    stringstyle=\color{purple},
+    showstringspaces=false,
+    breaklines=true,
+    columns=fullflexible,
+}
+
 
 % --- Document Metadata ---
 \title{\textbf{Cera Functional Language - 1.1}}
@@ -101,7 +117,7 @@ The language base type set will be extremely minimal, all using lowercase names,
 \end{itemize}
 Note that in the following snippets, we can chain together extensions to create more complex types, as well as the syntax sugar for a char list.
 
-\begin{lstlisting}[title={Cera Language}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Cera Language}, basicstyle=\ttfamily]
 def foo() : unit = {
     var x: int = 5;
     var y: int list = [1, 2, 3, 4];
@@ -128,7 +144,7 @@ Variables in Cera are immutable bindings, explicitly or implicitly typed upon cr
     \item \textbf{Global Constants:} Variables declared at the top level of a file belong to the global environment. To enforce deterministic memory initialization and maintain absolute functional purity prior to the \texttt{entry} execution, these top-level declarations are strictly constrained to literal values. They may be preceded by the \texttt{hidden} keyword to restrict their scope entirely to the defining file.
 \end{itemize}
 
-\begin{lstlisting}[title={Data Transformation via Shadowing}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Data Transformation via Shadowing}, basicstyle=\ttfamily]
 def normalizeVector(x: float, y: float, z: float) : 
 (float * float * float) = {
     
@@ -143,7 +159,7 @@ def normalizeVector(x: float, y: float, z: float) :
 }
 \end{lstlisting}
 
-\begin{lstlisting}[title={Destructuring via Variable Declarations}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Destructuring via Variable Declarations}, basicstyle=\ttfamily]
 var consts = (3.14, 2.72)
 
 def calculateExtents(points: (float * float) list) : unit = {
@@ -175,7 +191,7 @@ In Cera, all operations are evaluated strictly by default. The language supports
     \item \textbf{Conditional:} Use of the \texttt{?} and \texttt{:} operators for inline conditional expressions (ternary operator).
 \end{itemize}
 
-\begin{lstlisting}[title={Expressions and Operators}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Expressions and Operators}, basicstyle=\ttfamily]
 def foo() : unit = {
     var a: int = 10 + 5;
     var b: float = 3.14 * 2.0;
@@ -199,7 +215,7 @@ Because Cera enforces zero mutable state, standard control flow statements are r
 \item \textbf{Pattern Matching \& Guards:} The \texttt{switch} construct replaces traditional statement-based switch blocks. It is the primary mechanism for structurally unpacking tuples, lists, and complex types. Branches are defined using the \texttt{->} operator. Additionally, cases may include an optional \texttt{if (condition)} guard clause immediately after the pattern. This leverages a test-then-bind architecture to evaluate boolean constraints before fully committing to the execution branch.
 \end{itemize}
 
-\begin{lstlisting}[title={Pattern Matching with Guards}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Pattern Matching with Guards}, basicstyle=\ttfamily]
 def evaluateFlags(flags: char list list, verbose: bool) 
     : bool = {
     switch (flags) {
@@ -235,7 +251,7 @@ Functions in Cera are first-class citizens. Because the language enforces zero m
     \item \textbf{Default Parameters:} Function signatures may specify default values for their parameters using the \texttt{=} operator (e.g., \texttt{acc : int = 0}). To maintain deterministic evaluation and functional purity, default values are strictly constrained to literal expressions. Furthermore, all parameters with default values must trail any required parameters in the function signature.
 \end{itemize}
 
-\begin{lstlisting}[title={Higher-Order Data Pipelines \& Modifiers}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Higher-Order Data Pipelines \& Modifiers}, basicstyle=\ttfamily]
 def sumEvenSquares(lst: int list) : int = {
     // 1. Filter out the odd numbers
     var evens = filter(lst, func (x: int): bool = x % 2 == 0);
@@ -276,7 +292,7 @@ Cera supports the creation of custom Algebraic Data Types (ADTs). To align with 
     \item \textbf{Encapsulation:} Type declarations may be preceded by the \texttt{hidden} keyword. This strictly isolates the type identifier and all of its concrete data constructors to the defining file, preventing external modules from pattern-matching against internal data structures.
 \end{itemize}
 
-\begin{lstlisting}[title={Recursive Immutable Data Structures}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Recursive Immutable Data Structures}, basicstyle=\ttfamily]
 // A generic Binary Tree definition
 type tree<g> = Leaf | Node : (tree<g> * g * tree<g>);
 
@@ -306,8 +322,8 @@ To maintain absolute mathematical purity and predictable control flow, Cera comp
 
 These types force the programmer to handle both the success and failure states using \texttt{switch} expressions, guaranteeing that unhandled exceptions cannot crash the VM.
 
-\begin{lstlisting}[title={Error Handling via ADTs}, basicstyle=\ttfamily]
-def divide(a: float, b: float): result<float, string> = {
+\begin{lstlisting}[language=Cera, title={Error Handling via ADTs}, basicstyle=\ttfamily]
+def divide(a: float, b: float): result<float, char list> = {
     if (b == 0.0) {
         Error("Division by zero");
     } else {
@@ -322,7 +338,7 @@ def divide(a: float, b: float): result<float, string> = {
 \noindent
 Cera evaluates all expressions strictly (call-by-value) by default. However, to support infinite data structures and deferred execution, one may use unit thunks.
 
-\begin{lstlisting}[title={Infinite Fibonacci Stream}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Infinite Fibonacci Stream}, basicstyle=\ttfamily]
 type stream<g> = Nil | Cons : (g * (unit -> stream<g>));
 
 def fibonacci(a: int, b: int) : stream<int> = {
@@ -349,7 +365,7 @@ Cera enforces zero mutable state and forbids user-defined side effects. However,
     \item \textbf{The Entry Point:} Program execution begins strictly at the \texttt{entry} function. This function serves as the bridge between the host operating system and the pure functional runtime. It takes an array of command-line arguments and must evaluate to an integer representing the system exit code (where 0 indicates success).
 \end{itemize}
 
-\begin{lstlisting}[title={Program Entry}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={Program Entry}, basicstyle=\ttfamily]
 def entry(args: char list arr): int = {
     // Built-in impure function call
     out("hello world");
@@ -370,7 +386,7 @@ To support real-time execution and interaction with unmanaged hardware APIs (suc
     \item \textbf{Encapsulation:} External declarations may be preceded by the \texttt{hidden} keyword to restrict the unmanaged binding to the defining file.
 \end{itemize}
 
-\begin{lstlisting}[title={FFI Binding Example}, basicstyle=\ttfamily]
+\begin{lstlisting}[language=Cera, title={FFI Binding Example}, basicstyle=\ttfamily]
 // Bind to a dynamically linked C function
 hidden extern def initWindow(w: int, h: int) : unit =
      "cera_sdl.so";

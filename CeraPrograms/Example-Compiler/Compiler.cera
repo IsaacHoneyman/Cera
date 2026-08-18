@@ -1,5 +1,5 @@
 hidden import "IO.cera";
-hidden import "Lexer.cera";
+hidden import "Parser.cera";
 hidden import "Test.cera";
 
 def entry(args: char list arr) : int = { 
@@ -16,12 +16,11 @@ hidden def runCompiler() : unit = {
     if (input == "q") { () } 
     else if (input == "t") {
         runLexerTests();
+        runParserTests();
         runCompiler();
     }
     else {
-        var tokens = lex(input);
-
-        switch (tokens) {
+        switch (lex(input)) {
             Error(e) -> {
                 outN(e);
                 runCompiler();
@@ -29,8 +28,19 @@ hidden def runCompiler() : unit = {
             Ok(t) -> {
                 outN("Lexer complete.");
                 outLex(t);
+                runParser(t);
                 runCompiler();
             }
+        }
+    }
+}
+
+hidden def runParser(tokens: token list) : unit = {
+    switch (parse(tokens)) {
+        Error(e) -> outN(e),
+        Ok(tree) -> {
+            outN("Parser complete.");
+            outTree(tree)
         }
     }
 }

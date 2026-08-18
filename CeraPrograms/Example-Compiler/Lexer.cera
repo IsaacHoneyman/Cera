@@ -17,24 +17,21 @@ def outLex(input: token list) : unit = {
         [] -> (),
         (h::tl) -> {
             var Token(tType, c) = h;
-            outF("Column %: ", [intToChars(c)]);
-            outTType(tType);
-            outN();
+            outF("Column %: %\n", [intToChars(c), strTType(tType)]);
             outLex(tl)
         }
     }
 }
 
-inline def outTType(t: tokenType) : unit = {
+inline def strTType(t: tokenType) : char list = {
     switch (t) {
-        Num(value, raw) -> outF("Number, Raw '%', Value '%'", [raw, floatToChars(value)]),
-        Plus -> out("Plus, Raw '+'"),
-        Minus -> out("Minus, Raw '-'"),
-        Pow -> out("Pow, Raw '^'"),
-        Fact -> out("Fact, Raw '!'"),
-        Cos -> out("Cos, Raw 'cos'"),
-        EOF -> out("EOF"),
-        _ -> ()
+        Num(value, raw) -> strF("Number, Raw '%', Value '%'", [raw, floatToChars(value)]),
+        Plus -> "Plus, Raw '+'",
+        Minus -> "Minus, Raw '-'",
+        Pow -> "Pow, Raw '^'",
+        Fact -> "Fact, Raw '!'",
+        Cos -> "Cos, Raw 'cos'",
+        EOF -> "EOF"
     }
 }
 
